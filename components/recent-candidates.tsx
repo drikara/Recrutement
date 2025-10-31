@@ -2,55 +2,602 @@ import { sql } from "@/lib/db"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
-export async function RecentCandidates() {
-  const candidates = await sql`
-    SELECT c.*, s.final_decision
+interface RecentCandidatesProps {
+  filters?: {
+    year?: string
+    month?: string
+    metier?: string
+    search?: string
+    status?: string
+    dateRange?: string
+  }
+}
+
+// Types pour les seuils
+interface BaseThresholds {
+  dictation: number
+}
+
+interface FaceToFaceThresholds extends BaseThresholds {
+  faceToFace: number
+}
+
+interface TypingThresholds extends BaseThresholds {
+  typingSpeed: number
+  typingAccuracy: number
+}
+
+interface ExcelThresholds extends BaseThresholds {
+  excel: number
+}
+
+interface SalesThresholds extends BaseThresholds {
+  salesSimulation: number
+}
+
+interface PsychotechnicalThresholds extends BaseThresholds {
+  psychotechnicalTest: number
+}
+
+interface AnalysisThresholds extends BaseThresholds {
+  analysisExercise: number
+}
+
+type CallCenterThresholds = FaceToFaceThresholds & TypingThresholds & ExcelThresholds
+type AgencesThresholds = FaceToFaceThresholds & TypingThresholds & SalesThresholds
+type BoReclamThresholds = TypingThresholds & ExcelThresholds & PsychotechnicalThresholds
+type TeleventeThresholds = FaceToFaceThresholds & TypingThresholds & SalesThresholds
+type ReseauxSociauxThresholds = FaceToFaceThresholds & TypingThresholds
+type SupervisionThresholds = FaceToFaceThresholds & TypingThresholds & ExcelThresholds
+type BotCognitiveTrainerThresholds = FaceToFaceThresholds & ExcelThresholds & AnalysisThresholds
+type SmcFixeMobileThresholds = FaceToFaceThresholds & TypingThresholds & ExcelThresholds
+
+type MetierThresholds = 
+  | CallCenterThresholds
+  | AgencesThresholds
+  | BoReclamThresholds
+  | TeleventeThresholds
+  | ReseauxSociauxThresholds
+  | SupervisionThresholds
+  | BotCognitiveTrainerThresholds
+  | SmcFixeMobileThresholds
+
+interface MetierCriteria {
+  requiredTests: string[]
+  thresholds: MetierThresholds
+}
+
+// Configuration des critères par métier
+const metierCriteria: Record<string, MetierCriteria> = {
+  "Call Center": {
+    requiredTests: ["Face à Face", "Saisie", "Excel", "Dictée"],
+    thresholds: {
+      faceToFace: 3,
+      typingSpeed: 17,
+      typingAccuracy: 85,
+      excel: 3,
+      dictation: 16
+    } as CallCenterThresholds
+  },
+  "Agences": {
+    requiredTests: ["Face à Face", "Saisie", "Dictée", "Simulation Vente"],
+    thresholds: {
+      faceToFace: 3,
+      typingSpeed: 17,
+      typingAccuracy: 85,
+      dictation: 16,
+      salesSimulation: 3
+    } as AgencesThresholds
+  },
+  "Bo Réclam": {
+    requiredTests: ["Saisie", "Excel", "Dictée", "Test Psychotechnique"],
+    thresholds: {
+      typingSpeed: 17,
+      typingAccuracy: 85,
+      excel: 3,
+      dictation: 16,
+      psychotechnicalTest: 8
+    } as BoReclamThresholds
+  },
+  "Télévente": {
+    requiredTests: ["Face à Face", "Saisie", "Dictée", "Simulation Vente"],
+    thresholds: {
+      faceToFace: 3,
+      typingSpeed: 17,
+      typingAccuracy: 85,
+      dictation: 16,
+      salesSimulation: 3
+    } as TeleventeThresholds
+  },
+  "Réseaux Sociaux": {
+    requiredTests: ["Face à Face", "Saisie", "Dictée"],
+    thresholds: {
+      faceToFace: 3,
+      typingSpeed: 17,
+      typingAccuracy: 85,
+      dictation: 16
+    } as ReseauxSociauxThresholds
+  },
+  "Supervision": {
+    requiredTests: ["Face à Face", "Saisie", "Excel", "Dictée"],
+    thresholds: {
+      faceToFace: 3,
+      typingSpeed: 17,
+      typingAccuracy: 85,
+      excel: 3,
+      dictation: 16
+    } as SupervisionThresholds
+  },
+  "Bot Cognitive Trainer": {
+    requiredTests: ["Face à Face", "Excel", "Dictée", "Exercice Analyse"],
+    thresholds: {
+      faceToFace: 3,
+      excel: 3,
+      dictation: 16,
+      analysisExercise: 6
+    } as BotCognitiveTrainerThresholds
+  },
+  "SMC Fixe & Mobile": {
+    requiredTests: ["Face à Face", "Saisie", "Excel", "Dictée"],
+    thresholds: {
+      faceToFace: 3,
+      typingSpeed: 17,
+      typingAccuracy: 85,
+      excel: 3,
+      dictation: 16
+    } as SmcFixeMobileThresholds
+  }
+}
+
+export async function RecentCandidates({ filters }: RecentCandidatesProps) {
+  // Requête simple sans filtres
+  const query = sql`
+    SELECT 
+      c.*, 
+      s.final_decision,
+      s.comments,
+      s.voice_quality,
+      s.verbal_communication,
+      s.psychotechnical_test,
+      s.typing_speed,
+      s.typing_accuracy,
+      s.excel_test,
+      s.dictation,
+      s.sales_simulation,
+      s.analysis_exercise,
+      s.phase2_date,
+      s.phase1_decision,
+      s.phase2_ff_decision,
+      s.call_status,
+      s.call_attempts,
+      s.last_call_date,
+      s.call_notes,
+      COALESCE(ffs.score, 0) as face_to_face_score
     FROM candidates c
     LEFT JOIN scores s ON c.id = s.candidate_id
-    ORDER BY c.created_at DESC
-    LIMIT 5
+    LEFT JOIN (
+      SELECT candidate_id, AVG(score) as score 
+      FROM face_to_face_scores 
+      GROUP BY candidate_id
+    ) ffs ON c.id = ffs.candidate_id
+    LIMIT 10
   `
 
+  const candidates = await query
+
+  // Fonction pour formater la date
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A'
+    return new Date(dateString).toLocaleDateString('fr-FR')
+  }
+
+  // Fonction pour formater les nombres avec 2 décimales
+  const formatNumber = (value: number | null | undefined): string => {
+    if (value === null || value === undefined) return 'N/A'
+    return Number(value).toFixed(2)
+  }
+
+  // Fonction pour calculer la moyenne avec gestion des valeurs nulles
+  const calculateAverage = (values: (number | null)[]): number | null => {
+    const validValues = values.filter(v => v !== null && v !== undefined) as number[]
+    if (validValues.length === 0) return null
+    return validValues.reduce((a, b) => a + b, 0) / validValues.length
+  }
+
+  // Fonction pour vérifier si un test est requis pour le métier
+  const isTestRequired = (metier: string, testName: string) => {
+    const criteria = metierCriteria[metier]
+    return criteria?.requiredTests.includes(testName) || false
+  }
+
+  // Fonction pour vérifier si le candidat a réussi un test avec vérification de type sécurisée
+  const isTestPassed = (candidate: any, testName: string) => {
+    const criteria = metierCriteria[candidate.metier]
+    if (!criteria) return null
+
+    const thresholds = criteria.thresholds
+
+    switch (testName) {
+      case "Face à Face":
+        return 'faceToFace' in thresholds ? candidate.face_to_face_score >= thresholds.faceToFace : null
+      case "Saisie":
+        return ('typingSpeed' in thresholds && 'typingAccuracy' in thresholds) 
+          ? candidate.typing_speed >= thresholds.typingSpeed && 
+            candidate.typing_accuracy >= thresholds.typingAccuracy
+          : null
+      case "Excel":
+        return 'excel' in thresholds ? candidate.excel_test >= thresholds.excel : null
+      case "Dictée":
+        return candidate.dictation >= thresholds.dictation
+      case "Simulation Vente":
+        return 'salesSimulation' in thresholds ? candidate.sales_simulation >= thresholds.salesSimulation : null
+      case "Test Psychotechnique":
+        return 'psychotechnicalTest' in thresholds ? candidate.psychotechnical_test >= thresholds.psychotechnicalTest : null
+      case "Exercice Analyse":
+        return 'analysisExercise' in thresholds ? candidate.analysis_exercise >= thresholds.analysisExercise : null
+      default:
+        return null
+    }
+  }
+
+  // Fonction pour obtenir le statut d'un test
+  const getTestStatus = (candidate: any, testName: string) => {
+    const required = isTestRequired(candidate.metier, testName)
+    if (!required) return { required: false, passed: null }
+
+    const passed = isTestPassed(candidate, testName)
+    return { required: true, passed }
+  }
+
+  // Fonction pour obtenir le seuil d'un test
+  const getTestThreshold = (metier: string, testName: string): string => {
+    const criteria = metierCriteria[metier]
+    if (!criteria) return ""
+
+    const thresholds = criteria.thresholds
+
+    switch (testName) {
+      case "Face à Face":
+        return 'faceToFace' in thresholds ? `≥ ${thresholds.faceToFace}/5` : ""
+      case "Saisie":
+        return ('typingSpeed' in thresholds && 'typingAccuracy' in thresholds) 
+          ? `≥ ${thresholds.typingSpeed} MPM + ${thresholds.typingAccuracy}%` 
+          : ""
+      case "Excel":
+        return 'excel' in thresholds ? `≥ ${thresholds.excel}/5` : ""
+      case "Dictée":
+        return `≥ ${thresholds.dictation}/20`
+      case "Simulation Vente":
+        return 'salesSimulation' in thresholds ? `≥ ${thresholds.salesSimulation}/5` : ""
+      case "Test Psychotechnique":
+        return 'psychotechnicalTest' in thresholds ? `≥ ${thresholds.psychotechnicalTest}/10` : ""
+      case "Exercice Analyse":
+        return 'analysisExercise' in thresholds ? `≥ ${thresholds.analysisExercise}/10` : ""
+      default:
+        return ""
+    }
+  }
+
   return (
-    <div className="bg-card border border-border rounded-lg p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-foreground">Candidats Récents</h2>
-        <Link href="/wfm/candidates">
-          <Button variant="outline" size="sm" className="border-border hover:bg-muted bg-transparent">
-            Voir tout
-          </Button>
-        </Link>
+    <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+      {/* En-tête simple sans filtres */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Candidats Récents</h2>
+          <p className="text-muted-foreground mt-1">
+            {candidates.length} candidat{candidates.length > 1 ? 's' : ''} affiché{candidates.length > 1 ? 's' : ''}
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Link href="/wfm/candidates">
+            <Button variant="outline" className="border-border hover:bg-orange-500 bg-transparent cursor-pointer">
+              Voir tout
+            </Button>
+          </Link>
+          <Link href="/wfm/candidates/new">
+            <Button className="bg-primary hover:bg-accent text-primary-foreground cursor-pointer">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nouveau Candidat
+            </Button>
+          </Link>
+        </div>
       </div>
-      <div className="space-y-4">
+
+      {/* Liste des candidats */}
+      <div className="space-y-6">
         {candidates.length === 0 ? (
-          <p className="text-muted-foreground text-center py-8">Aucun candidat enregistré</p>
+          <div className="text-center py-12">
+            <div className="text-muted-foreground text-lg mb-2">Aucun candidat trouvé</div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Les candidats apparaîtront ici une fois ajoutés.
+            </p>
+            <Link href="/wfm/candidates/new">
+              <Button className="bg-primary hover:bg-accent text-primary-foreground">
+                Ajouter un candidat
+              </Button>
+            </Link>
+          </div>
         ) : (
-          candidates.map((candidate: any) => (
-            <div key={candidate.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-              <div className="flex-1">
-                <p className="font-medium text-foreground">{candidate.full_name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {candidate.metier} • {candidate.email}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                {candidate.final_decision && (
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      candidate.final_decision === "RECRUTÉ" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {candidate.final_decision}
-                  </span>
+          candidates.map((candidate: any) => {
+            const criteria = metierCriteria[candidate.metier]
+            
+            // Calcul des moyennes détaillées
+            const phase1Scores = [
+              { name: 'Qualité Vocale', value: candidate.voice_quality, max: 20 },
+              { name: 'Communication Verbale', value: candidate.verbal_communication, max: 20 },
+              { name: 'Test Psychotechnique', value: candidate.psychotechnical_test, max: 10 }
+            ]
+            const phase2Scores = [
+              { name: 'Vitesse Saisie', value: candidate.typing_speed, max: null, unit: 'mpm' },
+              { name: 'Précision Saisie', value: candidate.typing_accuracy, max: 100, unit: '%' },
+              { name: 'Excel', value: candidate.excel_test, max: 5 },
+              { name: 'Dictée', value: candidate.dictation, max: 20 },
+              { name: 'Simulation Vente', value: candidate.sales_simulation, max: 5 },
+              { name: 'Exercice Analyse', value: candidate.analysis_exercise, max: 10 }
+            ]
+
+            const phase1Average = calculateAverage([candidate.voice_quality, candidate.verbal_communication, candidate.psychotechnical_test])
+            const phase2Average = calculateAverage([
+              candidate.typing_speed ? candidate.typing_speed / 10 : null,
+              candidate.typing_accuracy,
+              candidate.excel_test,
+              candidate.dictation,
+              candidate.sales_simulation,
+              candidate.analysis_exercise
+            ])
+            
+            return (
+              <div key={candidate.id} className="bg-gradient-to-r from-muted/30 to-muted/10 rounded-xl p-6 space-y-4 border border-border/50 shadow-sm hover:shadow-md transition-shadow">
+                {/* En-tête avec nom et statut */}
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="font-bold text-foreground text-xl">{candidate.full_name}</h3>
+                      {candidate.final_decision && (
+                        <span
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${
+                            candidate.final_decision === "RECRUTE" 
+                              ? "bg-green-100 text-green-700 border-green-200 shadow-sm" 
+                              : "bg-red-100 text-red-700 border-red-200 shadow-sm"
+                          }`}
+                        >
+                          {candidate.final_decision}
+                        </span>
+                      )}
+                      {candidate.call_status === 'RESISTANT' && (
+                        <span className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-orange-100 text-orange-700 border-orange-200 shadow-sm">
+                          Résistant
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        {candidate.metier}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        {candidate.email}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        {candidate.age} ans
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {candidate.call_status === 'RESISTANT' && (
+                      <Button variant="outline" size="sm" className="border-orange-300 text-orange-700 hover:bg-orange-50">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        Rappeler
+                      </Button>
+                    )}
+                    <Link href={`/wfm/candidates/${candidate.id}/edit`}>
+                      <Button variant="outline" size="sm" className="border-border hover:bg-muted">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Modifier
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Scores détaillés */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Phase 1 */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Phase 1 - Évaluation Initiale
+                      {phase1Average && (
+                        <span className="ml-auto text-lg font-bold">
+                          {formatNumber(phase1Average)}/20
+                        </span>
+                      )}
+                    </h4>
+                    <div className="space-y-2">
+                      {phase1Scores.map((score, index) => (
+                        score.value !== null && (
+                          <div key={index} className="flex justify-between items-center text-sm">
+                            <span className="text-blue-700">{score.name}:</span>
+                            <span className="font-semibold">
+                              {formatNumber(score.value)}
+                              {score.max && `/${score.max}`}
+                            </span>
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Phase 2 */}
+                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-purple-800 mb-3 flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Phase 2 - Tests Techniques
+                      {phase2Average && (
+                        <span className="ml-auto text-lg font-bold">
+                          {formatNumber(phase2Average)}/20
+                        </span>
+                      )}
+                    </h4>
+                    <div className="space-y-2">
+                      {phase2Scores.map((score, index) => (
+                        score.value !== null && (
+                          <div key={index} className="flex justify-between items-center text-sm">
+                            <span className="text-purple-700">{score.name}:</span>
+                            <span className="font-semibold">
+                              {formatNumber(score.value)}
+                              {score.unit ? score.unit : score.max ? `/${score.max}` : ''}
+                            </span>
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Statut d'appel pour les candidats résistants */}
+                {candidate.call_status === 'RESISTANT' && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-orange-800 mb-2 flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Statut d'Appel - Candidat Résistant
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-orange-600 font-medium">Tentatives:</span>
+                        <span className="ml-2 font-semibold">{candidate.call_attempts || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-orange-600 font-medium">Dernier appel:</span>
+                        <span className="ml-2 font-semibold">{formatDate(candidate.last_call_date)}</span>
+                      </div>
+                      <div>
+                        <span className="text-orange-600 font-medium">Statut:</span>
+                        <span className="ml-2 font-semibold">À rappeler</span>
+                      </div>
+                    </div>
+                    {candidate.call_notes && (
+                      <div className="mt-2 p-2 bg-orange-100 rounded text-sm">
+                        <span className="font-medium text-orange-700">Notes d'appel:</span>
+                        <p className="text-orange-800">{candidate.call_notes}</p>
+                      </div>
+                    )}
+                  </div>
                 )}
-                <Link href={`/wfm/candidates/${candidate.id}/edit`}>
-                  <Button variant="ghost" size="sm">
-                    Modifier
-                  </Button>
-                </Link>
+
+                {/* Critères du métier */}
+                {criteria && (
+                  <div className="bg-background border border-border rounded-xl p-5">
+                    <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                      Critères {candidate.metier}
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {criteria.requiredTests.map((testName) => {
+                        const status = getTestStatus(candidate, testName)
+                        const threshold = getTestThreshold(candidate.metier, testName)
+                        
+                        return (
+                          <div 
+                            key={testName}
+                            className={`text-center p-4 rounded-lg border-2 transition-all ${
+                              status.passed 
+                                ? 'bg-green-50 border-green-200 shadow-sm' 
+                                : status.passed === false 
+                                  ? 'bg-red-50 border-red-200 shadow-sm'
+                                  : 'bg-gray-50 border-gray-200'
+                            }`}
+                          >
+                            <div className="font-semibold text-sm mb-2 text-foreground">{testName}</div>
+                            <div className="text-lg font-bold mb-1">
+                              {status.passed !== null ? (
+                                <span className={status.passed ? 'text-green-600' : 'text-red-600'}>
+                                  {status.passed ? '✅' : '❌'}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">❓</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground font-medium">{threshold}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Commentaires */}
+                {candidate.comments && (
+                  <div className={`rounded-xl p-4 border-2 ${
+                    candidate.final_decision === "NON_RECRUTE" 
+                      ? "bg-red-50 border-red-200" 
+                      : "bg-blue-50 border-blue-200"
+                  }`}>
+                    <h4 className="font-semibold mb-2 flex items-center gap-2">
+                      {candidate.final_decision === "NON_RECRUTE" ? (
+                        <>
+                          <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-red-700">Raison du non-recrutement</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span className="text-blue-700">Commentaires</span>
+                        </>
+                      )}
+                    </h4>
+                    <p className="text-sm leading-relaxed">{candidate.comments}</p>
+                  </div>
+                )}
+
+                {/* Disponibilité */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span className="font-medium text-foreground">Disponibilité: </span>
+                    <span className="text-foreground">{candidate.availability}</span>
+                  </div>
+                  {candidate.interview_date && (
+                    <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border shadow-sm">
+                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-sm font-medium text-green-700">
+                        Entretien: {formatDate(candidate.interview_date)}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
+import { Metier } from "@prisma/client"
 
 export async function POST(request: Request) {
   try {
@@ -15,6 +16,16 @@ export async function POST(request: Request) {
 
     const data = await request.json()
 
+    // Vérifier que l'utilisateur existe
+    const user = await prisma.user.findUnique({
+      where: { id: data.user_id },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 })
+    }
+
+    // Vérifier l'unicité
     const existing = await prisma.juryMember.findUnique({
       where: { userId: data.user_id },
     })
@@ -23,11 +34,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Cet utilisateur est déjà membre du jury" }, { status: 400 })
     }
 
+    // Conversion du métier si fourni
+    const specialite = data.specialite 
+      ? (Metier[data.specialite as keyof typeof Metier])
+      : null
+
     const juryMember = await prisma.juryMember.create({
       data: {
         userId: data.user_id,
         fullName: data.full_name,
         roleType: data.role_type,
+        specialite: specialite, // Optionnel selon votre schéma
+        department: data.department || null, // Optionnel
+        phone: data.phone || null, // Optionnel
+        notes: data.notes || null, // Optionnel
+      },
+      include: {
+        user: {
+          select: {
+            email: true,
+            name: true,
+            role: true,
+          },
+        },
       },
     })
 
@@ -54,6 +83,19 @@ export async function GET() {
           select: {
             email: true,
             name: true,
+            role: true,
+            isActive: true,
+            lastLogin: true,
+          },
+        },
+        faceToFaceScores: {
+          select: {
+            id: true,
+          },
+        },
+        juryPresences: {
+          select: {
+            id: true,
           },
         },
       },
@@ -62,9 +104,29 @@ export async function GET() {
       },
     })
 
-    return NextResponse.json(juryMembers)
+    // Formater la réponse avec des statistiques utiles
+    const formattedMembers = juryMembers.map(member => ({
+      id: member.id,
+      userId: member.userId,
+      fullName: member.fullName,
+      roleType: member.roleType,
+      specialite: member.specialite,
+      department: member.department,
+      phone: member.phone,
+      isActive: member.isActive,
+      notes: member.notes,
+      user: member.user,
+      stats: {
+        evaluationsCount: member.faceToFaceScores.length,
+        presencesCount: member.juryPresences.length,
+      },
+      createdAt: member.createdAt,
+      updatedAt: member.updatedAt,
+    }))
+
+    return NextResponse.json(formattedMembers)
   } catch (error) {
-    console.error("[v0] Error fetching jury members:", error)
+    console.error("Error fetching jury members:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }

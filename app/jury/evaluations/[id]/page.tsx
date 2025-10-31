@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
-import { sql } from "@/lib/db"
+import { prisma } from "@/lib/prisma"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { JuryScoreForm } from "@/components/jury-score-form"
 
@@ -11,28 +11,62 @@ export default async function JuryEvaluationPage({ params }: { params: Promise<{
     headers: await headers(),
   })
 
-  if (!session || session.user.role !== "JURY") {
+  if (!session) {
     redirect("/auth/login")
   }
 
-  const juryMembers = await sql`SELECT * FROM jury_members WHERE user_id = ${session.user.id}`
-  const juryMember = juryMembers[0]
+  // Vérification du rôle
+  const userRole = (session.user as any).role || "JURY"
+  if (userRole !== "JURY") {
+    redirect("/auth/login")
+  }
+
+  // Récupérer le membre du jury avec Prisma
+  const juryMember = await prisma.juryMember.findFirst({
+    where: { 
+      userId: session.user.id 
+    }
+  })
 
   if (!juryMember) {
     redirect("/jury/dashboard")
   }
 
-  const candidates = await sql`SELECT * FROM candidates WHERE id = ${id}`
-  const candidate = candidates[0]
+  // Récupérer le candidat avec Prisma
+  const candidate = await prisma.candidate.findUnique({
+    where: { 
+      id: parseInt(id) 
+    },
+    include: {
+      session: {
+        select: {
+          metier: true,
+          date: true,
+          jour: true
+        }
+      },
+      scores: {
+        select: {
+          finalDecision: true
+        }
+      }
+    }
+  })
 
   if (!candidate) {
     redirect("/jury/evaluations")
   }
 
-  const existingScores = await sql`
-    SELECT * FROM face_to_face_scores
-    WHERE candidate_id = ${id} AND jury_member_id = ${juryMember.id}
-  `
+  // Récupérer les scores existants avec Prisma
+  const existingScores = await prisma.faceToFaceScore.findMany({
+    where: {
+      candidateId: parseInt(id),
+      juryMemberId: juryMember.id
+    },
+    orderBy: {
+      phase: 'asc'
+    }
+  })
 
   return (
     <div className="min-h-screen bg-background">
@@ -41,10 +75,24 @@ export default async function JuryEvaluationPage({ params }: { params: Promise<{
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground">Évaluation Face à Face</h1>
           <p className="text-muted-foreground mt-1">
-            {candidate.full_name} - {candidate.metier}
+            {candidate.fullName} - {candidate.metier}
           </p>
+          {candidate.session && (
+            <p className="text-sm text-muted-foreground">
+              Session: {candidate.session.metier} - {candidate.session.jour} {candidate.session.date.toLocaleDateString('fr-FR')}
+            </p>
+          )}
+          {candidate.scores?.finalDecision && (
+            <p className="text-sm font-medium text-blue-600 mt-1">
+              Décision finale: {candidate.scores.finalDecision}
+            </p>
+          )}
         </div>
-        <JuryScoreForm candidate={candidate} juryMember={juryMember} existingScores={existingScores} />
+        <JuryScoreForm 
+          candidate={candidate} 
+          juryMember={juryMember} 
+          existingScores={existingScores} 
+        />
       </main>
     </div>
   )

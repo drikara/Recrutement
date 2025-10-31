@@ -1,24 +1,25 @@
+export const dynamic = 'force-dynamic'
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
+import { getCurrentSession } from "@/lib/session"
 
 export default async function HomePage() {
-  try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    })
+  const session = await getCurrentSession()
 
-    if (session?.user) {
-      const userRole = session.user.role as string
+  console.log("Session in homepage:", session)
 
-      if (userRole === "WFM") {
-        redirect("/wfm/dashboard")
-      } else {
-        redirect("/jury/dashboard")
-      }
+  if (session?.user) {
+    const userRole = session.user.role
+
+    console.log("User role:", userRole)
+
+    if (userRole === "WFM") {
+      redirect("/wfm/dashboard")
+    } else if (userRole === "JURY") {
+      redirect("/jury/dashboard")
+    } else {
+      console.warn("Rôle inconnu, redirection vers login")
+      redirect("/auth/login?error=unknown_role")
     }
-  } catch (error) {
-    console.log("[v0] Session check error:", error)
   }
 
   redirect("/auth/login")

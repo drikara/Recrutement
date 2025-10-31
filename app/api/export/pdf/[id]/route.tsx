@@ -265,7 +265,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   <div class="section">
     <div class="section-title">DÉCISION FINALE</div>
     <p style="font-size: 18px; text-align: center; margin: 20px 0;">
-      <span class="decision ${candidate.scores?.finalDecision === "RECRUTÉ" ? "recrute" : "non-recrute"}">
+      <span class="decision ${candidate.scores?.finalDecision === "RECRUTE" ? "recrute" : "non-recrute"}">
         ${candidate.scores?.finalDecision || "EN ATTENTE"}
       </span>
     </p>
@@ -286,7 +286,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       },
     })
   } catch (error) {
-    console.error("[v0] Error generating PDF:", error)
+    console.error(" Error generating PDF:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }

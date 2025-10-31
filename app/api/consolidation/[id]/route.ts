@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { consolidateCandidate } from "@/lib/consolidation"
+import { FinalDecision } from "@prisma/client" // Import important !
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -20,10 +21,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       include: {
         scores: true,
         faceToFaceScores: {
-          select: {
-            score: true,
-          },
+          include: {
+            juryMember: {
+              select: {
+                fullName: true,
+                roleType: true
+              }
+            }
+          }
         },
+        session: {
+          select: {
+            metier: true,
+            date: true,
+            jour: true
+          }
+        }
       },
     })
 
@@ -31,9 +44,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: "Candidat non trouvé" }, { status: 404 })
     }
 
-    // Consolidate
+    // Consolidation
     const result = consolidateCandidate(candidate.metier, {
-      faceToFaceScores: candidate.faceToFaceScores,
+      faceToFaceScores: candidate.faceToFaceScores.map(ff => ({ score: Number(ff.score) })),
       typingSpeed: candidate.scores?.typingSpeed || undefined,
       typingAccuracy: candidate.scores?.typingAccuracy ? Number(candidate.scores.typingAccuracy) : undefined,
       excel: candidate.scores?.excelTest ? Number(candidate.scores.excelTest) : undefined,
@@ -70,9 +83,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       include: {
         scores: true,
         faceToFaceScores: {
-          select: {
-            score: true,
-          },
+          include: {
+            juryMember: {
+              select: {
+                fullName: true,
+                roleType: true
+              }
+            }
+          }
         },
       },
     })
@@ -81,9 +99,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Candidat non trouvé" }, { status: 404 })
     }
 
-    // Consolidate
+    // Consolidation
     const result = consolidateCandidate(candidate.metier, {
-      faceToFaceScores: candidate.faceToFaceScores,
+      faceToFaceScores: candidate.faceToFaceScores.map(ff => ({ score: Number(ff.score) })),
       typingSpeed: candidate.scores?.typingSpeed || undefined,
       typingAccuracy: candidate.scores?.typingAccuracy ? Number(candidate.scores.typingAccuracy) : undefined,
       excel: candidate.scores?.excelTest ? Number(candidate.scores.excelTest) : undefined,
@@ -93,9 +111,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       analysisExercise: candidate.scores?.analysisExercise ? Number(candidate.scores.analysisExercise) : undefined,
     })
 
-    // Update final decision in database
-    const finalDecision = result.isAdmitted ? "RECRUTÉ" : "NON RECRUTÉ"
+    // Utilisez l'enum FinalDecision de Prisma
+    const finalDecision = result.isAdmitted ? FinalDecision.RECRUTE : FinalDecision.NON_RECRUTE
 
+    // Mise à jour dans la base de données
     await prisma.score.upsert({
       where: { candidateId: Number.parseInt(id) },
       update: {
@@ -113,7 +132,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       consolidation: result,
     })
   } catch (error) {
-    console.error("[v0] Error applying consolidation:", error)
+    console.error("Error applying consolidation:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }

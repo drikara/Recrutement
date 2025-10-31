@@ -41,8 +41,8 @@ export default async function ResultsPage() {
     SELECT 
       c.metier,
       COUNT(*) as total,
-      COUNT(CASE WHEN s.final_decision = 'RECRUTÉ' THEN 1 END) as recrutes,
-      COUNT(CASE WHEN s.final_decision = 'NON RECRUTÉ' THEN 1 END) as non_recrutes
+      COUNT(CASE WHEN s.final_decision = 'RECRUTE' THEN 1 END) as recrutes,
+      COUNT(CASE WHEN s.final_decision = 'NON_RECRUTE' THEN 1 END) as non_recrutes
     FROM candidates c
     LEFT JOIN scores s ON c.id = s.candidate_id
     GROUP BY c.metier

@@ -118,8 +118,8 @@ export function ResultsTable({ results }: { results: Result[] }) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Toutes les décisions</SelectItem>
-            <SelectItem value="RECRUTÉ">Recruté</SelectItem>
-            <SelectItem value="NON RECRUTÉ">Non Recruté</SelectItem>
+            <SelectItem value="RECRUTE">Recruté</SelectItem>
+            <SelectItem value="NON_RECRUTE">Non Recruté</SelectItem>
           </SelectContent>
         </Select>
         <Button
@@ -179,7 +179,7 @@ export function ResultsTable({ results }: { results: Result[] }) {
                       {result.final_decision ? (
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            result.final_decision === "RECRUTÉ"
+                            result.final_decision === "RECRUTE"
                               ? "bg-green-100 text-green-700"
                               : "bg-red-100 text-red-700"
                           }`}
@@ -224,13 +224,13 @@ export function ResultsTable({ results }: { results: Result[] }) {
           <div>
             <p className="text-sm text-muted-foreground">Recrutés</p>
             <p className="text-2xl font-bold text-green-600">
-              {filteredResults.filter((r) => r.final_decision === "RECRUTÉ").length}
+              {filteredResults.filter((r) => r.final_decision === "RECRUTE").length}
             </p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Non Recrutés</p>
             <p className="text-2xl font-bold text-red-600">
-              {filteredResults.filter((r) => r.final_decision === "NON RECRUTÉ").length}
+              {filteredResults.filter((r) => r.final_decision === "NON RECRUTE").length}
             </p>
           </div>
         </div>

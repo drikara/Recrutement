@@ -1,48 +1,58 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { auth } from "@/lib/auth";
+// proxy.ts
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { getCurrentSession } from '@/lib/session'
 
+const protectedWFMRoutes = ['/wfm', '/api/wfm']
+const protectedJuryRoutes = ['/jury', '/api/jury']
+
+// ⭐ IMPORTANT: Next.js 16 requiert une fonction nommée "proxy"
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  // ⭐ CRUCIAL: Laisser passer TOUTES les routes /api/auth
+  if (pathname.startsWith('/api/auth')) {
+    console.log('🔓 Auth route bypassed:', pathname)
+    return NextResponse.next()
+  }
+
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
+    const session = await getCurrentSession()
 
-    const { pathname } = request.nextUrl;
-
-    // Routes publiques : auth et API d'authentification
-    if (pathname.startsWith("/auth") || pathname.startsWith("/api/auth")) {
-      if (session?.user) {
-        const redirectUrl = session.user.role === "WFM" 
-          ? "/wfm/dashboard" 
-          : "/jury/dashboard";
-        return NextResponse.redirect(new URL(redirectUrl, request.url));
-      }
-      return NextResponse.next();
+    // Routes publiques
+    if (pathname.startsWith('/auth') || pathname === '/') {
+      return NextResponse.next()
     }
 
-    // Routes protégées : nécessitent une session
+    // Vérification de session
     if (!session?.user) {
-      return NextResponse.redirect(new URL("/auth/login", request.url));
+      console.log('❌ No session for:', pathname)
+      return NextResponse.redirect(new URL('/auth/login', request.url))
     }
 
-    // Contrôle d'accès par rôle
-    if (pathname.startsWith("/wfm") && session.user.role !== "WFM") {
-      return NextResponse.redirect(new URL("/jury/dashboard", request.url));
+    const userRole = session.user.role
+
+    console.log(`✅ Proxy: ${pathname} - Role: ${userRole}`)
+
+    // Protection routes WFM
+    if (protectedWFMRoutes.some(route => pathname.startsWith(route)) && userRole !== 'WFM') {
+      return NextResponse.redirect(new URL('/unauthorized', request.url))
     }
 
-    if (pathname.startsWith("/jury") && session.user.role !== "JURY") {
-      return NextResponse.redirect(new URL("/wfm/dashboard", request.url));
+    // Protection routes Jury
+    if (protectedJuryRoutes.some(route => pathname.startsWith(route)) && userRole !== 'JURY') {
+      return NextResponse.redirect(new URL('/unauthorized', request.url))
     }
 
-    return NextResponse.next();
+    return NextResponse.next()
   } catch (error) {
-    console.error("[proxy] Erreur :", error);
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+    console.error('❌ Proxy error:', error)
+    return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 }
 
-// Configure les routes où le proxy s'applique
 export const config = {
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
-};   
+  matcher: [
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ]
+}

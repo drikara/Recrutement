@@ -1,5 +1,6 @@
 import postgres from "postgres"
 
+// Configuration PostgreSQL directe
 export const sql = postgres(process.env.DATABASE_URL!, {
   ssl: process.env.NODE_ENV === "production" ? "require" : false,
   max: 10,
@@ -7,6 +8,7 @@ export const sql = postgres(process.env.DATABASE_URL!, {
   connect_timeout: 10,
 })
 
+// Types pour PostgreSQL direct (conservés pour compatibilité)
 export type User = {
   id: string
   name: string
@@ -44,6 +46,8 @@ export type JuryMember = {
 export type Score = {
   id: number
   candidate_id: number
+  // AJOUTER le nouveau champ
+  visual_presentation?: number
   voice_quality?: number
   verbal_communication?: number
   psychotechnical_test?: number
@@ -70,4 +74,64 @@ export type FaceToFaceScore = {
   score: number
   created_at: Date
   updated_at: Date
+}
+
+// Ré-export des enums Prisma pour la cohérence
+export {
+  Metier,
+  Decision,
+  FFDecision,
+  FinalDecision,
+  CallStatus,
+  SessionStatus
+} from '@prisma/client'
+
+// Types utilitaires pour les relations
+export type CandidateWithScores = Candidate & {
+  scores?: Score
+  face_to_face_scores?: FaceToFaceScore[]
+}
+
+export type RecruitmentSessionWithCandidates = {
+  id: string
+  metier: string
+  date: Date
+  jour: string
+  status: string
+  candidates?: Candidate[]
+}
+
+// Helper functions pour PostgreSQL
+export async function getCandidateWithScores(candidateId: number): Promise<CandidateWithScores | null> {
+  const [candidate] = await sql<Candidate[]>`
+    SELECT * FROM candidates WHERE id = ${candidateId}
+  `
+  
+  if (!candidate) return null
+
+  const [scores] = await sql<Score[]>`
+    SELECT * FROM scores WHERE candidate_id = ${candidateId}
+  `
+
+  const faceToFaceScores = await sql<FaceToFaceScore[]>`
+    SELECT * FROM face_to_face_scores WHERE candidate_id = ${candidateId}
+  `
+
+  return {
+    ...candidate,
+    scores: scores || undefined,
+    face_to_face_scores: faceToFaceScores
+  }
+}
+
+export async function getCandidatesBySession(sessionId: string): Promise<Candidate[]> {
+  return await sql<Candidate[]>`
+    SELECT * FROM candidates WHERE session_id = ${sessionId} ORDER BY created_at DESC
+  `
+}
+
+export async function getJuryMembers(): Promise<JuryMember[]> {
+  return await sql<JuryMember[]>`
+    SELECT * FROM jury_members ORDER BY created_at DESC
+  `
 }

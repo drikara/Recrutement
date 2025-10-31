@@ -1,83 +1,194 @@
-"use client"
+// components/dashboard-header.tsx
+'use client'
 
-import { signOut } from "@/lib/auth-client"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { useRouter, usePathname } from "next/navigation"
+import { signOut } from '@/lib/auth-client'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useState } from 'react'
 
-type User = {
-  id: string
-  name: string
-  email: string
-  role: string
+interface DashboardHeaderProps {
+  user: {
+    name: string
+    email: string
+    role?: string | null // CORRECTION : Accepter null
+  }
+  role: string | null // CORRECTION : Accepter null
 }
 
-export function DashboardHeader({ user, role }: { user: User; role: "WFM" | "JURY" }) {
+export function DashboardHeader({ user, role }: DashboardHeaderProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
 
-  const handleSignOut = async () => {
-    await signOut()
-    router.push("/auth/login")
+  // CORRECTION : Utiliser une valeur par défaut pour le rôle
+  const displayRole = role || "Utilisateur"
+
+  const handleLogout = async () => {
+    try {
+      await signOut({
+        fetchOptions: {
+          onSuccess: () => {
+            router.push('/auth/login')
+            router.refresh()
+          },
+          onError: () => {
+            window.location.href = '/auth/login'
+          }
+        }
+      })
+    } catch (error) {
+      console.error('Erreur déconnexion:', error)
+      window.location.href = '/auth/login'
+    }
   }
 
-  const navItems =
-    role === "WFM"
-      ? [
-          { href: "/wfm/dashboard", label: "Tableau de Bord" },
-          { href: "/wfm/candidates", label: "Candidats" },
-          { href: "/wfm/jury", label: "Jurys" },
-          { href: "/wfm/scores", label: "Notes" },
-          { href: "/wfm/results", label: "Résultats" },
-        ]
-      : [
-          { href: "/jury/dashboard", label: "Tableau de Bord" },
-          { href: "/jury/evaluations", label: "Évaluations" },
-        ]
+  // Déterminer les liens disponibles selon le rôle
+  const getNavigationLinks = () => {
+    const baseLinks = [
+      { href: '/wfm/dashboard', label: 'Tableau de bord', icon: '📊' },
+      { href: '/wfm/candidates', label: 'Candidats', icon: '👥' }
+    ]
+
+    // Liens spécifiques au rôle WFM
+    if (displayRole === 'WFM') { // CORRECTION : Utiliser displayRole
+      return [
+        ...baseLinks,
+        { href: '/wfm/jury', label: 'Jury', icon: '🎯' },
+        { href: '/wfm/sessions', label: 'Sessions', icon: '📅' },
+        { href: '/wfm/export', label: 'Exports', icon: '📤' }
+      ]
+    }
+
+    // Liens spécifiques au rôle JURY
+    if (displayRole === 'JURY') { // CORRECTION : Utiliser displayRole
+      return [
+        ...baseLinks,
+        { href: '/jury/evaluations', label: 'Évaluations', icon: '⭐' },
+        { href: '/jury/face-to-face', label: 'Présentiel', icon: '👔' }
+      ]
+    }
+
+    return baseLinks
+  }
+
+  const navigationLinks = getNavigationLinks()
+
+  // Fonction pour vérifier si le lien est actif
+  const isActiveLink = (href: string) => {
+    return pathname === href || pathname.startsWith(href + '/')
+  }
 
   return (
-    <header className="border-b border-border bg-card">
-      <div className="container mx-auto px-6 py-4">
+    <header className="border-b-2 border-orange-400 bg-white shadow-lg">
+      <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href={role === "WFM" ? "/wfm/dashboard" : "/jury/dashboard"} className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
+          {/* Partie gauche : Logo et navigation */}
+          <div className="flex items-center space-x-6 flex-1 min-w-0">
+            {/* Logo seul */}
+            <Link href="/dashboard" className="flex-shrink-0">
+              <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md hover:shadow-lg transition-shadow">
+                <span className="text-white font-bold text-lg">R</span>
               </div>
-              <span className="text-xl font-bold text-foreground">Recrutement</span>
             </Link>
-            <nav className="hidden md:flex items-center gap-6">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`text-sm font-medium transition-colors ${
-                    pathname === item.href ? "text-primary" : "text-muted-foreground hover:text-primary"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
+
+            {/* Navigation horizontale avec scroll */}
+            <nav className="flex items-center space-x-1 flex-1 min-w-0 overflow-x-auto scrollbar-hide">
+              {navigationLinks.map((link) => {
+                const isActive = isActiveLink(link.href)
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`
+                      flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0
+                      ${isActive 
+                        ? 'bg-orange-500 text-white shadow-md' 
+                        : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600 border border-transparent hover:border-orange-200'
+                      }
+                    `}
+                  >
+                    <span className="text-base">{link.icon}</span>
+                    <span>{link.label}</span>
+                  </Link>
+                )
+              })}
             </nav>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-medium text-foreground">{user.name}</p>
-              <p className="text-xs text-muted-foreground">{role === "WFM" ? "Administrateur" : "Membre du Jury"}</p>
+
+          {/* Partie droite : Profile et déconnexion */}
+          <div className="flex items-center space-x-3 flex-shrink-0">
+            {/* Menu profile */}
+            <div className="relative">
+              <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="flex items-center space-x-2 p-2 rounded-lg hover:bg-orange-50 transition-colors"
+              >
+                <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center border border-orange-200">
+                  <span className="text-orange-600 text-sm font-semibold">
+                    {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                  </span>
+                </div>
+                <div className="hidden md:block text-left">
+                  <p className="text-sm font-medium text-black truncate max-w-[120px]">
+                    {user.name}
+                  </p>
+                  {/* CORRECTION : Utiliser displayRole au lieu de role */}
+                  <p className="text-xs text-gray-600">{displayRole}</p>
+                </div>
+                <span className="text-gray-400">▼</span>
+              </button>
+
+              {/* Dropdown menu */}
+              {isProfileOpen && (
+                <div className="absolute right-0 top-12 mt-1 w-48 bg-white rounded-lg shadow-lg border border-orange-200 py-2 z-50 cursor-pointer">
+                  {/* Informations utilisateur */}
+                  <div className="px-4 py-2 border-b border-orange-100">
+                    <p className="text-sm font-medium text-black">{user.name}</p>
+                    <p className="text-xs text-gray-600 truncate">{user.email}</p>
+                    {/* CORRECTION : Utiliser displayRole au lieu de role */}
+                    <p className="text-xs text-orange-600 font-medium">{displayRole}</p>
+                  </div>
+                  
+                  {/* Changer mot de passe */}
+                  <Link
+                    href="/change-password"
+                    onClick={() => setIsProfileOpen(false)}
+                    className="flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                  >
+                    <span>🔒</span>
+                    <span>Changer mot de passe</span>
+                  </Link>
+
+                  {/* Déconnexion */}
+                  <button
+                    onClick={() => {
+                      setIsProfileOpen(false)
+                      handleLogout()
+                    }}
+                    className="flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors w-full text-left"
+                  >
+                    <span>🚪</span>
+                    <span>Déconnexion</span>
+                  </button>
+                </div>
+              )}
             </div>
-            <Button variant="outline" onClick={handleSignOut} className="border-border hover:bg-muted bg-transparent">
-              Déconnexion
-            </Button>
           </div>
         </div>
       </div>
+
+      {/* Style pour cacher la scrollbar */}
+      <style jsx>{`
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </header>
   )
 }

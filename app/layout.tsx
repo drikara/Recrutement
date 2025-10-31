@@ -5,7 +5,15 @@ import "./globals.css"
 export const metadata: Metadata = {
   title: "Consolidation des Notes de Recrutement",
   description: "Application de consolidation des notes de recrutement",
-    generator: 'v0.app'
+    generator: 'Next.js',
+    applicationName: 'Consolidation des Notes de Recrutement',
+    keywords: ['Recrutement', 'Consolidation', 'Notes', 'WFM', 'JURY'],
+    authors: [{ name: 'Votre Nom ou Organisation', url: 'https://votre-site.com' }],
+    colorScheme: 'light dark',
+    viewport: {
+      width: 'device-width',
+      initialScale: 1,
+    },
 }
 
 export default function RootLayout({

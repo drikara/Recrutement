@@ -1,181 +1,196 @@
-"use client"
+// components/jury-score-form.tsx
+'use client'
 
-import type React from "react"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-
-type JuryScoreFormProps = {
-  candidate: any
-  juryMember: any
-  existingScores: any[]
+interface JuryScoreFormProps {
+  candidate: {
+    id: number
+    fullName: string
+    metier: string
+  }
+  juryMember: {
+    id: number
+    fullName: string
+    roleType: string
+  }
+  existingScores: Array<{
+    phase: number
+    score: any // Decimal
+    comments?: string | null
+  }>
 }
 
 export function JuryScoreForm({ candidate, juryMember, existingScores }: JuryScoreFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-
-  const phase1Score = existingScores.find((s) => s.phase === 1)
-  const phase2Score = existingScores.find((s) => s.phase === 2)
-
-  const [formData, setFormData] = useState({
-    phase1_score: phase1Score?.score?.toString() || "",
-    phase2_score: phase2Score?.score?.toString() || "",
+  const [scores, setScores] = useState({
+    phase1: existingScores.find(s => s.phase === 1)?.score ? Number(existingScores.find(s => s.phase === 1)?.score) : '',
+    phase2: existingScores.find(s => s.phase === 2)?.score ? Number(existingScores.find(s => s.phase === 2)?.score) : '',
+    comments1: existingScores.find(s => s.phase === 1)?.comments || '',
+    comments2: existingScores.find(s => s.phase === 2)?.comments || '',
   })
 
-  const handleSubmit = async (e: React.FormEvent, phase: 1 | 2) => {
+  const handleSubmit = async (e: React.FormEvent, phase: number) => {
     e.preventDefault()
-    setError("")
     setLoading(true)
 
+    const scoreData = {
+      candidate_id: candidate.id,
+      jury_member_id: juryMember.id,
+      phase,
+      score: phase === 1 ? scores.phase1 : scores.phase2,
+      comments: phase === 1 ? scores.comments1 : scores.comments2,
+    }
+
     try {
-      const score = phase === 1 ? formData.phase1_score : formData.phase2_score
-
-      if (!score || Number(score) < 0 || Number(score) > 5) {
-        setError("La note doit être entre 0 et 5")
-        setLoading(false)
-        return
-      }
-
-      const response = await fetch(`/api/jury/scores`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          candidate_id: candidate.id,
-          jury_member_id: juryMember.id,
-          phase,
-          score: Number(score),
-        }),
+      const response = await fetch('/api/jury/scores', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(scoreData),
       })
 
-      if (!response.ok) {
-        throw new Error("Erreur lors de l'enregistrement")
+      if (response.ok) {
+        router.refresh()
+        // Afficher un message de succès
+        alert(`Phase ${phase} sauvegardée avec succès!`)
+      } else {
+        const error = await response.json()
+        alert(`Erreur: ${error.error}`)
       }
-
-      router.refresh()
-      alert(`Note Phase ${phase} enregistrée avec succès`)
-    } catch (err) {
-      setError("Une erreur est survenue")
+    } catch (error) {
+      console.error('Error saving score:', error)
+      alert('Erreur lors de la sauvegarde')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="border-2 border-border">
-        <CardHeader>
-          <CardTitle className="text-foreground">Informations du Candidat</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Email</p>
-              <p className="font-medium text-foreground">{candidate.email}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Téléphone</p>
-              <p className="font-medium text-foreground">{candidate.phone}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Diplôme</p>
-              <p className="font-medium text-foreground">{candidate.diploma}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Disponibilité</p>
-              <p className="font-medium text-foreground">{candidate.availability}</p>
-            </div>
+    <div className="space-y-8">
+      {/* Phase 1 - Entretien Comportemental */}
+      <div className="bg-white border rounded-lg p-6">
+        <h2 className="text-xl font-semibold mb-4">Phase 1 - Entretien Comportemental</h2>
+        <form onSubmit={(e) => handleSubmit(e, 1)} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Note sur 5 points
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="5"
+              step="0.1"
+              value={scores.phase1}
+              onChange={(e) => setScores(prev => ({ ...prev, phase1: e.target.value }))}
+              className="w-full p-2 border rounded"
+              required
+            />
+            <p className="text-sm text-gray-600 mt-1">
+              Utilisez des demi-points si nécessaire (ex: 3.5)
+            </p>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Phase 1 Evaluation */}
-      <Card className="border-2 border-border">
-        <CardHeader>
-          <CardTitle className="text-foreground">Phase 1 - Entretien Initial</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={(e) => handleSubmit(e, 1)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="phase1_score" className="text-foreground">
-                Note Face à Face (/5) <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="phase1_score"
-                type="number"
-                step="0.01"
-                min="0"
-                max="5"
-                value={formData.phase1_score}
-                onChange={(e) => setFormData((prev) => ({ ...prev, phase1_score: e.target.value }))}
-                required
-                className="border-border focus:ring-primary"
-                placeholder="Ex: 4.5"
-              />
-              <p className="text-xs text-muted-foreground">
-                Évaluez la qualité de la communication et la présentation du candidat
-              </p>
-            </div>
-            <Button
-              type="submit"
-              className="w-full bg-primary hover:bg-accent text-primary-foreground"
-              disabled={loading}
-            >
-              {loading ? "Enregistrement..." : phase1Score ? "Mettre à Jour Phase 1" : "Enregistrer Phase 1"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Commentaires (optionnel)
+            </label>
+            <textarea
+              value={scores.comments1}
+              onChange={(e) => setScores(prev => ({ ...prev, comments1: e.target.value }))}
+              rows={3}
+              className="w-full p-2 border rounded"
+              placeholder="Observations sur la présentation, motivation, attitude..."
+            />
+          </div>
 
-      {/* Phase 2 Evaluation */}
-      <Card className="border-2 border-border">
-        <CardHeader>
-          <CardTitle className="text-foreground">Phase 2 - Épreuves Techniques</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={(e) => handleSubmit(e, 2)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="phase2_score" className="text-foreground">
-                Note Face à Face (/5) <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="phase2_score"
-                type="number"
-                step="0.01"
-                min="0"
-                max="5"
-                value={formData.phase2_score}
-                onChange={(e) => setFormData((prev) => ({ ...prev, phase2_score: e.target.value }))}
-                required
-                className="border-border focus:ring-primary"
-                placeholder="Ex: 3.5"
-              />
-              <p className="text-xs text-muted-foreground">
-                Évaluez la performance globale après les épreuves techniques
-              </p>
-            </div>
-            <Button
-              type="submit"
-              className="w-full bg-primary hover:bg-accent text-primary-foreground"
-              disabled={loading}
-            >
-              {loading ? "Enregistrement..." : phase2Score ? "Mettre à Jour Phase 2" : "Enregistrer Phase 2"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2">Critères d'évaluation Phase 1</h4>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• Présentation et communication (20%)</li>
+              <li>• Motivation et attitude (30%)</li>
+              <li>• Réponses aux questions RH (50%)</li>
+            </ul>
+          </div>
 
-      {error && <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>}
+          <button
+            type="submit"
+            disabled={loading || scores.phase1 === ''}
+            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? 'Sauvegarde...' : 'Sauvegarder Phase 1'}
+          </button>
+        </form>
+      </div>
 
-      <div className="flex justify-end">
-        <Button variant="outline" onClick={() => router.back()} className="border-border hover:bg-muted">
-          Retour à la Liste
-        </Button>
+      {/* Phase 2 - Évaluation Technique */}
+      <div className="bg-white border rounded-lg p-6">
+        <h2 className="text-xl font-semibold mb-4">Phase 2 - Évaluation Technique</h2>
+        <form onSubmit={(e) => handleSubmit(e, 2)} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Note sur 5 points
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="5"
+              step="0.1"
+              value={scores.phase2}
+              onChange={(e) => setScores(prev => ({ ...prev, phase2: e.target.value }))}
+              className="w-full p-2 border rounded"
+              required
+            />
+            <p className="text-sm text-gray-600 mt-1">
+              Utilisez des demi-points si nécessaire (ex: 3.5)
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Commentaires (optionnel)
+            </label>
+            <textarea
+              value={scores.comments2}
+              onChange={(e) => setScores(prev => ({ ...prev, comments2: e.target.value }))}
+              rows={3}
+              className="w-full p-2 border rounded"
+              placeholder="Observations sur les connaissances techniques, résolution de cas..."
+            />
+          </div>
+
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h4 className="font-medium text-green-900 mb-2">Critères d'évaluation Phase 2</h4>
+            <ul className="text-sm text-green-700 space-y-1">
+              <li>• Connaissances techniques du métier (40%)</li>
+              <li>• Résolution de cas pratiques (40%)</li>
+              <li>• Compréhension des processus (20%)</li>
+            </ul>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || scores.phase2 === ''}
+            className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+          >
+            {loading ? 'Sauvegarde...' : 'Sauvegarder Phase 2'}
+          </button>
+        </form>
+      </div>
+
+      {/* Informations générales */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <h3 className="font-semibold text-yellow-900 mb-2">Instructions importantes</h3>
+        <ul className="text-sm text-yellow-700 space-y-1">
+          <li>• Chaque phase doit être évaluée séparément</li>
+          <li>• La note est sur 5 points avec possibilité de demi-points</li>
+          <li>• Les commentaires aident à justifier la décision</li>
+          <li>• Vous pouvez modifier vos évaluations à tout moment</li>
+          <li>• Seul le WFM a accès aux tests techniques</li>
+        </ul>
       </div>
     </div>
   )

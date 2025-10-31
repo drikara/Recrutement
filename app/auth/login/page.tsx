@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { signIn } from "@/lib/auth-client"
@@ -23,25 +22,63 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const result = await signIn.email({
-        email,
-        password,
-      })
+      // ⭐ IMPORTANT: better-auth signIn.email retourne directement les données
+      const { data, error: signInError } = await signIn.email(
+        {
+          email,
+          password,
+        },
+        {
+          onRequest: () => {
+            console.log("🔄 Requête de connexion envoyée...")
+          },
+          onSuccess: () => {
+            console.log("✅ Connexion réussie")
+          },
+          onError: (ctx) => {
+            console.error("❌ Erreur de connexion:", ctx.error)
+          },
+        }
+      )
 
-      if (result.error) {
-        setError("Email ou mot de passe incorrect")
+      // Gérer les erreurs
+      if (signInError) {
+        console.error("Erreur de connexion:", signInError)
+        setError(signInError.message || "Email ou mot de passe incorrect")
         setLoading(false)
         return
       }
 
-      // Redirect based on role
-      if (result.data?.user?.role === "WFM") {
+      // Vérifier que nous avons bien les données
+      if (!data?.user) {
+        setError("Erreur lors de la récupération des données utilisateur")
+        setLoading(false)
+        return
+      }
+
+      console.log("✅ Utilisateur connecté:", data.user)
+
+      // ⭐ Accéder au rôle depuis data.user.role (champ personnalisé)
+      const userRole = (data.user as any).role || "JURY"
+
+      console.log("🎭 Rôle de l'utilisateur:", userRole)
+
+      // Attendre un court instant pour que la session soit bien établie
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Redirection basée sur le rôle
+      if (userRole === "WFM") {
         router.push("/wfm/dashboard")
       } else {
         router.push("/jury/dashboard")
       }
-    } catch (err) {
-      setError("Une erreur est survenue")
+
+      // Forcer le rechargement
+      router.refresh()
+
+    } catch (err: any) {
+      console.error("❌ Erreur fatale lors de la connexion:", err)
+      setError(err.message || "Une erreur est survenue lors de la connexion")
       setLoading(false)
     }
   }
@@ -61,7 +98,9 @@ export default function LoginPage() {
             </svg>
           </div>
           <CardTitle className="text-2xl font-bold text-foreground">Connexion</CardTitle>
-          <CardDescription className="text-muted-foreground">Consolidation des Notes de Recrutement</CardDescription>
+          <CardDescription className="text-muted-foreground">
+            Système de Consolidation des Notes de Recrutement
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -72,11 +111,12 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="votre.email@exemple.com"
+                placeholder="admin@recruitment.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
             <div className="space-y-2">
@@ -91,20 +131,49 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
-            {error && <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>}
+            
+            {error && (
+              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md border border-destructive/20">
+                {error}
+              </div>
+            )}
+
             <Button
               type="submit"
-              className="w-full bg-primary hover:bg-accent text-primary-foreground"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
               disabled={loading}
             >
-              {loading ? "Connexion..." : "Se connecter"}
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Connexion...
+                </>
+              ) : (
+                "Se connecter"
+              )}
             </Button>
           </form>
+
+          {/* Comptes de test pour le développement */}
+          {process.env.NODE_ENV === "development" && (
+            <div className="mt-6 p-4 bg-muted rounded-lg">
+              <h4 className="text-sm font-medium mb-2">Comptes de test :</h4>
+              <div className="text-xs space-y-1">
+                <div><strong>Admin:</strong> admin@recruitment.com / admin123</div>
+                <div><strong>Jury:</strong> rep@recruitment.com / jury123</div>
+              </div>
+            </div>
+          )}
+
           <div className="mt-4 text-center text-sm text-muted-foreground">
             Pas encore de compte ?{" "}
-            <a href="/auth/signup" className="text-primary hover:underline font-medium">
+            <a 
+              href="/auth/signup" 
+              className="text-primary hover:underline font-medium transition-colors"
+            >
               S'inscrire
             </a>
           </div>

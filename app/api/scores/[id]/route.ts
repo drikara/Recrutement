@@ -58,7 +58,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return NextResponse.json(score)
   } catch (error) {
-    console.error("[v0] Error saving scores:", error)
+    console.error(" Erreur de sauvegarde des scores:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }

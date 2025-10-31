@@ -1,3 +1,4 @@
+// lib/auth.ts
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { prisma } from "./prisma"
@@ -14,19 +15,37 @@ export const auth = betterAuth({
     additionalFields: {
       role: {
         type: "string",
-        required: true,
+        required: false, // ⭐ Changez en false pour éviter les erreurs
         defaultValue: "JURY",
       },
     },
   },
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
+    expiresIn: 60 * 60 * 24 * 7, // 7 jours
+    updateAge: 60 * 60 * 24, // 1 jour
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5, // 5 minutes
+    },
   },
+  // ⭐ Ajoutez la configuration des cookies
   advanced: {
-    generateId: () => crypto.randomUUID(),
+    cookiePrefix: "better-auth",
+    crossSubDomainCookies: {
+      enabled: false,
+    },
+    useSecureCookies: process.env.NODE_ENV === "production",
+  },
+  // Votre callback est OK
+  callbacks: {
+    async session({ session, user }: { session: any; user: any }) {
+      return {
+        ...session,
+        user: {
+          ...session.user,
+          role: user.role,
+        },
+      }
+    },
   },
 })
-
-export type Session = typeof auth.$Infer.Session
-export type User = typeof auth.$Infer.Session.user

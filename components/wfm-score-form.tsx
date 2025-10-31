@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { ConsolidationPanel } from "@/components/consolidation-panel"
+import { ConsolidationButton } from "@/components/consolidation-button"
+import { Metier } from "@prisma/client"
+import { calculateAutoDecisions, shouldShowTest } from "../lib/metier-utils"
+
 
 type WFMScoreFormProps = {
   candidate: any
@@ -22,9 +24,11 @@ export function WFMScoreForm({ candidate, score, faceToFaceScores }: WFMScoreFor
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [autoCalculated, setAutoCalculated] = useState(false)
 
   const [formData, setFormData] = useState({
-    // Phase 1
+    // Phase 1 - Ajout de visual_presentation
+    visual_presentation: score?.visual_presentation?.toString() || "",
     voice_quality: score?.voice_quality?.toString() || "",
     verbal_communication: score?.verbal_communication?.toString() || "",
     phase1_ff_decision: score?.phase1_ff_decision || "",
@@ -43,6 +47,63 @@ export function WFMScoreForm({ candidate, score, faceToFaceScores }: WFMScoreFor
     final_decision: score?.final_decision || "",
     comments: score?.comments || "",
   })
+
+  // Calcul automatique des décisions quand les scores changent
+  useEffect(() => {
+    const hasPhase1Scores = formData.visual_presentation || formData.verbal_communication || formData.voice_quality
+    const hasPhase2Scores = formData.typing_speed || formData.excel_test || formData.dictation || 
+                           formData.sales_simulation || formData.analysis_exercise
+
+    if (hasPhase1Scores || hasPhase2Scores) {
+      calculateAutoDecisionsHandler()
+    }
+  }, [
+    formData.visual_presentation,
+    formData.verbal_communication, 
+    formData.voice_quality,
+    formData.typing_speed,
+    formData.typing_accuracy,
+    formData.excel_test,
+    formData.dictation,
+    formData.sales_simulation,
+    formData.analysis_exercise
+  ])
+
+  const calculateAutoDecisionsHandler = () => {
+    const scores = {
+      visual_presentation: parseFloat(formData.visual_presentation) || 0,
+      verbal_communication: parseFloat(formData.verbal_communication) || 0,
+      voice_quality: parseFloat(formData.voice_quality) || 0,
+      psychotechnical_test: parseFloat(formData.psychotechnical_test) || 0,
+      typing_speed: parseInt(formData.typing_speed) || 0,
+      typing_accuracy: parseFloat(formData.typing_accuracy) || 0,
+      excel_test: parseFloat(formData.excel_test) || 0,
+      dictation: parseFloat(formData.dictation) || 0,
+      sales_simulation: parseFloat(formData.sales_simulation) || 0,
+      analysis_exercise: parseFloat(formData.analysis_exercise) || 0,
+    }
+
+    const phase1FF = faceToFaceScores.filter((s) => s.phase === 1)
+    const faceToFacePhase1Avg = phase1FF.length > 0 
+      ? phase1FF.reduce((sum, s) => sum + Number(s.score), 0) / phase1FF.length 
+      : 0
+
+    const decisions = calculateAutoDecisions(
+      candidate.metier as Metier,
+      scores,
+      faceToFacePhase1Avg
+    )
+
+    setFormData(prev => ({
+      ...prev,
+      phase1_ff_decision: decisions.phase1FfDecision,
+      phase1_decision: decisions.phase1Decision,
+      phase2_ff_decision: decisions.phase2FfDecision || "",
+      final_decision: decisions.finalDecision
+    }))
+
+    setAutoCalculated(true)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,6 +141,14 @@ export function WFMScoreForm({ candidate, score, faceToFaceScores }: WFMScoreFor
     phase1FF.length > 0 ? (phase1FF.reduce((sum, s) => sum + Number(s.score), 0) / phase1FF.length).toFixed(2) : "N/A"
   const avgPhase2 =
     phase2FF.length > 0 ? (phase2FF.reduce((sum, s) => sum + Number(s.score), 0) / phase2FF.length).toFixed(2) : "N/A"
+
+  // Déterminer quels tests afficher selon le métier
+  const showTypingTest = shouldShowTest(candidate.metier as Metier, 'typing')
+  const showExcelTest = shouldShowTest(candidate.metier as Metier, 'excel')
+  const showDictationTest = shouldShowTest(candidate.metier as Metier, 'dictation')
+  const showSalesSimulationTest = shouldShowTest(candidate.metier as Metier, 'salesSimulation')
+  const showPsychotechnicalTest = shouldShowTest(candidate.metier as Metier, 'psychotechnical')
+  const showAnalysisExerciseTest = shouldShowTest(candidate.metier as Metier, 'analysisExercise')
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -141,22 +210,27 @@ export function WFMScoreForm({ candidate, score, faceToFaceScores }: WFMScoreFor
       <Card className="border-2 border-border">
         <CardHeader>
           <CardTitle className="text-foreground">Phase 1 - Entretien Initial</CardTitle>
+          {autoCalculated && (
+            <p className="text-sm text-green-600">✓ Décisions calculées automatiquement</p>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Présentation Visuelle - NOUVEAU CHAMP */}
             <div className="space-y-2">
-              <Label htmlFor="voice_quality" className="text-foreground">
-                Qualité de la Voix (/5)
+              <Label htmlFor="visual_presentation" className="text-foreground">
+                Présentation Visuelle (/5)
               </Label>
               <Input
-                id="voice_quality"
+                id="visual_presentation"
                 type="number"
                 step="0.01"
                 min="0"
                 max="5"
-                value={formData.voice_quality}
-                onChange={(e) => handleChange("voice_quality", e.target.value)}
+                value={formData.visual_presentation}
+                onChange={(e) => handleChange("visual_presentation", e.target.value)}
                 className="border-border focus:ring-primary"
+                placeholder="0-5"
               />
             </div>
 
@@ -173,19 +247,58 @@ export function WFMScoreForm({ candidate, score, faceToFaceScores }: WFMScoreFor
                 value={formData.verbal_communication}
                 onChange={(e) => handleChange("verbal_communication", e.target.value)}
                 className="border-border focus:ring-primary"
+                placeholder="0-5"
               />
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="voice_quality" className="text-foreground">
+                Qualité de la Voix (/5)
+              </Label>
+              <Input
+                id="voice_quality"
+                type="number"
+                step="0.01"
+                min="0"
+                max="5"
+                value={formData.voice_quality}
+                onChange={(e) => handleChange("voice_quality", e.target.value)}
+                className="border-border focus:ring-primary"
+                placeholder="0-5"
+              />
+            </div>
+
+            {/* Test Psychotechnique - Conditionnel */}
+            {showPsychotechnicalTest && (
+              <div className="space-y-2">
+                <Label htmlFor="psychotechnical_test" className="text-foreground">
+                  Test Psychotechnique (/10)
+                </Label>
+                <Input
+                  id="psychotechnical_test"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="10"
+                  value={formData.psychotechnical_test}
+                  onChange={(e) => handleChange("psychotechnical_test", e.target.value)}
+                  className="border-border focus:ring-primary"
+                  placeholder="0-10"
+                />
+              </div>
+            )}
+
+            {/* Décisions Phase 1 - Auto-calculées */}
+            <div className="space-y-2">
               <Label htmlFor="phase1_ff_decision" className="text-foreground">
-                Décision FF Phase 1
+                Décision FF Phase 1 {autoCalculated && "✓"}
               </Label>
               <Select
                 value={formData.phase1_ff_decision}
                 onValueChange={(value) => handleChange("phase1_ff_decision", value)}
               >
-                <SelectTrigger className="border-border focus:ring-primary">
-                  <SelectValue placeholder="Sélectionner" />
+                <SelectTrigger className="border-border focus:ring-primary bg-muted/50">
+                  <SelectValue placeholder="Auto-calculé" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="FAVORABLE">FAVORABLE</SelectItem>
@@ -195,31 +308,15 @@ export function WFMScoreForm({ candidate, score, faceToFaceScores }: WFMScoreFor
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="psychotechnical_test" className="text-foreground">
-                Test Psychotechnique (/10)
-              </Label>
-              <Input
-                id="psychotechnical_test"
-                type="number"
-                step="0.01"
-                min="0"
-                max="10"
-                value={formData.psychotechnical_test}
-                onChange={(e) => handleChange("psychotechnical_test", e.target.value)}
-                className="border-border focus:ring-primary"
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="phase1_decision" className="text-foreground">
-                Décision Phase 1
+                Décision Phase 1 {autoCalculated && "✓"}
               </Label>
               <Select
                 value={formData.phase1_decision}
                 onValueChange={(value) => handleChange("phase1_decision", value)}
               >
-                <SelectTrigger className="border-border focus:ring-primary">
-                  <SelectValue placeholder="Sélectionner" />
+                <SelectTrigger className="border-border focus:ring-primary bg-muted/50">
+                  <SelectValue placeholder="Auto-calculé" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ADMIS">ADMIS</SelectItem>
@@ -231,159 +328,191 @@ export function WFMScoreForm({ candidate, score, faceToFaceScores }: WFMScoreFor
         </CardContent>
       </Card>
 
-      {/* Phase 2 - Technical Tests */}
-      <Card className="border-2 border-border">
-        <CardHeader>
-          <CardTitle className="text-foreground">Phase 2 - Épreuves Techniques</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="typing_speed" className="text-foreground">
-                Rapidité de Saisie (MPM)
-              </Label>
-              <Input
-                id="typing_speed"
-                type="number"
-                min="0"
-                value={formData.typing_speed}
-                onChange={(e) => handleChange("typing_speed", e.target.value)}
-                className="border-border focus:ring-primary"
-              />
-            </div>
+      {/* Phase 2 - Technical Tests - Affichage conditionnel */}
+      {(showTypingTest || showExcelTest || showDictationTest || showSalesSimulationTest || showAnalysisExerciseTest) && (
+        <Card className="border-2 border-border">
+          <CardHeader>
+            <CardTitle className="text-foreground">Phase 2 - Épreuves Techniques</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Tests requis pour {candidate.metier}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Saisie - Conditionnel */}
+              {showTypingTest && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="typing_speed" className="text-foreground">
+                      Rapidité de Saisie (MPM)
+                    </Label>
+                    <Input
+                      id="typing_speed"
+                      type="number"
+                      min="0"
+                      value={formData.typing_speed}
+                      onChange={(e) => handleChange("typing_speed", e.target.value)}
+                      className="border-border focus:ring-primary"
+                      placeholder="≥ 17 MPM"
+                    />
+                  </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="typing_accuracy" className="text-foreground">
-                Précision de Saisie (%)
-              </Label>
-              <Input
-                id="typing_accuracy"
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={formData.typing_accuracy}
-                onChange={(e) => handleChange("typing_accuracy", e.target.value)}
-                className="border-border focus:ring-primary"
-              />
-            </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="typing_accuracy" className="text-foreground">
+                      Précision de Saisie (%)
+                    </Label>
+                    <Input
+                      id="typing_accuracy"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      value={formData.typing_accuracy}
+                      onChange={(e) => handleChange("typing_accuracy", e.target.value)}
+                      className="border-border focus:ring-primary"
+                      placeholder="≥ 85%"
+                    />
+                  </div>
+                </>
+              )}
 
-            <div className="space-y-2">
-              <Label htmlFor="excel_test" className="text-foreground">
-                Test Excel (/5)
-              </Label>
-              <Input
-                id="excel_test"
-                type="number"
-                step="0.01"
-                min="0"
-                max="5"
-                value={formData.excel_test}
-                onChange={(e) => handleChange("excel_test", e.target.value)}
-                className="border-border focus:ring-primary"
-              />
-            </div>
+              {/* Excel - Conditionnel */}
+              {showExcelTest && (
+                <div className="space-y-2">
+                  <Label htmlFor="excel_test" className="text-foreground">
+                    Test Excel (/5)
+                  </Label>
+                  <Input
+                    id="excel_test"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="5"
+                    value={formData.excel_test}
+                    onChange={(e) => handleChange("excel_test", e.target.value)}
+                    className="border-border focus:ring-primary"
+                    placeholder="≥ 3/5"
+                  />
+                </div>
+              )}
 
-            <div className="space-y-2">
-              <Label htmlFor="dictation" className="text-foreground">
-                Dictée (/20)
-              </Label>
-              <Input
-                id="dictation"
-                type="number"
-                step="0.01"
-                min="0"
-                max="20"
-                value={formData.dictation}
-                onChange={(e) => handleChange("dictation", e.target.value)}
-                className="border-border focus:ring-primary"
-              />
-            </div>
+              {/* Dictée - Conditionnel */}
+              {showDictationTest && (
+                <div className="space-y-2">
+                  <Label htmlFor="dictation" className="text-foreground">
+                    Dictée (/20)
+                  </Label>
+                  <Input
+                    id="dictation"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="20"
+                    value={formData.dictation}
+                    onChange={(e) => handleChange("dictation", e.target.value)}
+                    className="border-border focus:ring-primary"
+                    placeholder="≥ 16/20"
+                  />
+                </div>
+              )}
 
-            <div className="space-y-2">
-              <Label htmlFor="sales_simulation" className="text-foreground">
-                Simulation Vente (/5)
-              </Label>
-              <Input
-                id="sales_simulation"
-                type="number"
-                step="0.01"
-                min="0"
-                max="5"
-                value={formData.sales_simulation}
-                onChange={(e) => handleChange("sales_simulation", e.target.value)}
-                className="border-border focus:ring-primary"
-              />
-            </div>
+              {/* Simulation Vente - Conditionnel */}
+              {showSalesSimulationTest && (
+                <div className="space-y-2">
+                  <Label htmlFor="sales_simulation" className="text-foreground">
+                    Simulation Vente (/5)
+                  </Label>
+                  <Input
+                    id="sales_simulation"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="5"
+                    value={formData.sales_simulation}
+                    onChange={(e) => handleChange("sales_simulation", e.target.value)}
+                    className="border-border focus:ring-primary"
+                    placeholder="≥ 3/5"
+                  />
+                </div>
+              )}
 
-            <div className="space-y-2">
-              <Label htmlFor="analysis_exercise" className="text-foreground">
-                Exercice d'Analyse (/10)
-              </Label>
-              <Input
-                id="analysis_exercise"
-                type="number"
-                step="0.01"
-                min="0"
-                max="10"
-                value={formData.analysis_exercise}
-                onChange={(e) => handleChange("analysis_exercise", e.target.value)}
-                className="border-border focus:ring-primary"
-              />
-            </div>
+              {/* Exercice Analyse - Conditionnel */}
+              {showAnalysisExerciseTest && (
+                <div className="space-y-2">
+                  <Label htmlFor="analysis_exercise" className="text-foreground">
+                    Exercice d'Analyse (/10)
+                  </Label>
+                  <Input
+                    id="analysis_exercise"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="10"
+                    value={formData.analysis_exercise}
+                    onChange={(e) => handleChange("analysis_exercise", e.target.value)}
+                    className="border-border focus:ring-primary"
+                    placeholder="≥ 6/10"
+                  />
+                </div>
+              )}
 
-            <div className="space-y-2">
-              <Label htmlFor="phase2_date" className="text-foreground">
-                Date Présence Phase 2
-              </Label>
-              <Input
-                id="phase2_date"
-                type="date"
-                value={formData.phase2_date}
-                onChange={(e) => handleChange("phase2_date", e.target.value)}
-                className="border-border focus:ring-primary"
-              />
-            </div>
+              {/* Champs communs Phase 2 */}
+              <div className="space-y-2">
+                <Label htmlFor="phase2_date" className="text-foreground">
+                  Date Présence Phase 2
+                </Label>
+                <Input
+                  id="phase2_date"
+                  type="date"
+                  value={formData.phase2_date}
+                  onChange={(e) => handleChange("phase2_date", e.target.value)}
+                  className="border-border focus:ring-primary"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="phase2_ff_decision" className="text-foreground">
-                Décision FF Phase 2
-              </Label>
-              <Select
-                value={formData.phase2_ff_decision}
-                onValueChange={(value) => handleChange("phase2_ff_decision", value)}
-              >
-                <SelectTrigger className="border-border focus:ring-primary">
-                  <SelectValue placeholder="Sélectionner" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FAVORABLE">FAVORABLE</SelectItem>
-                  <SelectItem value="DÉFAVORABLE">DÉFAVORABLE</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label htmlFor="phase2_ff_decision" className="text-foreground">
+                  Décision FF Phase 2 {autoCalculated && "✓"}
+                </Label>
+                <Select
+                  value={formData.phase2_ff_decision}
+                  onValueChange={(value) => handleChange("phase2_ff_decision", value)}
+                >
+                  <SelectTrigger className="border-border focus:ring-primary bg-muted/50">
+                    <SelectValue placeholder="Auto-calculé" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="FAVORABLE">FAVORABLE</SelectItem>
+                    <SelectItem value="DÉFAVORABLE">DÉFAVORABLE</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Final Decision */}
       <Card className="border-2 border-border">
         <CardHeader>
           <CardTitle className="text-foreground">Décision Finale</CardTitle>
+          {autoCalculated && (
+            <p className="text-sm text-green-600">✓ Décision finale calculée automatiquement</p>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="final_decision" className="text-foreground">
-                Décision Finale
+                Décision Finale {autoCalculated && "✓"}
               </Label>
               <Select value={formData.final_decision} onValueChange={(value) => handleChange("final_decision", value)}>
-                <SelectTrigger className="border-border focus:ring-primary">
-                  <SelectValue placeholder="Sélectionner" />
+                <SelectTrigger className="border-border focus:ring-primary bg-muted/50">
+                  <SelectValue placeholder="Auto-calculé" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="RECRUTÉ">RECRUTÉ</SelectItem>
-                  <SelectItem value="NON RECRUTÉ">NON RECRUTÉ</SelectItem>
+                  <SelectItem value="RECRUTE">RECRUTE</SelectItem>
+                  <SelectItem value="NON_RECRUTE">NON RECRUTE</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -399,6 +528,7 @@ export function WFMScoreForm({ candidate, score, faceToFaceScores }: WFMScoreFor
               onChange={(e) => handleChange("comments", e.target.value)}
               rows={4}
               className="border-border focus:ring-primary"
+              placeholder="Commentaires supplémentaires..."
             />
           </div>
         </CardContent>
@@ -415,8 +545,21 @@ export function WFMScoreForm({ candidate, score, faceToFaceScores }: WFMScoreFor
         </Button>
       </div>
 
-      {/* Consolidation Panel */}
-      <ConsolidationPanel candidateId={candidate.id} metier={candidate.metier} />
+      {/* Consolidation Automatique */}
+      <Card className="border-2 border-green-200 bg-green-50">
+        <CardHeader>
+          <CardTitle className="text-green-900">Consolidation Automatique</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-green-700 text-sm">
+            Appliquez la consolidation automatique pour calculer la décision finale basée sur tous les scores saisis.
+          </p>
+          <ConsolidationButton candidateId={candidate.id} />
+          <p className="text-green-600 text-xs">
+            Cette action analysera tous les scores et appliquera automatiquement la décision finale.
+          </p>
+        </CardContent>
+      </Card>
     </form>
   )
 }

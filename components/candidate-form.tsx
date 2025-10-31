@@ -9,12 +9,35 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
+import { Metier } from "@prisma/client"
 
 type CandidateFormProps = {
-  candidate?: any
+  candidate?: {
+    id?: number
+    full_name: string
+    phone: string
+    birth_date: string
+    age: number
+    diploma: string
+    institution: string
+    email: string
+    location: string
+    sms_sent_date?: string
+    availability: string
+    interview_date?: string
+    metier: string
+    session_id?: string
+  }
+  sessions?: Array<{
+    id: string
+    metier: Metier
+    date: Date
+    jour: string
+    status: string
+  }>
 }
 
-export function CandidateForm({ candidate }: CandidateFormProps) {
+export function CandidateForm({ candidate, sessions = [] }: CandidateFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -31,18 +54,14 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
     availability: candidate?.availability || "",
     interview_date: candidate?.interview_date || "",
     metier: candidate?.metier || "",
+    session_id: candidate?.session_id || "",
   })
 
-  const metiers = [
-    "Call Center",
-    "Agences",
-    "Bo Réclam",
-    "Télévente",
-    "Réseaux Sociaux",
-    "Supervision",
-    "Bot Cognitive Trainer",
-    "SMC Fixe & Mobile",
-  ]
+  // Utilisez l'enum Metier de Prisma pour la cohérence
+  const metiers = Object.values(Metier).map(metier => ({
+    value: metier,
+    label: metier.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+  }))
 
   const calculateAge = (birthDate: string) => {
     if (!birthDate) return 0
@@ -63,23 +82,31 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
 
     try {
       const age = calculateAge(formData.birth_date)
-      const url = candidate ? `/api/candidates/${candidate.id}` : "/api/candidates"
-      const method = candidate ? "PUT" : "POST"
+      const url = candidate?.id ? `/api/candidates/${candidate.id}` : "/api/candidates"
+      const method = candidate?.id ? "PUT" : "POST"
+
+      // Préparer les données pour l'API
+      const apiData = {
+        ...formData,
+        age,
+        session_id: formData.session_id || null // Convertir en null si vide
+      }
 
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, age }),
+        body: JSON.stringify(apiData),
       })
 
       if (!response.ok) {
-        throw new Error("Erreur lors de l'enregistrement")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Erreur lors de l'enregistrement")
       }
 
       router.push("/wfm/candidates")
       router.refresh()
     } catch (err) {
-      setError("Une erreur est survenue")
+      setError(err instanceof Error ? err.message : "Une erreur est survenue")
       setLoading(false)
     }
   }
@@ -103,6 +130,7 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
                 onChange={(e) => handleChange("full_name", e.target.value)}
                 required
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
 
@@ -117,6 +145,7 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
                 onChange={(e) => handleChange("phone", e.target.value)}
                 required
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
 
@@ -131,6 +160,7 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
                 onChange={(e) => handleChange("birth_date", e.target.value)}
                 required
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
 
@@ -145,6 +175,7 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
                 onChange={(e) => handleChange("email", e.target.value)}
                 required
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
 
@@ -158,6 +189,7 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
                 onChange={(e) => handleChange("diploma", e.target.value)}
                 required
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
 
@@ -171,6 +203,7 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
                 onChange={(e) => handleChange("institution", e.target.value)}
                 required
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
 
@@ -184,6 +217,7 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
                 onChange={(e) => handleChange("location", e.target.value)}
                 required
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
 
@@ -191,14 +225,19 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
               <Label htmlFor="metier" className="text-foreground">
                 Métier <span className="text-destructive">*</span>
               </Label>
-              <Select value={formData.metier} onValueChange={(value) => handleChange("metier", value)} required>
+              <Select 
+                value={formData.metier} 
+                onValueChange={(value) => handleChange("metier", value)} 
+                required
+                disabled={loading}
+              >
                 <SelectTrigger className="border-border focus:ring-primary">
                   <SelectValue placeholder="Sélectionner un métier" />
                 </SelectTrigger>
                 <SelectContent>
                   {metiers.map((metier) => (
-                    <SelectItem key={metier} value={metier}>
-                      {metier}
+                    <SelectItem key={metier.value} value={metier.value}>
+                      {metier.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -216,6 +255,7 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
                 required
                 placeholder="Ex: Immédiate, Dans 2 semaines..."
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
 
@@ -229,6 +269,7 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
                 value={formData.sms_sent_date}
                 onChange={(e) => handleChange("sms_sent_date", e.target.value)}
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
 
@@ -242,23 +283,69 @@ export function CandidateForm({ candidate }: CandidateFormProps) {
                 value={formData.interview_date}
                 onChange={(e) => handleChange("interview_date", e.target.value)}
                 className="border-border focus:ring-primary"
+                disabled={loading}
               />
             </div>
+
+            {/* Sélecteur de session */}
+            {sessions.length > 0 && (
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="session_id" className="text-foreground">
+                  Session de Recrutement (Optionnel)
+                </Label>
+                <Select 
+                  value={formData.session_id} 
+                  onValueChange={(value) => handleChange("session_id", value)}
+                  disabled={loading}
+                >
+                  <SelectTrigger className="border-border focus:ring-primary">
+                    <SelectValue placeholder="Sélectionner une session" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Aucune session</SelectItem>
+                    {sessions.map((session) => (
+                      <SelectItem key={session.id} value={session.id}>
+                        {session.metier} - {session.jour} {session.date.toLocaleDateString('fr-FR')} ({session.status})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Associer ce candidat à une session de recrutement spécifique
+                </p>
+              </div>
+            )}
           </div>
 
-          {error && <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>}
+          {error && (
+            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md border border-destructive/20">
+              {error}
+            </div>
+          )}
 
-          <div className="flex gap-4 justify-end">
+          <div className="flex gap-4 justify-end pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => router.back()}
               className="border-border hover:bg-muted"
+              disabled={loading}
             >
               Annuler
             </Button>
-            <Button type="submit" className="bg-primary hover:bg-accent text-primary-foreground" disabled={loading}>
-              {loading ? "Enregistrement..." : candidate ? "Mettre à Jour" : "Enregistrer"}
+            <Button 
+              type="submit" 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground" 
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {candidate?.id ? "Mise à jour..." : "Création..."}
+                </>
+              ) : (
+                candidate?.id ? "Mettre à Jour" : "Créer le Candidat"
+              )}
             </Button>
           </div>
         </form>

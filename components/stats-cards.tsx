@@ -4,6 +4,13 @@ type StatsCardsProps = {
     admis: number
     elimine: number
     enCours: number
+    callCenter: number
+    agences: number
+    boReclam: number
+    televente: number
+    reseauxSociaux: number
+    supervision: number
+    botCognitiveTrainer: number
   }
 }
 
@@ -73,6 +80,15 @@ export function StatsCards({ stats }: StatsCardsProps) {
       bgColor: "bg-yellow-100",
       iconColor: "text-yellow-600",
     },
+    // statistique par les métiers
+
+   
+
+    
+
+
+
+
   ]
 
   return (

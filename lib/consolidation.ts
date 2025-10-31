@@ -1,286 +1,245 @@
-// Consolidation logic for recruitment process
+// lib/consolidation.ts
+import { Metier } from "@prisma/client"
 
-export type MetierCriteria = {
-  metier: string
-  criteria: {
-    faceToFace?: number // minimum average score
-    typingSpeed?: number // minimum MPM
-    typingAccuracy?: number // minimum percentage
-    excel?: number // minimum score
-    dictation?: number // minimum score
-    salesSimulation?: number // minimum score
-    psychotechnical?: number // minimum score
-    analysisExercise?: number // minimum score
-  }
+export interface ConsolidationInput {
+  faceToFaceScores: { score: number }[]
+  typingSpeed?: number
+  typingAccuracy?: number
+  excel?: number
+  dictation?: number
+  salesSimulation?: number
+  psychotechnical?: number
+  analysisExercise?: number
 }
 
-export const METIER_CRITERIA: MetierCriteria[] = [
-  {
-    metier: "Call Center",
-    criteria: {
-      faceToFace: 3,
-      typingSpeed: 17,
-      typingAccuracy: 85,
-      excel: 3,
-      dictation: 16,
-    },
-  },
-  {
-    metier: "Agences",
-    criteria: {
-      faceToFace: 3,
-      typingSpeed: 17,
-      typingAccuracy: 85,
-      dictation: 16,
-      salesSimulation: 3,
-    },
-  },
-  {
-    metier: "Bo Réclam",
-    criteria: {
-      typingSpeed: 17,
-      typingAccuracy: 85,
-      excel: 3,
-      dictation: 16,
-      psychotechnical: 8,
-    },
-  },
-  {
-    metier: "Télévente",
-    criteria: {
-      faceToFace: 3,
-      typingSpeed: 17,
-      typingAccuracy: 85,
-      dictation: 16,
-      salesSimulation: 3,
-    },
-  },
-  {
-    metier: "Réseaux Sociaux",
-    criteria: {
-      faceToFace: 3,
-      typingSpeed: 17,
-      typingAccuracy: 85,
-      dictation: 16,
-    },
-  },
-  {
-    metier: "Supervision",
-    criteria: {
-      faceToFace: 3,
-      typingSpeed: 17,
-      typingAccuracy: 85,
-      excel: 3,
-      dictation: 16,
-    },
-  },
-  {
-    metier: "Bot Cognitive Trainer",
-    criteria: {
-      faceToFace: 3,
-      excel: 3,
-      dictation: 16,
-      analysisExercise: 6,
-    },
-  },
-  {
-    metier: "SMC Fixe & Mobile",
-    criteria: {
-      faceToFace: 3,
-      typingSpeed: 17,
-      typingAccuracy: 85,
-      excel: 3,
-      dictation: 16,
-    },
-  },
-]
-
-export type ConsolidationResult = {
+export interface ConsolidationResult {
   isAdmitted: boolean
-  passedCriteria: string[]
-  failedCriteria: string[]
-  faceToFaceAverage: number | null
   details: {
-    criterion: string
-    required: number
-    actual: number | null
-    passed: boolean
-  }[]
+    phase1Passed: boolean
+    phase2Passed: boolean
+    technicalTests: {
+      [key: string]: { passed: boolean; value: any; required: any }
+    }
+  }
+  averagePhase1: number
+  averagePhase2: number
 }
 
-export function calculateFaceToFaceAverage(scores: Array<{ score: number }>): number | null {
-  if (scores.length === 0) return null
-  const sum = scores.reduce((acc, s) => acc + Number(s.score), 0)
-  return sum / scores.length
+export function consolidateCandidate(metier: Metier, input: ConsolidationInput): ConsolidationResult {
+  // Calcul des moyennes face à face
+  const phase1Scores = input.faceToFaceScores // Tous les scores pour phase 1
+  const phase2Scores = input.faceToFaceScores // Tous les scores pour phase 2
+  
+  const averagePhase1 = phase1Scores.length > 0 
+    ? phase1Scores.reduce((sum, s) => sum + s.score, 0) / phase1Scores.length 
+    : 0
+  
+  const averagePhase2 = phase2Scores.length > 0 
+    ? phase2Scores.reduce((sum, s) => sum + s.score, 0) / phase2Scores.length 
+    : 0
+
+  // Application des critères par métier
+  const criteria = getCriteriaForMetier(metier)
+  
+  const result: ConsolidationResult = {
+    isAdmitted: true, // Par défaut true, on vérifie chaque critère
+    details: {
+      phase1Passed: averagePhase1 >= criteria.minPhase1,
+      phase2Passed: !criteria.requiresPhase2 || averagePhase2 >= criteria.minPhase2,
+      technicalTests: {}
+    },
+    averagePhase1,
+    averagePhase2
+  }
+
+  // Vérification des tests techniques
+  if (criteria.requiresTyping && input.typingSpeed !== undefined && input.typingAccuracy !== undefined) {
+    const typingPassed = input.typingSpeed >= criteria.minTypingSpeed! && input.typingAccuracy >= criteria.minTypingAccuracy!
+    result.details.technicalTests.typing = {
+      passed: typingPassed,
+      value: `${input.typingSpeed} MPM, ${input.typingAccuracy}%`,
+      required: `${criteria.minTypingSpeed} MPM, ${criteria.minTypingAccuracy}%`
+    }
+    result.isAdmitted = result.isAdmitted && typingPassed
+  }
+
+  if (criteria.requiresExcel && input.excel !== undefined) {
+    const excelPassed = input.excel >= criteria.minExcel!
+    result.details.technicalTests.excel = {
+      passed: excelPassed,
+      value: input.excel,
+      required: criteria.minExcel
+    }
+    result.isAdmitted = result.isAdmitted && excelPassed
+  }
+
+  if (criteria.requiresDictation && input.dictation !== undefined) {
+    const dictationPassed = input.dictation >= criteria.minDictation!
+    result.details.technicalTests.dictation = {
+      passed: dictationPassed,
+      value: input.dictation,
+      required: criteria.minDictation
+    }
+    result.isAdmitted = result.isAdmitted && dictationPassed
+  }
+
+  if (criteria.requiresSalesSimulation && input.salesSimulation !== undefined) {
+    const salesPassed = input.salesSimulation >= criteria.minSalesSimulation!
+    result.details.technicalTests.salesSimulation = {
+      passed: salesPassed,
+      value: input.salesSimulation,
+      required: criteria.minSalesSimulation
+    }
+    result.isAdmitted = result.isAdmitted && salesPassed
+  }
+
+  if (criteria.requiresPsychotechnical && input.psychotechnical !== undefined) {
+    const psychoPassed = input.psychotechnical >= criteria.minPsychotechnical!
+    result.details.technicalTests.psychotechnical = {
+      passed: psychoPassed,
+      value: input.psychotechnical,
+      required: criteria.minPsychotechnical
+    }
+    result.isAdmitted = result.isAdmitted && psychoPassed
+  }
+
+  if (criteria.requiresAnalysis && input.analysisExercise !== undefined) {
+    const analysisPassed = input.analysisExercise >= criteria.minAnalysis!
+    result.details.technicalTests.analysisExercise = {
+      passed: analysisPassed,
+      value: input.analysisExercise,
+      required: criteria.minAnalysis
+    }
+    result.isAdmitted = result.isAdmitted && analysisPassed
+  }
+
+  // Vérification finale des phases face à face
+  result.isAdmitted = result.isAdmitted && 
+    result.details.phase1Passed && 
+    result.details.phase2Passed
+
+  return result
 }
 
-export function consolidateCandidate(
-  metier: string,
-  scores: {
-    faceToFaceScores: Array<{ score: number }>
-    typingSpeed?: number
-    typingAccuracy?: number
-    excel?: number
-    dictation?: number
-    salesSimulation?: number
-    psychotechnical?: number
-    analysisExercise?: number
-  },
-): ConsolidationResult {
-  const metierCriteria = METIER_CRITERIA.find((m) => m.metier === metier)
-
-  if (!metierCriteria) {
-    return {
-      isAdmitted: false,
-      passedCriteria: [],
-      failedCriteria: ["Métier non reconnu"],
-      faceToFaceAverage: null,
-      details: [],
+function getCriteriaForMetier(metier: Metier) {
+  const criteria = {
+    // Call Center
+    [Metier.CALL_CENTER]: {
+      minPhase1: 3,
+      requiresPhase2: true,
+      minPhase2: 3,
+      requiresTyping: true,
+      minTypingSpeed: 17,
+      minTypingAccuracy: 85,
+      requiresExcel: true,
+      minExcel: 3,
+      requiresDictation: true,
+      minDictation: 16
+    },
+    // Agences
+    [Metier.AGENCES]: {
+      minPhase1: 3,
+      requiresPhase2: true,
+      minPhase2: 3,
+      requiresTyping: true,
+      minTypingSpeed: 17,
+      minTypingAccuracy: 85,
+      requiresDictation: true,
+      minDictation: 16,
+      requiresSalesSimulation: true,
+      minSalesSimulation: 3
+    },
+    // Bo Réclam
+    [Metier.BO_RECLAM]: {
+      minPhase1: 3,
+      requiresPhase2: false,
+      minPhase2: 0,
+      requiresTyping: true,
+      minTypingSpeed: 17,
+      minTypingAccuracy: 85,
+      requiresExcel: true,
+      minExcel: 3,
+      requiresDictation: true,
+      minDictation: 16,
+      requiresPsychotechnical: true,
+      minPsychotechnical: 8
+    },
+    // Télévente
+    [Metier.TELEVENTE]: {
+      minPhase1: 3,
+      requiresPhase2: true,
+      minPhase2: 3,
+      requiresTyping: true,
+      minTypingSpeed: 17,
+      minTypingAccuracy: 85,
+      requiresDictation: true,
+      minDictation: 16,
+      requiresSalesSimulation: true,
+      minSalesSimulation: 3
+    },
+    // Réseaux Sociaux
+    [Metier.RESEAUX_SOCIAUX]: {
+      minPhase1: 3,
+      requiresPhase2: true,
+      minPhase2: 3,
+      requiresTyping: true,
+      minTypingSpeed: 17,
+      minTypingAccuracy: 85,
+      requiresDictation: true,
+      minDictation: 16
+    },
+    // Supervision
+    [Metier.SUPERVISION]: {
+      minPhase1: 3,
+      requiresPhase2: true,
+      minPhase2: 3,
+      requiresTyping: true,
+      minTypingSpeed: 17,
+      minTypingAccuracy: 85,
+      requiresExcel: true,
+      minExcel: 3,
+      requiresDictation: true,
+      minDictation: 16
+    },
+    // Bot Cognitive Trainer
+    [Metier.BOT_COGNITIVE_TRAINER]: {
+      minPhase1: 3,
+      requiresPhase2: true,
+      minPhase2: 3,
+      requiresExcel: true,
+      minExcel: 3,
+      requiresDictation: true,
+      minDictation: 16,
+      requiresAnalysis: true,
+      minAnalysis: 6
+    },
+    // SMC Fixe
+    [Metier.SMC_FIXE]: {
+      minPhase1: 3,
+      requiresPhase2: true,
+      minPhase2: 3,
+      requiresTyping: true,
+      minTypingSpeed: 17,
+      minTypingAccuracy: 85,
+      requiresExcel: true,
+      minExcel: 3,
+      requiresDictation: true,
+      minDictation: 16
+    },
+    // SMC Mobile
+    [Metier.SMC_MOBILE]: {
+      minPhase1: 3,
+      requiresPhase2: true,
+      minPhase2: 3,
+      requiresTyping: true,
+      minTypingSpeed: 17,
+      minTypingAccuracy: 85,
+      requiresExcel: true,
+      minExcel: 3,
+      requiresDictation: true,
+      minDictation: 16
     }
   }
 
-  const faceToFaceAvg = calculateFaceToFaceAverage(scores.faceToFaceScores)
-  const criteria = metierCriteria.criteria
-  const passedCriteria: string[] = []
-  const failedCriteria: string[] = []
-  const details: ConsolidationResult["details"] = []
-
-  // Check Face to Face
-  if (criteria.faceToFace !== undefined) {
-    const passed = faceToFaceAvg !== null && faceToFaceAvg >= criteria.faceToFace
-    details.push({
-      criterion: "Face à Face",
-      required: criteria.faceToFace,
-      actual: faceToFaceAvg,
-      passed,
-    })
-    if (passed) {
-      passedCriteria.push("Face à Face")
-    } else {
-      failedCriteria.push("Face à Face")
-    }
-  }
-
-  // Check Typing Speed
-  if (criteria.typingSpeed !== undefined) {
-    const passed = scores.typingSpeed !== undefined && scores.typingSpeed >= criteria.typingSpeed
-    details.push({
-      criterion: "Rapidité de Saisie (MPM)",
-      required: criteria.typingSpeed,
-      actual: scores.typingSpeed ?? null,
-      passed,
-    })
-    if (passed) {
-      passedCriteria.push("Rapidité de Saisie")
-    } else {
-      failedCriteria.push("Rapidité de Saisie")
-    }
-  }
-
-  // Check Typing Accuracy
-  if (criteria.typingAccuracy !== undefined) {
-    const passed = scores.typingAccuracy !== undefined && scores.typingAccuracy >= criteria.typingAccuracy
-    details.push({
-      criterion: "Précision de Saisie (%)",
-      required: criteria.typingAccuracy,
-      actual: scores.typingAccuracy ?? null,
-      passed,
-    })
-    if (passed) {
-      passedCriteria.push("Précision de Saisie")
-    } else {
-      failedCriteria.push("Précision de Saisie")
-    }
-  }
-
-  // Check Excel
-  if (criteria.excel !== undefined) {
-    const passed = scores.excel !== undefined && scores.excel >= criteria.excel
-    details.push({
-      criterion: "Test Excel",
-      required: criteria.excel,
-      actual: scores.excel ?? null,
-      passed,
-    })
-    if (passed) {
-      passedCriteria.push("Test Excel")
-    } else {
-      failedCriteria.push("Test Excel")
-    }
-  }
-
-  // Check Dictation
-  if (criteria.dictation !== undefined) {
-    const passed = scores.dictation !== undefined && scores.dictation >= criteria.dictation
-    details.push({
-      criterion: "Dictée",
-      required: criteria.dictation,
-      actual: scores.dictation ?? null,
-      passed,
-    })
-    if (passed) {
-      passedCriteria.push("Dictée")
-    } else {
-      failedCriteria.push("Dictée")
-    }
-  }
-
-  // Check Sales Simulation
-  if (criteria.salesSimulation !== undefined) {
-    const passed = scores.salesSimulation !== undefined && scores.salesSimulation >= criteria.salesSimulation
-    details.push({
-      criterion: "Simulation Vente",
-      required: criteria.salesSimulation,
-      actual: scores.salesSimulation ?? null,
-      passed,
-    })
-    if (passed) {
-      passedCriteria.push("Simulation Vente")
-    } else {
-      failedCriteria.push("Simulation Vente")
-    }
-  }
-
-  // Check Psychotechnical
-  if (criteria.psychotechnical !== undefined) {
-    const passed = scores.psychotechnical !== undefined && scores.psychotechnical >= criteria.psychotechnical
-    details.push({
-      criterion: "Test Psychotechnique",
-      required: criteria.psychotechnical,
-      actual: scores.psychotechnical ?? null,
-      passed,
-    })
-    if (passed) {
-      passedCriteria.push("Test Psychotechnique")
-    } else {
-      failedCriteria.push("Test Psychotechnique")
-    }
-  }
-
-  // Check Analysis Exercise
-  if (criteria.analysisExercise !== undefined) {
-    const passed = scores.analysisExercise !== undefined && scores.analysisExercise >= criteria.analysisExercise
-    details.push({
-      criterion: "Exercice d'Analyse",
-      required: criteria.analysisExercise,
-      actual: scores.analysisExercise ?? null,
-      passed,
-    })
-    if (passed) {
-      passedCriteria.push("Exercice d'Analyse")
-    } else {
-      failedCriteria.push("Exercice d'Analyse")
-    }
-  }
-
-  // Candidate is admitted only if ALL criteria are passed
-  const isAdmitted = failedCriteria.length === 0 && details.length > 0
-
-  return {
-    isAdmitted,
-    passedCriteria,
-    failedCriteria,
-    faceToFaceAverage: faceToFaceAvg,
-    details,
-  }
+  return criteria[metier] || criteria[Metier.CALL_CENTER] // Fallback
 }
