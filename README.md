@@ -1,384 +1,358 @@
-# Application de Consolidation des Notes de Recrutement
+📋 FONCTIONNALITÉS DE L'APPLICATION DE RECRUTEMENT
+👥 AUTHENTIFICATION ET GESTION DES RÔLES
+Système d'Authentification
+Inscription avec nom, email et mot de passe
 
-Application centralisée et sécurisée pour automatiser le processus de consolidation des notes attribuées par les membres du jury lors des recrutements.
+Sélection du rôle lors de l'inscription (WFM ou JURY)
 
-## Fonctionnalités
+Connexion sécurisée avec gestion de sessions persistantes (7 jours)
 
-### Rôle WFM (Administrateur)
-- Enregistrement des candidats et membres du jury
-- Saisie de TOUTES les notes techniques :
-  - Test Excel (/5)
-  - Rapidité de saisie (MPM)
-  - Précision de saisie (%)
-  - Dictée (/20)
-  - Simulation Vente (/5)
-  - Test Psychotechnique (/10)
-  - Exercice d'Analyse (/10)
-- Consolidation automatique des résultats
-- Export des fichiers de consolidation (Excel/PDF)
+Déconnexion sécurisée
 
-### Rôle Jury
-- Saisie UNIQUEMENT des notes Face à Face (/5)
-- Consultation des candidats à évaluer
+Protection des routes par rôle avec redirection automatique
 
-## Métiers Supportés
+Gestion des Rôles
+Rôle WFM (Workforce Management) : Accès complet à toutes les fonctionnalités, administration système
 
-1. **Call Center** : Face à Face ≥ 3/5, Saisie ≥ 17 MPM + 85%, Excel ≥ 3/5, Dictée ≥ 16/20
-2. **Agences** : Face à Face ≥ 3/5, Saisie ≥ 17 MPM + 85%, Dictée ≥ 16/20, Simulation Vente ≥ 3/5
-3. **Bo Réclam** : Saisie ≥ 17 MPM + 85%, Excel ≥ 3/5, Dictée ≥ 16/20, Test Psychotechnique ≥ 8/10
-4. **Télévente** : Face à Face ≥ 3/5, Saisie ≥ 17 MPM + 85%, Dictée ≥ 16/20, Simulation Vente ≥ 3/5
-5. **Réseaux Sociaux** : Face à Face ≥ 3/5, Saisie ≥ 17 MPM + 85%, Dictée ≥ 16/20
-6. **Supervision** : Face à Face ≥ 3/5, Saisie ≥ 17 MPM + 85%, Excel ≥ 3/5, Dictée ≥ 16/20
-7. **Bot Cognitive Trainer** : Face à Face ≥ 3/5, Excel ≥ 3/5, Dictée ≥ 16/20, Exercice Analyse ≥ 6/10
-8. **SMC Fixe & Mobile** : Face à Face ≥ 3/5, Saisie ≥ 17 MPM + 85%, Excel ≥ 3/5, Dictée ≥ 16/20
+Rôle JURY : Accès limité aux évaluations face-à-face uniquement
 
-## Prérequis
+🗓️ GESTION DES SESSIONS DE RECRUTEMENT
+Création et Gestion des Sessions
+Création de sessions par métier (9 métiers disponibles)
 
-- Node.js 18+ installé sur votre machine
-- PostgreSQL 14+ installé et en cours d'exécution sur votre machine
+Paramétrage des dates de session et jours de la semaine
 
-## Installation Rapide
+Gestion des statuts : Planifié / En cours / Terminé
 
-### Étape 1 : Installer PostgreSQL
+Association automatique des candidats aux sessions
 
-#### Sur Windows :
-1. Téléchargez PostgreSQL depuis https://www.postgresql.org/download/windows/
-2. Installez PostgreSQL avec les paramètres par défaut
-3. Notez le mot de passe que vous définissez pour l'utilisateur `postgres`
+Contrôles Automatiques
+Empêcher la notation des sessions terminées
 
-#### Sur macOS :
-\`\`\`bash
-brew install postgresql@14
-brew services start postgresql@14
-\`\`\`
+Validation de la temporalité des sessions
 
-#### Sur Linux (Ubuntu/Debian) :
-\`\`\`bash
-sudo apt update
-sudo apt install postgresql postgresql-contrib
-sudo systemctl start postgresql
-\`\`\`
+Contrôles d'intégrité des données
 
-### Étape 2 : Créer la base de données
+👤 GESTION DES CANDIDATS
+Enregistrement des Candidats
+Formulaire complet avec tous les champs obligatoires :
 
-Ouvrez un terminal et connectez-vous à PostgreSQL :
+Noms et Prénoms
 
-\`\`\`bash
-# Sur Windows (dans le terminal PostgreSQL)
-psql -U postgres
+Numéro de Téléphone
 
-# Sur macOS/Linux
-sudo -u postgres psql
-\`\`\`
+Date de naissance (avec calcul automatique de l'âge)
 
-Créez la base de données :
+Diplôme et Établissement fréquenté
 
-\`\`\`sql
-CREATE DATABASE recruitment_consolidation;
-\q
-\`\`\`
+Adresse email et Lieu d'habitation
 
-### Étape 3 : Configurer le projet
+Date d'envoi SMS et Disponibilité
 
-1. **Téléchargez le projet** depuis v0 (bouton "Download ZIP" en haut à droite)
-2. **Décompressez** le fichier ZIP
-3. **Ouvrez un terminal** dans le dossier du projet
-4. **Copiez le fichier d'environnement** :
+Date de présence à l'entretien
 
-\`\`\`bash
-# Sur Windows (PowerShell)
-copy .env.example .env
+Association au métier et session correspondante
 
-# Sur macOS/Linux
-cp .env.example .env
-\`\`\`
+Suivi des Candidats
+Statuts d'appel : Non contacté / Contacté / Résistant / Confirmé / Refus
 
-5. **Modifiez le fichier `.env`** avec vos informations :
+Historique détaillé des tentatives d'appel
 
-\`\`\`env
-# Remplacez 'votre_mot_de_passe' par le mot de passe PostgreSQL que vous avez défini
-DATABASE_URL="postgresql://postgres:votre_mot_de_passe@localhost:5432/recruitment_consolidation"
+Notes et commentaires sur les appels
 
-# Générez un secret aléatoire sécurisé (voir ci-dessous)
-BETTER_AUTH_SECRET="votre_secret_aleatoire_ici"
-BETTER_AUTH_URL="http://localhost:3000"
+Date du dernier appel enregistrée automatiquement
 
-# Pour le développement local
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-\`\`\`
+Interface de Consultation
+Tableau complet de tous les candidats
 
-**Générer un secret aléatoire pour BETTER_AUTH_SECRET** :
+Affichage des statuts de recrutement (En cours / Recruté / Non recruté)
 
-\`\`\`bash
-# Sur macOS/Linux
-openssl rand -base64 32
+Fonctions de recherche par nom
 
-# Sur Windows (PowerShell)
-[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Minimum 0 -Maximum 256 }))
-\`\`\`
+Filtrage avancé par métier et session
 
-Copiez le résultat dans votre fichier `.env`.
+Tri par date de création et autres critères
 
-### Étape 4 : Installer les dépendances
+👨‍⚖️ GESTION DES UTILISATEURS ET JURYS
+Administration des Comptes
+Création des comptes utilisateurs par le WFM
 
-\`\`\`bash
-npm install
-\`\`\`
+Modification des profils utilisateurs
 
-### Étape 5 : Initialiser la base de données avec Prisma
+Réinitialisation sécurisée des mots de passe
 
-\`\`\`bash
-# 1. Générer le client Prisma
-npx prisma generate
+Activation et désactivation des comptes
 
-# 2. Créer les tables dans la base de données
-npx prisma db push
+Gestion des Membres du Jury
+Ajout des membres du jury à partir des utilisateurs existants (rôle JURY)
 
-# Vous devriez voir :
-# ✔ Generated Prisma Client
-# ✔ Your database is now in sync with your Prisma schema
-\`\`\`
+Types de rôles disponibles :
 
-**Optionnel : Visualiser la base de données avec Prisma Studio**
+DRH
 
-\`\`\`bash
-npx prisma studio
-\`\`\`
+EPC
 
-Cela ouvrira une interface web sur http://localhost:5555 où vous pouvez visualiser et modifier vos données.
+Représentant du Métier
 
-### Étape 6 : Lancer l'application
+WFM_JURY
 
-\`\`\`bash
-npm run dev
-\`\`\`
+Spécialité métier pour les représentants
 
-L'application sera accessible sur **http://localhost:3000**
+Département d'origine
 
-## Premier Démarrage
+Vérification d'unicité et gestion des conflits
 
-### 1. Créer le compte WFM (Administrateur)
+🎯 PROCESSUS DE NOTATION
+Règles de Notation par Type de Jury
+Représentants du Métier : Notent UNIQUEMENT les candidats de leur métier spécialisé
 
-1. Allez sur http://localhost:3000
-2. Cliquez sur "S'inscrire"
-3. Créez un compte avec :
-   - **Nom** : Votre nom complet
-   - **Email** : Votre email
-   - **Mot de passe** : Minimum 8 caractères
-   - **Rôle** : **WFM (Administrateur)** ⚠️ Important !
+DRH, EPC, WFM_JURY : Notent TOUS les candidats sans exception
 
-### 2. Créer des comptes Jury
+Filtrage automatique des candidats selon le rôle du jury
 
-Pour chaque membre du jury :
+Interface JURY - Face-à-Face Uniquement
+Liste des candidats à évaluer (filtrée automatiquement selon le rôle)
 
-1. Allez sur http://localhost:3000/auth/signup
-2. Créez un compte avec le **rôle "Membre du Jury"**
-3. Connectez-vous avec le compte WFM
-4. Allez dans **"Gestion des Jurys"**
-5. Ajoutez le membre avec son rôle spécifique :
-   - DRH
-   - EPC
-   - Représentant du Métier
-   - WFM
+Grille d'évaluation détaillée :
 
-## Utilisation
+Présentation Visuelle (/5) :
 
-### Workflow WFM (Administrateur)
+Tenue vestimentaire (propreté, élégance)
 
-1. **Ajouter des candidats**
-   - Menu "Candidats" → "Nouveau candidat"
-   - Remplir toutes les informations personnelles
-   - Sélectionner le métier
+Tenue corporelle (gestuelle, aisance)
 
-2. **Gérer les jurys**
-   - Menu "Jurys" → "Nouveau membre"
-   - Lier un utilisateur existant à un rôle de jury
+Qualité de la Voix (/5) :
 
-3. **Saisir les notes techniques**
-   - Menu "Notes" → Sélectionner un candidat
-   - Saisir TOUTES les notes techniques :
-     - Excel, Saisie (MPM + %), Dictée
-     - Simulation Vente, Test Psychotechnique, Exercice d'Analyse
-   - Voir la moyenne Face à Face calculée automatiquement
+Expression claire et aisée
 
-4. **Consulter les résultats**
-   - Menu "Résultats"
-   - Voir la consolidation automatique par métier
-   - Statistiques détaillées
+Assurance dans la voix, débit normal
 
-5. **Exporter les données**
-   - Bouton "Exporter Excel" : Fichier CSV complet
-   - Bouton "Exporter PDF" : Fiches individuelles
+Attitude aimable et disponible
 
-### Workflow Jury
+Communication Verbale (/5) :
 
-1. **Se connecter** avec son compte Jury
-2. **Consulter les candidats** à évaluer
-3. **Saisir les notes Face à Face** :
-   - Phase 1 : Entretien initial (/5)
-   - Phase 2 : Après épreuves techniques (/5)
-4. **C'est tout !** Les jurys ne saisissent QUE les notes Face à Face
+Écoute active sans interruption
 
-## Consolidation Automatique
+Capacité à poser des questions pertinentes
 
-L'application calcule automatiquement :
+Présentation assurée des idées
 
-- ✅ **Moyenne Face à Face** : Moyenne des notes de tous les jurys présents
-- ✅ **Validation des critères** : Vérification de tous les seuils selon le métier
-- ✅ **Décision finale** : **RECRUTÉ** ✓ ou **NON RECRUTÉ** ✗
+Communication efficace avec le jury
 
-### Exemple pour Call Center :
-- Face à Face ≥ 3/5 ✓
-- Saisie ≥ 17 MPM + 85% ✓
-- Excel ≥ 3/5 ✓
-- Dictée ≥ 16/20 ✓
-- **→ Résultat : RECRUTÉ** ✓
+Décision FF (Favorable/Défavorable)
 
-## Export des Données
+Règles de Composition du Jury
+Présence obligatoire : Représentant du Métier + WFM_JURY
 
-### Export Excel (CSV)
-Fichier complet avec toutes les colonnes :
-- Informations personnelles (nom, téléphone, email, etc.)
-- Notes Phase 1 (Qualité voix, Communication, Psychotechnique)
-- Notes Phase 2 (Saisie, Excel, Dictée, etc.)
-- Décisions et commentaires
+Présence facultative : DRH et EPC (remplaçables)
 
-### Export PDF
-Fiche individuelle pour chaque candidat avec :
-- Toutes les informations
-- Toutes les notes
-- Résultat de la consolidation
+Calcul des moyennes uniquement sur les jurys présents
 
-## Dépannage
+Quorum minimum de 2 jurys obligatoires
 
-### ❌ Erreur : "Prisma Client not generated"
+Interface WFM - Tests Techniques Uniquement
+Saisie exclusive par le WFM des tests pratiques :
 
-**Solution** :
-\`\`\`bash
-npx prisma generate
-\`\`\`
+Test de Saisie : Rapidité (MPM) + Précision (%)
 
-### ❌ Erreur : "relation does not exist"
+Test Excel : Compétences tableur (/5)
 
-**Solution** : Recréer les tables
-\`\`\`bash
-# ATTENTION : Cela supprimera toutes les données existantes
-npx prisma db push --force-reset
-\`\`\`
+Dictée : Test orthographe (/20)
 
-### ❌ Erreur : "Cannot connect to database"
+Simulation Vente : Mise en situation (/5) avec grille détaillée
 
-**Solutions** :
-1. Vérifiez que PostgreSQL est démarré :
-   \`\`\`bash
-   # Windows
-   services.msc → Rechercher "postgresql" → Démarrer
-   
-   # macOS
-   brew services start postgresql@14
-   
-   # Linux
-   sudo systemctl start postgresql
-   \`\`\`
+Test Psychotechnique : Aptitudes mentales (/10)
 
-2. Vérifiez le mot de passe dans `.env`
-3. Vérifiez que la base de données existe :
-   \`\`\`bash
-   psql -U postgres -l
-   \`\`\`
+Exercice d'Analyse : Capacités analytiques (/10)
 
-### ❌ Erreur : "Port 3000 already in use"
+📊 CONSOLIDATION AUTOMATIQUE
+Calcul des Moyennes
+Moyenne Phase 1 : Calcul sur tous les jurys présents
 
-**Solution** : Changez le port
-\`\`\`bash
-npm run dev -- -p 3001
-\`\`\`
+Moyenne Phase 2 : Calcul sur tous les jurys présents
 
-Puis accédez à http://localhost:3001
+Application automatique des critères métier
 
-### ❌ Erreur : "Module not found"
+Critères de Validation par Métier
+Call Center
+Face à Face Phase 1 ≥ 3/5
 
-**Solution** : Réinstallez les dépendances
-\`\`\`bash
-rm -rf node_modules package-lock.json
-npm install
-\`\`\`
+Face à Face Phase 2 ≥ 3/5
 
-### ❌ Le site ne s'affiche pas
+Saisie ≥ 17 MPM + 85%
 
-**Solutions** :
-1. Vérifiez que le serveur est bien démarré (message "Ready on http://localhost:3000")
-2. Videz le cache du navigateur (Ctrl+Shift+R ou Cmd+Shift+R)
-3. Essayez un autre navigateur
-4. Vérifiez les logs dans le terminal pour voir les erreurs
+Excel ≥ 3/5
 
-### ❌ Erreur lors de la connexion
+Dictée ≥ 16/20
 
-**Solutions** :
-1. Vérifiez que vous avez bien créé un compte
-2. Vérifiez que le mot de passe est correct (minimum 8 caractères)
-3. Vérifiez que la base de données est bien initialisée
+Agences
+Face à Face Phase 1 ≥ 3/5
 
-## Technologies Utilisées
+Face à Face Phase 2 ≥ 3/5
 
-- **Next.js 16** : Framework React avec App Router
-- **Better-Auth** : Authentification moderne avec gestion des rôles
-- **PostgreSQL** : Base de données relationnelle
-- **Prisma** : ORM moderne pour TypeScript
-- **Tailwind CSS v4** : Styles avec couleurs **orange (#FF6B00), blanc et noir**
-- **shadcn/ui** : Composants UI modernes et accessibles
+Saisie ≥ 17 MPM + 85%
 
-## Commandes Prisma Utiles
+Dictée ≥ 16/20
 
-\`\`\`bash
-# Générer le client Prisma après modification du schéma
-npx prisma generate
+Simulation Vente ≥ 3/5
 
-# Synchroniser la base de données avec le schéma
-npx prisma db push
+Bo Réclam
+Face à Face Phase 1 ≥ 3/5
 
-# Ouvrir Prisma Studio (interface graphique)
-npx prisma studio
+Saisie ≥ 17 MPM + 85%
 
-# Réinitialiser complètement la base de données (ATTENTION : supprime toutes les données)
-npx prisma db push --force-reset
+Excel ≥ 3/5
 
-# Formater le schéma Prisma
-npx prisma format
-\`\`\`
+Dictée ≥ 16/20
 
-## Architecture
+Test Psychotechnique ≥ 8/10
 
-\`\`\`bash
-recruitment-consolidation/
-├── app/                      # Pages Next.js
-│   ├── auth/                # Pages d'authentification
-│   ├── wfm/                 # Pages WFM (Administrateur)
-│   └── jury/                # Pages Jury
-├── components/              # Composants React
-├── lib/                     # Utilitaires
-│   ├── auth.ts             # Configuration Better-Auth
-│   ├── prisma.ts           # Client Prisma
-│   └── consolidation.ts    # Logique de consolidation
-├── prisma/                  # Configuration Prisma
-│   └── schema.prisma       # Schéma de la base de données
-└── public/                  # Fichiers statiques
-\`\`\`
+Télévente
+Face à Face Phase 1 ≥ 3/5
 
-## Documentation Complète
+Face à Face Phase 2 ≥ 3/5
 
-- **INSTALLATION_PRISMA.md** : Guide d'installation détaillé avec Prisma
-- **GUIDE_DEMARRAGE.md** : Guide de démarrage rapide en 5 étapes
-- **FONCTIONNALITES.md** : Liste exhaustive de toutes les fonctionnalités
+Saisie ≥ 17 MPM + 85%
 
-## Support
+Dictée ≥ 16/20
 
-Pour toute question ou problème :
-1. Consultez la section **Dépannage** ci-dessus
-2. Vérifiez le fichier **GUIDE_DEMARRAGE.md** pour un guide rapide
-3. Consultez **FONCTIONNALITES.md** pour la liste complète des fonctionnalités
-4. Contactez l'équipe WFM
+Simulation Vente ≥ 3/5
 
-## Licence
+Réseaux Sociaux
+Face à Face Phase 1 ≥ 3/5
 
-Application propriétaire - Tous droits réservés
+Face à Face Phase 2 ≥ 3/5
+
+Saisie ≥ 17 MPM + 85%
+
+Dictée ≥ 16/20
+
+Supervision
+Face à Face Phase 1 ≥ 3/5
+
+Face à Face Phase 2 ≥ 3/5
+
+Saisie ≥ 17 MPM + 85%
+
+Excel ≥ 3/5
+
+Dictée ≥ 16/20
+
+Bot Cognitive Trainer
+Face à Face Phase 1 ≥ 3/5
+
+Face à Face Phase 2 ≥ 3/5
+
+Excel ≥ 3/5
+
+Dictée ≥ 16/20
+
+Exercice Analyse ≥ 6/10
+
+SMC Fixe & SMC Mobile
+Face à Face Phase 1 ≥ 3/5
+
+Face à Face Phase 2 ≥ 3/5
+
+Saisie ≥ 17 MPM + 85%
+
+Excel ≥ 3/5
+
+Dictée ≥ 16/20
+
+Décision Finale Automatique
+RECRUTÉ : Tous les critères spécifiques au métier validés
+
+NON RECRUTÉ : Au moins un critère non validé
+
+Commentaires optionnels pour justifier la décision
+
+Calcul en temps réel lors de la saisie
+
+📤 EXPORT EXCEL INTELLIGENT
+Système d'Export par Session
+Génération de fichiers séparés par session (métier + date + jour)
+
+Colonnes adaptatives selon le métier évalué
+
+Inclusion de toutes les notes détaillées Phase 1 et Phase 2
+
+Format CSV compatible Excel avec encodage UTF-8 BOM
+
+Colonnes d'Export Intelligentes
+Colonnes de base communes à tous les métiers
+
+Colonnes spécifiques adaptées à chaque famille de métiers
+
+Détail complet des notes par jury avec noms et rôles
+
+Décisions intermédiaires et finale
+
+Fonctionnalités d'Export Avancées
+Filtrage par période date
+
+Filtrage spécifique par métier
+
+Export global sous forme de ZIP
+
+Tri des données par nom, score ou décision
+
+Formatage Excel automatique (nombres, pourcentages)
+
+📈 DASHBOARD ET REPORTING
+Tableaux de Bord
+Vue d'ensemble du processus de recrutement
+
+Statistiques de performance par métier
+
+Taux de réussite et d'échec
+
+Suivi temporel des sessions
+
+Indicateurs de Performance
+Nombre de candidats par session
+
+Taux de conversion par métier
+
+Performance des jurys
+
+Temps moyen de traitement
+
+🔒 SÉCURITÉ ET CONFORMITÉ
+Mesures de Sécurité
+Protection des données personnelles
+
+Authentification à double facteur (optionnelle)
+
+Chiffrement des données sensibles
+
+Sauvegardes automatiques
+
+Contrôles d'Accès
+Journalisation des actions utilisateurs
+
+Gestion fine des permissions
+
+Contrôles d'intégrité des données
+
+Validation des entrées utilisateurs
+
+📱 INTERFACE UTILISATEUR
+Design Responsive
+Interface adaptative desktop et mobile
+
+Expérience utilisateur intuitive
+
+Accessibilité et conformité WCAG
+
+Thème professionnel et cohérent
+
+Performance
+Temps de réponse optimisés
+
+Gestion efficace des grandes volumes de données
+
+Interface réactive et fluide
+
+✅ ÉTAT : FONCTIONNALITÉS 100% DÉFINIES ET PRÊTES POUR L'IMPLÉMENTATION
+
