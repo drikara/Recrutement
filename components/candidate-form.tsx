@@ -6,6 +6,13 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Metier } from "@prisma/client"
 import { 
@@ -96,7 +103,6 @@ export function CandidateForm({ candidate, sessions = [] }: CandidateFormProps) 
     try {
       const age = calculateAge(formData.birthDate)
       
-      // 🔍 CORRECTION : Les données doivent correspondre exactement à l'API
       const apiData = {
         fullName: formData.fullName,
         phone: formData.phone,
@@ -111,7 +117,7 @@ export function CandidateForm({ candidate, sessions = [] }: CandidateFormProps) 
         interviewDate: formData.interviewDate || null,
         metier: formData.metier,
         sessionId: formData.sessionId || null,
-        notes: "" // Ajout du champ notes qui est requis dans l'API
+        notes: ""
       }
 
       console.log('🔍 Données envoyées à l\'API:', apiData)
@@ -145,7 +151,6 @@ export function CandidateForm({ candidate, sessions = [] }: CandidateFormProps) 
   return (
     <div className="max-w-4xl mx-auto">
       <Card className="border-0 shadow-xl bg-gradient-to-br from-white to-gray-50/50 backdrop-blur-sm">
-        {/* En-tête avec gradient */}
         <CardHeader className="bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-t-lg p-5">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
@@ -381,27 +386,30 @@ export function CandidateForm({ candidate, sessions = [] }: CandidateFormProps) 
                 </div>
               </div>
 
-              {/* Sélecteur de session */}
+              {/* SÉLECTEUR DE SESSION - CORRIGÉ */}
               {sessions.length > 0 && (
                 <div className="space-y-3">
-                  <Label htmlFor="sessionId" className="text-sm font-medium text-gray-700 flex items-center space-x-2">
+                  <Label className="text-sm font-medium text-gray-700 flex items-center space-x-2">
                     <Calendar className="w-4 h-4" />
-                    <span>Session de Recrutement </span>
+                    <span>Session de Recrutement</span>
                   </Label>
-                  <select 
-                    id="sessionId"
+                  <Select 
                     value={formData.sessionId} 
-                    onChange={(e) => handleChange("sessionId", e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors h-11 bg-white"
+                    onValueChange={(value) => handleChange("sessionId", value)}
                     disabled={loading}
                   >
-                    <option value="">Aucune session</option>
-                    {sessions.map((session) => (
-                      <option key={session.id} value={session.id}>
-                        {session.metier} - {session.jour} {new Date(session.date).toLocaleDateString('fr-FR')} ({session.status})
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full border-gray-300 focus:border-orange-500 focus:ring-orange-500 transition-colors h-11">
+                      <SelectValue placeholder="Aucune session" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Aucune session</SelectItem>
+                      {sessions.map((session) => (
+                        <SelectItem key={session.id} value={session.id}>
+                          {session.metier} - {session.jour} {new Date(session.date).toLocaleDateString('fr-FR')} ({session.status === 'PLANIFIED' ? 'Planifiée' : 'En cours'})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <p className="text-xs text-gray-500 mt-1">
                     {sessions.length} session(s) disponible(s)
                   </p>
