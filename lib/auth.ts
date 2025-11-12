@@ -1,12 +1,13 @@
 import { betterAuth } from "better-auth"
+import { prismaAdapter } from "better-auth/adapters/prisma"
 import { prisma } from "./prisma"
 
 export const auth = betterAuth({
-  database: {
-    type: "postgresql",  // ✅ Direct connection sans adaptateur
-    url: process.env.DATABASE_URL!,
-  },
-  secret: process.env.AUTH_SECRET!,
+  database: prismaAdapter(prisma, {
+    provider: "postgresql",
+  }),
+  secret: process.env.BETTER_AUTH_SECRET!,
+  baseURL: process.env.BETTER_AUTH_URL,
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
@@ -27,11 +28,11 @@ export const auth = betterAuth({
     },
   },
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 jours
-    updateAge: 60 * 60 * 24, // 1 jour
+    expiresIn: 60 * 60 * 24 * 7,
+    updateAge: 60 * 60 * 24,
     cookieCache: {
       enabled: true,
-      maxAge: 60 * 5, // 5 minutes
+      maxAge: 60 * 5,
     },
   },
   advanced: {
@@ -40,28 +41,7 @@ export const auth = betterAuth({
       enabled: false,
     },
     useSecureCookies: process.env.NODE_ENV === "production",
+    generateSchema: false, // ✅ Important
   },
   plugins: [],
-  callbacks: {
-    async signIn() {
-      return true
-    },
-    async session({ session, user }: { session: any; user: any }) {
-      // Mettre à jour lastLogin à chaque création de session
-      if (user.id) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { lastLogin: new Date() }
-        })
-      }
-
-      return {
-        ...session,
-        user: {
-          ...session.user,
-          role: user.role,
-        },
-      }
-    },
-  },
 })
