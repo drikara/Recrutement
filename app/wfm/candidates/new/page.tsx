@@ -64,49 +64,9 @@ export default async function NewCandidatePage() {
         {/* Passez les sessions au formulaire */}
         <CandidateForm sessions={sessions} />
         
-        {/* Guide de création */}
-        <div className="mt-8 p-6 bg-green-50 border border-green-200 rounded-lg">
-          <h3 className="text-lg font-semibold text-green-800 mb-3">Guide de création</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-green-700">
-            <div>
-              <h4 className="font-medium mb-2">Champs obligatoires</h4>
-              <ul className="space-y-1">
-                <li>• Nom et Prénom</li>
-                <li>• Numéro de téléphone</li>
-                <li>• Date de naissance</li>
-                <li>• Email</li>
-                <li>• Diplôme</li>
-                <li>• Établissement</li>
-                <li>• Lieu d'habitation</li>
-                <li>• Métier</li>
-                <li>• Disponibilité</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-medium mb-2">Champs optionnels</h4>
-              <ul className="space-y-1">
-                <li>• Date envoi SMS</li>
-                <li>• Date entretien</li>
-                <li>• Session de recrutement</li>
-              </ul>
-            </div>
-          </div>
-          <div className="mt-4 text-xs text-green-600">
-            <p><strong>Astuce :</strong> L'âge est calculé automatiquement à partir de la date de naissance.</p>
-          </div>
-        </div>
+     
 
-        {/* Informations importantes */}
-        <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <h3 className="text-lg font-semibold text-yellow-800 mb-2">Processus après création</h3>
-          <ul className="text-sm text-yellow-700 space-y-1">
-            <li>• Le candidat sera visible dans la liste des candidats</li>
-            <li>• Le statut d'appel sera défini sur "Non contacté" par défaut</li>
-            <li>• Les membres du jury pourront évaluer le candidat</li>
-            <li>• Vous pourrez modifier les informations à tout moment</li>
-            <li>• Le suivi d'appel pourra être mis à jour</li>
-          </ul>
-        </div>
+       
       </main>
     </div>
   )
