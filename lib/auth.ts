@@ -8,6 +8,15 @@ export const auth = betterAuth({
   }),
   secret: process.env.BETTER_AUTH_SECRET!,
   baseURL: process.env.BETTER_AUTH_URL,
+    // AJOUTEZ CETTE SECTION TRUSTED ORIGINS
+  trustedOrigins: [
+    "https://consolidations-notes-1.vercel.app",
+    "https://consolidations-notes-1-32sygcg4c.vercel.app",
+    // Pour le développement local
+    "http://localhost:3000",
+    // Pattern pour tous les déploiements preview Vercel (kept as a string to satisfy the type)
+    "https://consolidations-notes-1-.*.vercel.app",
+  ],
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
