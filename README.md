@@ -6,11 +6,8 @@ Inscription avec nom, email et mot de passe
 Sélection du rôle lors de l'inscription (WFM ou JURY)
 
 Connexion sécurisée avec gestion de sessions persistantes (7 jours)
-
 Déconnexion sécurisée.
-
 Protection des routes par rôle avec redirection automatique
-
 Gestion des Rôles
 Rôle WFM (Workforce Management) : Accès complet à toutes les fonctionnalités, administration système
 
