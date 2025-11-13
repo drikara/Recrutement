@@ -79,7 +79,7 @@ export function CandidateEditForm({ candidate, sessions }: CandidateEditFormProp
     availability: candidate.availability,
     interview_date: candidate.interview_date || '',
     metier: candidate.metier,
-    session_id: candidate.session_id || '',
+    session_id: candidate.session_id || 'none', // Changé de '' à 'none'
     notes: candidate.notes || ''
   })
 
@@ -118,7 +118,7 @@ export function CandidateEditForm({ candidate, sessions }: CandidateEditFormProp
         body: JSON.stringify({
           ...formData,
           age,
-          session_id: formData.session_id || null
+          session_id: formData.session_id === 'none' ? null : formData.session_id // Gestion de 'none'
         }),
       })
 
@@ -390,7 +390,8 @@ export function CandidateEditForm({ candidate, sessions }: CandidateEditFormProp
                   <SelectValue placeholder="Sélectionner une session" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucune session</SelectItem>
+                  {/* CORRECTION ICI : remplacer value="" par value="none" */}
+                  <SelectItem value="none">Aucune session</SelectItem>
                   {sessions.map((session) => (
                     <SelectItem key={session.id} value={session.id}>
                       {session.metier} - {session.jour} {new Date(session.date).toLocaleDateString('fr-FR')} ({session.status === 'PLANIFIED' ? 'Planifiée' : 'En cours'})
