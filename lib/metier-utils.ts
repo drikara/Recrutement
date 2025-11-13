@@ -2,7 +2,7 @@ import { Metier, FFDecision, Decision, FinalDecision } from '@prisma/client'
 import { metierConfig } from './metier-config'
 
 export interface ScoreData {
-  visual_presentation?: number
+  presentation_visuelle?: number
   verbal_communication?: number
   voice_quality?: number
   psychotechnical_test?: number
@@ -28,100 +28,139 @@ export function calculateAutoDecisions(
 ): AutoDecisions {
   const config = metierConfig[metier]
   
-  // Initialiser avec des valeurs par défaut
   let phase1FfDecision: FFDecision | null = null
   let phase1Decision: Decision | null = null
   let phase2FfDecision: FFDecision | null = null
   let finalDecision: FinalDecision | null = null
 
-  // Phase 1 - Calcul basé sur les 3 critères
+  // PHASE 1 - Calcul basé sur les 3 critères
   const phase1Scores = [
-    scores.visual_presentation || 0,
+    scores.presentation_visuelle || 0,
     scores.verbal_communication || 0,
     scores.voice_quality || 0
   ]
   
-  // Calculer la moyenne seulement si au moins un score est saisi
   const hasPhase1Scores = phase1Scores.some(score => score > 0)
   
   if (hasPhase1Scores) {
     const phase1Avg = phase1Scores.reduce((sum, score) => sum + score, 0) / 3
     
-    // Utiliser les valeurs littérales exactes attendues par Prisma
     phase1FfDecision = phase1Avg >= config.criteria.minPhase1 ? 'FAVORABLE' : 'DEFAVORABLE'
     phase1Decision = phase1FfDecision === 'FAVORABLE' ? 'ADMIS' : 'ELIMINE'
   }
 
-  // Phase 2 - Calcul basé sur les tests requis
-  let phase2Pass = false
-
-  // CORRECTION : Utiliser config.criteria.requiresPhase2 au lieu de config.requiresPhase2
-  if (config.criteria.requiresPhase2) {
+  // PHASE 2 - Logique selon le métier
+  if (phase1FfDecision === 'FAVORABLE' && config.criteria.requiresPhase2) {
+    // Métiers avec jury Phase 2 (tous sauf BO_RECLAM)
     const phase2Tests: boolean[] = []
     
-    // Test de saisie
     if (config.requiredTests.typing) {
-      const hasTypingScores = (scores.typing_speed || 0) > 0 || (scores.typing_accuracy || 0) > 0
-      const typingPass = hasTypingScores && 
-                        (scores.typing_speed || 0) >= (config.criteria.minTypingSpeed || 0) && 
-                        (scores.typing_accuracy || 0) >= (config.criteria.minTypingAccuracy || 0)
-      phase2Tests.push(typingPass)
+      const hasTypingScores = (scores.typing_speed || 0) > 0 && (scores.typing_accuracy || 0) > 0
+      if (hasTypingScores) {
+        const typingPass = (scores.typing_speed || 0) >= (config.criteria.minTypingSpeed || 0) && 
+                          (scores.typing_accuracy || 0) >= (config.criteria.minTypingAccuracy || 0)
+        phase2Tests.push(typingPass)
+      }
     }
     
-    // Test Excel
     if (config.requiredTests.excel) {
       const hasExcelScore = (scores.excel_test || 0) > 0
-      const excelPass = hasExcelScore && (scores.excel_test || 0) >= (config.criteria.minExcel || 0)
-      phase2Tests.push(excelPass)
+      if (hasExcelScore) {
+        const excelPass = (scores.excel_test || 0) >= (config.criteria.minExcel || 0)
+        phase2Tests.push(excelPass)
+      }
     }
     
-    // Test Dictée
     if (config.requiredTests.dictation) {
       const hasDictationScore = (scores.dictation || 0) > 0
-      const dictationPass = hasDictationScore && (scores.dictation || 0) >= (config.criteria.minDictation || 0)
-      phase2Tests.push(dictationPass)
+      if (hasDictationScore) {
+        const dictationPass = (scores.dictation || 0) >= (config.criteria.minDictation || 0)
+        phase2Tests.push(dictationPass)
+      }
     }
     
-    // Test Simulation Vente
     if (config.requiredTests.salesSimulation) {
       const hasSalesScore = (scores.sales_simulation || 0) > 0
-      const salesPass = hasSalesScore && (scores.sales_simulation || 0) >= (config.criteria.minSalesSimulation || 0)
-      phase2Tests.push(salesPass)
+      if (hasSalesScore) {
+        const salesPass = (scores.sales_simulation || 0) >= (config.criteria.minSalesSimulation || 0)
+        phase2Tests.push(salesPass)
+      }
     }
     
-    // Test Exercice Analyse
     if (config.requiredTests.analysisExercise) {
       const hasAnalysisScore = (scores.analysis_exercise || 0) > 0
-      const analysisPass = hasAnalysisScore && (scores.analysis_exercise || 0) >= (config.criteria.minAnalysis || 0)
-      phase2Tests.push(analysisPass)
+      if (hasAnalysisScore) {
+        const analysisPass = (scores.analysis_exercise || 0) >= (config.criteria.minAnalysis || 0)
+        phase2Tests.push(analysisPass)
+      }
     }
     
-    // Test Psychotechnique
     if (config.requiredTests.psychotechnical) {
       const hasPsychotechnicalScore = (scores.psychotechnical_test || 0) > 0
-      const psychotechnicalPass = hasPsychotechnicalScore && (scores.psychotechnical_test || 0) >= (config.criteria.minPsychotechnical || 0)
-      phase2Tests.push(psychotechnicalPass)
+      if (hasPsychotechnicalScore) {
+        const psychotechnicalPass = (scores.psychotechnical_test || 0) >= (config.criteria.minPsychotechnical || 0)
+        phase2Tests.push(psychotechnicalPass)
+      }
     }
     
-    // Phase 2 est réussie si tous les tests requis sont passés
-    const hasPhase2Scores = phase2Tests.length > 0
-    phase2Pass = hasPhase2Scores && phase2Tests.every(test => test === true)
-    phase2FfDecision = hasPhase2Scores ? (phase2Pass ? 'FAVORABLE' : 'DEFAVORABLE') : null
+    if (phase2Tests.length > 0) {
+      const phase2Pass = phase2Tests.every(test => test === true)
+      phase2FfDecision = phase2Pass ? 'FAVORABLE' : 'DEFAVORABLE'
+    }
+  } else if (phase1FfDecision === 'FAVORABLE' && !config.criteria.requiresPhase2) {
+    // CAS BO_RECLAM : Pas de jury Phase 2, mais tests techniques Phase 2
+    const phase2Tests: boolean[] = []
+    
+    if (config.requiredTests.typing) {
+      const hasTypingScores = (scores.typing_speed || 0) > 0 && (scores.typing_accuracy || 0) > 0
+      if (hasTypingScores) {
+        const typingPass = (scores.typing_speed || 0) >= (config.criteria.minTypingSpeed || 0) && 
+                          (scores.typing_accuracy || 0) >= (config.criteria.minTypingAccuracy || 0)
+        phase2Tests.push(typingPass)
+      }
+    }
+    
+    if (config.requiredTests.excel) {
+      const hasExcelScore = (scores.excel_test || 0) > 0
+      if (hasExcelScore) {
+        const excelPass = (scores.excel_test || 0) >= (config.criteria.minExcel || 0)
+        phase2Tests.push(excelPass)
+      }
+    }
+    
+    if (config.requiredTests.dictation) {
+      const hasDictationScore = (scores.dictation || 0) > 0
+      if (hasDictationScore) {
+        const dictationPass = (scores.dictation || 0) >= (config.criteria.minDictation || 0)
+        phase2Tests.push(dictationPass)
+      }
+    }
+    
+    if (config.requiredTests.psychotechnical) {
+      const hasPsychotechnicalScore = (scores.psychotechnical_test || 0) > 0
+      if (hasPsychotechnicalScore) {
+        const psychotechnicalPass = (scores.psychotechnical_test || 0) >= (config.criteria.minPsychotechnical || 0)
+        phase2Tests.push(psychotechnicalPass)
+      }
+    }
+    
+    if (phase2Tests.length > 0) {
+      const phase2Pass = phase2Tests.every(test => test === true)
+      phase2FfDecision = phase2Pass ? 'FAVORABLE' : 'DEFAVORABLE'
+    }
+  } else if (phase1FfDecision === 'DEFAVORABLE') {
+    phase2FfDecision = 'DEFAVORABLE'
   }
 
-  // Décision finale - CORRECTION : Utiliser config.criteria.requiresPhase2 ici aussi
-  if (phase1FfDecision === 'FAVORABLE') {
-    if (!config.criteria.requiresPhase2) {
-      // Métiers sans Phase 2
-      finalDecision = 'RECRUTE'
-    } else if (phase2FfDecision === 'FAVORABLE') {
-      // Métiers avec Phase 2 réussie
+  // DÉCISION FINALE
+  if (phase1FfDecision === 'DEFAVORABLE') {
+    finalDecision = 'NON_RECRUTE'
+  } else if (phase1FfDecision === 'FAVORABLE') {
+    if (phase2FfDecision === 'FAVORABLE') {
       finalDecision = 'RECRUTE'
     } else if (phase2FfDecision === 'DEFAVORABLE') {
       finalDecision = 'NON_RECRUTE'
     }
-  } else if (phase1FfDecision === 'DEFAVORABLE') {
-    finalDecision = 'NON_RECRUTE'
   }
 
   return {
@@ -151,7 +190,6 @@ export function getMetierTests(metier: Metier): string[] {
   return tests
 }
 
-// Fonction utilitaire pour formater les décisions
 export function formatDecision(decision: string | null): string {
   if (!decision) return 'Non calculé'
   

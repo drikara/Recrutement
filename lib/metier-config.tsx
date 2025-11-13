@@ -12,7 +12,7 @@ export interface MetierConfig {
   }
   criteria: {
     minPhase1: number
-    requiresPhase2: boolean  // Déplacé dans criteria
+    requiresPhase2: boolean
     minPhase2: number
     minTypingSpeed?: number
     minTypingAccuracy?: number
@@ -42,6 +42,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       minDictation: 16
     }
   },
+  
   [Metier.AGENCES]: {
     label: 'Agences',
     requiredTests: {
@@ -59,6 +60,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       minSalesSimulation: 3
     }
   },
+  
   [Metier.BO_RECLAM]: {
     label: 'Back Office Réclamations',
     requiredTests: {
@@ -69,7 +71,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
     },
     criteria: {
       minPhase1: 3,
-      requiresPhase2: false,  // Ici c'est false
+      requiresPhase2: false, // Pas de jury Phase 2, mais tests techniques Phase 2
       minPhase2: 0,
       minTypingSpeed: 17,
       minTypingAccuracy: 85,
@@ -78,6 +80,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       minPsychotechnical: 8
     }
   },
+  
   [Metier.TELEVENTE]: {
     label: 'Télévente',
     requiredTests: {
@@ -95,6 +98,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       minSalesSimulation: 3
     }
   },
+  
   [Metier.RESEAUX_SOCIAUX]: {
     label: 'Réseaux Sociaux',
     requiredTests: {
@@ -110,6 +114,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       minDictation: 16
     }
   },
+  
   [Metier.SUPERVISION]: {
     label: 'Supervision',
     requiredTests: {
@@ -127,6 +132,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       minDictation: 16
     }
   },
+  
   [Metier.BOT_COGNITIVE_TRAINER]: {
     label: 'Bot Cognitive Trainer',
     requiredTests: {
@@ -143,6 +149,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       minAnalysis: 6
     }
   },
+  
   [Metier.SMC_FIXE]: {
     label: 'SMC Fixe',
     requiredTests: {
@@ -160,6 +167,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       minDictation: 16
     }
   },
+  
   [Metier.SMC_MOBILE]: {
     label: 'SMC Mobile',
     requiredTests: {
