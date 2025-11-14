@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
-import { generateSessionExport } from "@/lib/export-utils"
+import { generateSessionExportXLSX } from "@/lib/export-utils"
 import JSZip from "jszip"
 
 export async function GET(request: Request) {
@@ -57,11 +57,11 @@ export async function GET(request: Request) {
     const zip = new JSZip()
 
     for (const recruitmentSession of recruitmentSessions) {
-      // generateSessionExport retourne { csv: string, filename: string }
-      const exportResult = generateSessionExport(recruitmentSession)
+      // generateSessionExportXLSX retourne { buffer: ArrayBuffer, filename: string }
+      const exportResult = await generateSessionExportXLSX(recruitmentSession)
       
-      // zip.file(filename, content) - deux paramètres STRING séparés
-      zip.file(exportResult.filename, exportResult.csv)
+      // zip.file(filename, content) - provide the ArrayBuffer directly
+      zip.file(exportResult.filename, exportResult.buffer)
     }
 
     // Générer le ZIP en Blob
