@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { Metier } from "@prisma/client"
 import JSZip from "jszip"
-import { generateSessionExport, generateConsolidatedExport } from "@/lib/export-utils"
+import { generateSessionExportXLSX, generateConsolidatedExportXLSX } from "@/lib/export-utils"
 
 export async function GET(request: Request) {
   try {
@@ -69,14 +69,14 @@ export async function GET(request: Request) {
 
     // Fichier par session
     for (const recruitmentSession of recruitmentSessions) {
-      const exportResult = generateSessionExport(recruitmentSession)
-      // zip.file() attend (filename: string, data: string)
-      zip.file(exportResult.filename, exportResult.csv)
+      const exportResult = await generateSessionExportXLSX(recruitmentSession)
+      // Utiliser le buffer ArrayBuffer directement
+      zip.file(exportResult.filename, exportResult.buffer)
     }
 
     // Fichier consolidé global
-    const globalResult = generateConsolidatedExport(recruitmentSessions)
-    zip.file(globalResult.filename, globalResult.csv)
+    const globalResult = await generateConsolidatedExportXLSX(recruitmentSessions)
+    zip.file(globalResult.filename, globalResult.buffer)
 
     // Générer le ZIP en Blob
     const zipBlob = await zip.generateAsync({ type: 'blob' })
