@@ -150,7 +150,7 @@ const metierCriteria: Record<string, MetierCriteria> = {
 }
 
 export async function RecentCandidates({ filters }: RecentCandidatesProps) {
-  // Requête simple sans filtres
+  // ✅ CORRECTION: Requête SQL enrichie pour récupérer les scores détaillés des jurys
   const query = sql`
     SELECT 
       c.*, 
@@ -173,14 +173,34 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
       s.call_attempts,
       s.last_call_date,
       s.call_notes,
-      COALESCE(ffs.score, 0) as face_to_face_score
+      -- ✅ Récupération des scores jurys Phase 1 avec moyennes calculées
+      (
+        SELECT JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'presentation_visuelle', ffs.presentation_visuelle,
+            'verbal_communication', ffs.verbal_communication,
+            'voice_quality', ffs.voice_quality,
+            'jury_avg', (COALESCE(ffs.presentation_visuelle, 0) + COALESCE(ffs.verbal_communication, 0) + COALESCE(ffs.voice_quality, 0)) / 3.0
+          )
+        )
+        FROM face_to_face_scores ffs
+        WHERE ffs.candidate_id = c.id AND ffs.phase = 1
+      ) as phase1_jury_details,
+      -- ✅ Moyenne générale Phase 1 basée sur les 3 critères
+      (
+        SELECT AVG((COALESCE(ffs.presentation_visuelle, 0) + COALESCE(ffs.verbal_communication, 0) + COALESCE(ffs.voice_quality, 0)) / 3.0)
+        FROM face_to_face_scores ffs
+        WHERE ffs.candidate_id = c.id AND ffs.phase = 1
+      ) as face_to_face_phase1_avg,
+      -- ✅ Moyenne Phase 2 des jurys
+      (
+        SELECT AVG(ffs.score)
+        FROM face_to_face_scores ffs
+        WHERE ffs.candidate_id = c.id AND ffs.phase = 2
+      ) as face_to_face_phase2_avg
     FROM candidates c
     LEFT JOIN scores s ON c.id = s.candidate_id
-    LEFT JOIN (
-      SELECT candidate_id, AVG(score) as score 
-      FROM face_to_face_scores 
-      GROUP BY candidate_id
-    ) ffs ON c.id = ffs.candidate_id
+    ORDER BY c.created_at DESC
     LIMIT 10
   `
 
@@ -218,7 +238,8 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
 
     switch (testName) {
       case "Face à Face":
-        return 'faceToFace' in thresholds ? candidate.face_to_face_score >= thresholds.faceToFace : null
+        // ✅ CORRECTION: Utiliser la moyenne calculée depuis la base de données
+        return 'faceToFace' in thresholds ? (candidate.face_to_face_phase1_avg || 0) >= thresholds.faceToFace : null
       case "Saisie":
         return ('typingSpeed' in thresholds && 'typingAccuracy' in thresholds) 
           ? candidate.typing_speed >= thresholds.typingSpeed && 
@@ -334,7 +355,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
           candidates.map((candidate: any) => {
             const criteria = metierCriteria[candidate.metier]
             
-            // ✅ CORRECTION: Définition des scores avec leurs échelles
+            // ✅ CORRECTION: Utiliser les valeurs calculées depuis la base de données
             const phase1Scores = [
               { name: "Présentation Visuelle", value: candidate.presentation_visuelle, max: 5 },
               { name: 'Qualité Vocale', value: candidate.voice_quality, max: 5 },
@@ -351,19 +372,10 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
               { name: 'Exercice Analyse', value: candidate.analysis_exercise, max: 10 }
             ]
 
-            // ✅ CORRECTION: Calcul des moyennes avec normalisation sur /20
-            const phase1NormalizedScores = phase1Scores
-              .filter(score => 
-                score.value !== null && 
-                score.value !== undefined && 
-                !isNaN(Number(score.value))
-              )
-              .map(score => normalizeScore(Number(score.value), score.max))
+            // ✅ CORRECTION: Utiliser la moyenne calculée dans SQL pour Phase 1
+            const phase1Average = candidate.face_to_face_phase1_avg ? Number(candidate.face_to_face_phase1_avg) : null
 
-            const phase1Average = phase1NormalizedScores.length > 0
-              ? phase1NormalizedScores.reduce((a, b) => a + b, 0) / phase1NormalizedScores.length
-              : null
-
+            // ✅ Calcul de la moyenne Phase 2 (normalisée sur /20)
             const phase2NormalizedScores = phase2Scores
               .filter(score => 
                 !score.skipInAverage && 
@@ -487,7 +499,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                       <span>Phase 1 - Évaluation Initiale</span>
                       {phase1Average !== null && (
                         <span className="ml-auto text-xl font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-lg">
-                          {phase1Average.toFixed(2)}/20
+                          {phase1Average.toFixed(2)}/5
                         </span>
                       )}
                     </h4>
@@ -503,7 +515,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                           </div>
                         )
                       ))}
-                      {phase1NormalizedScores.length === 0 && (
+                      {!phase1Average && (
                         <div className="text-center py-4 text-blue-400">
                           Aucune note disponible
                         </div>
