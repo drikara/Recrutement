@@ -19,7 +19,7 @@ function convertDecimal(value: any): any {
   return value
 }
 
-// ⭐ CORRECTION: Fonction pour un seul candidat avec gestion des Decimal et tous les champs
+// ⭐ CORRECTION: Fonction pour un seul candidat - mapping correct selon le schéma Prisma
 export function transformPrismaData(candidate: any): any {
   if (!candidate) return null
   
@@ -30,7 +30,7 @@ export function transformPrismaData(candidate: any): any {
   const phase1Scores = convertedCandidate.faceToFaceScores?.filter((s: any) => s.phase === 1) || []
   const phase2Scores = convertedCandidate.faceToFaceScores?.filter((s: any) => s.phase === 2) || []
   
-  // ✅ CORRECTION: Calcul correct de la moyenne Phase 1 basé sur les 3 critères
+  // ✅ Calcul correct de la moyenne Phase 1 basé sur les 3 critères
   const avgPhase1 = phase1Scores.length > 0 
     ? phase1Scores.reduce((sum: number, s: any) => {
         const pres = Number(s.presentationVisuelle) || 0
@@ -45,14 +45,14 @@ export function transformPrismaData(candidate: any): any {
     ? phase2Scores.reduce((sum: number, s: any) => sum + (s.score || 0), 0) / phase2Scores.length 
     : 0
 
-  // Transformation des données
+  // ✅ Transformation des données - utilisant les noms Prisma (camelCase)
   return {
     id: convertedCandidate.id,
-    fullName: `${convertedCandidate.prenom || ''} ${convertedCandidate.nom || ''}`.trim(),
-    phone: convertedCandidate.telephone || '',
-    email: convertedCandidate.email || '',
+    fullName: convertedCandidate.fullName || '', // ✅ Prisma retourne fullName en camelCase
+    phone: convertedCandidate.phone || '', // ✅ Déjà en camelCase dans le schéma
+    email: convertedCandidate.email || '', // ✅ Déjà en camelCase dans le schéma
     metier: convertedCandidate.metier || '',
-    age: calculateAge(convertedCandidate.birthDate),
+    age: convertedCandidate.age || calculateAge(convertedCandidate.birthDate),
     location: convertedCandidate.location || '',
     availability: convertedCandidate.availability || '',
     interviewDate: convertedCandidate.interviewDate || null,
@@ -66,7 +66,7 @@ export function transformPrismaData(candidate: any): any {
       metier: convertedCandidate.session.metier || '',
       date: convertedCandidate.session.date,
       jour: convertedCandidate.session.jour || '',
-      status: convertedCandidate.session.status || '' // ✅ AJOUT: status
+      status: convertedCandidate.session.status || ''
     } : null,
     scores: convertedCandidate.scores ? {
       callStatus: convertedCandidate.scores.callStatus || 'NON_CONTACTE',
@@ -74,11 +74,11 @@ export function transformPrismaData(candidate: any): any {
       callAttempts: convertedCandidate.scores.callAttempts || 0,
       lastCallDate: convertedCandidate.scores.lastCallDate || null,
       callNotes: convertedCandidate.scores.callNotes || null,
-      // ✅ AJOUT: Tous les scores détaillés Phase 1
+      // ✅ Scores détaillés Phase 1
       presentationVisuelle: convertedCandidate.scores.presentationVisuelle || null,
       verbalCommunication: convertedCandidate.scores.verbalCommunication || null,
       voiceQuality: convertedCandidate.scores.voiceQuality || null,
-      // ✅ AJOUT: Tous les scores Phase 2
+      // ✅ Scores Phase 2
       psychotechnicalTest: convertedCandidate.scores.psychotechnicalTest || null,
       typingSpeed: convertedCandidate.scores.typingSpeed || null,
       typingAccuracy: convertedCandidate.scores.typingAccuracy || null,
@@ -87,7 +87,7 @@ export function transformPrismaData(candidate: any): any {
       salesSimulation: convertedCandidate.scores.salesSimulation || null,
       analysisExercise: convertedCandidate.scores.analysisExercise || null,
       phase2Date: convertedCandidate.scores.phase2Date || null,
-      // ✅ AJOUT: Décisions
+      // ✅ Décisions
       phase1Decision: convertedCandidate.scores.phase1Decision || null,
       phase1FfDecision: convertedCandidate.scores.phase1FfDecision || null,
       phase2FfDecision: convertedCandidate.scores.phase2FfDecision || null
@@ -96,7 +96,7 @@ export function transformPrismaData(candidate: any): any {
       id: score.id,
       score: score.score,
       phase: score.phase,
-      // ✅ AJOUT: Détails des critères pour chaque jury
+      // ✅ Critères détaillés (Prisma retourne en camelCase)
       presentationVisuelle: score.presentationVisuelle || null,
       verbalCommunication: score.verbalCommunication || null,
       voiceQuality: score.voiceQuality || null,
@@ -113,7 +113,7 @@ export function transformPrismaData(candidate: any): any {
   }
 }
 
-// ⭐ CORRECTION: Fonction pour un tableau de candidats
+// Fonction pour un tableau de candidats
 export function transformPrismaDataArray(candidates: any[]): any[] {
   if (!Array.isArray(candidates)) {
     console.error('transformPrismaDataArray: input is not an array', candidates)
