@@ -146,6 +146,46 @@ function calculatePhase2Average(faceToFaceScores: any[]): string {
   return avg.toFixed(2)
 }
 
+// ✅ Configuration des couleurs pour l'export
+const exportColors = {
+  // Palette orange principale
+  primary: {
+    headerBg: 'FF8C00', // Orange foncé
+    headerFont: 'FFFFFF', // Blanc
+    accent1: 'FFA500', // Orange standard
+    accent2: 'FFB74D', // Orange clair
+    accent3: 'FFF3E0'  // Orange très clair
+  },
+  // Couleurs complémentaires
+  complementary: {
+    blue: '4A90E2',    // Bleu doux
+    green: '66BB6A',   // Vert doux
+    gray: '78909C',    // Gris bleuté
+    beige: 'F5F5DC'    // Beige clair
+  }
+}
+
+// ✅ Fonction pour appliquer le style aux cellules
+function applyCellStyle(ws: XLSX.WorkSheet, range: XLSX.Range, style: any) {
+  if (!ws['!cols']) ws['!cols'] = []
+  
+  for (let R = range.s.r; R <= range.e.r; ++R) {
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const cell_address = {c: C, r: R}
+      const cell_ref = XLSX.utils.encode_cell(cell_address)
+      
+      if (!ws[cell_ref]) continue
+      
+      if (!ws[cell_ref].s) {
+        ws[cell_ref].s = {}
+      }
+      
+      // Appliquer le style
+      Object.assign(ws[cell_ref].s, style)
+    }
+  }
+}
+
 // ✅ Export XLSX par session
 export async function generateSessionExportXLSX(session: any): Promise<{ buffer: ArrayBuffer, filename: string }> {
   const XLSX = await import('xlsx')
@@ -206,12 +246,69 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
     data.push([...baseRow, ...metierSpecificValues])
   })
   
-  // Créer le workbook
+  // Créer le workbook avec style
   const ws = XLSX.utils.aoa_to_sheet(data)
   
   // Ajuster la largeur des colonnes
   const colWidths = headers.map(() => ({ wch: 20 }))
   ws['!cols'] = colWidths
+  
+  // Appliquer les styles si supporté
+  try {
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:Z1')
+    
+    // Style pour les en-têtes
+    const headerStyle = {
+      fill: {
+        fgColor: { rgb: exportColors.primary.headerBg }
+      },
+      font: {
+        color: { rgb: exportColors.primary.headerFont },
+        bold: true,
+        sz: 12
+      },
+      alignment: {
+        horizontal: 'center',
+        vertical: 'center'
+      }
+    }
+    
+    // Appliquer le style aux en-têtes (première ligne)
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const cell_address = {c: C, r: range.s.r}
+      const cell_ref = XLSX.utils.encode_cell(cell_address)
+      if (ws[cell_ref]) {
+        if (!ws[cell_ref].s) ws[cell_ref].s = {}
+        Object.assign(ws[cell_ref].s, headerStyle)
+      }
+    }
+    
+    // Style alterné pour les lignes de données
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      const rowStyle = {
+        fill: {
+          fgColor: { rgb: R % 2 === 0 ? exportColors.primary.accent3 : 'FFFFFF' }
+        },
+        font: {
+          sz: 11
+        },
+        alignment: {
+          vertical: 'center'
+        }
+      }
+      
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cell_address = {c: C, r: R}
+        const cell_ref = XLSX.utils.encode_cell(cell_address)
+        if (ws[cell_ref]) {
+          if (!ws[cell_ref].s) ws[cell_ref].s = {}
+          Object.assign(ws[cell_ref].s, rowStyle)
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Le style ne peut pas être appliqué à l\'export Excel', error)
+  }
   
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Session')
@@ -301,12 +398,88 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     }
   }
   
-  // Créer le workbook
+  // Créer le workbook avec style
   const ws = XLSX.utils.aoa_to_sheet(data)
   
   // Ajuster la largeur des colonnes
   const colWidths = headers.map(() => ({ wch: 20 }))
   ws['!cols'] = colWidths
+  
+  // Appliquer les styles si supporté
+  try {
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:Z1')
+    
+    // Style pour les en-têtes
+    const headerStyle = {
+      fill: {
+        fgColor: { rgb: exportColors.primary.headerBg }
+      },
+      font: {
+        color: { rgb: exportColors.primary.headerFont },
+        bold: true,
+        sz: 12
+      },
+      alignment: {
+        horizontal: 'center',
+        vertical: 'center'
+      }
+    }
+    
+    // Appliquer le style aux en-têtes (première ligne)
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const cell_address = {c: C, r: range.s.r}
+      const cell_ref = XLSX.utils.encode_cell(cell_address)
+      if (ws[cell_ref]) {
+        if (!ws[cell_ref].s) ws[cell_ref].s = {}
+        Object.assign(ws[cell_ref].s, headerStyle)
+      }
+    }
+    
+    // Style alterné pour les lignes de données avec couleur par métier
+    const metierColors: Record<string, string> = {
+      [Metier.CALL_CENTER]: exportColors.complementary.blue,
+      [Metier.AGENCES]: exportColors.complementary.green,
+      [Metier.BO_RECLAM]: exportColors.complementary.gray,
+      [Metier.TELEVENTE]: exportColors.primary.accent1,
+      [Metier.RESEAUX_SOCIAUX]: exportColors.primary.accent2,
+      [Metier.SUPERVISION]: exportColors.complementary.beige,
+      [Metier.BOT_COGNITIVE_TRAINER]: 'E1F5FE',
+      [Metier.SMC_FIXE]: 'F3E5F5',
+      [Metier.SMC_MOBILE]: 'E8F5E8'
+    }
+    
+    let currentRow = 1 // Commence après l'en-tête
+    for (const session of sessions) {
+      for (const candidate of session.candidates) {
+        const candidateMetier = candidate.metier as Metier
+        const rowColor = metierColors[candidateMetier] || exportColors.primary.accent3
+        
+        const rowStyle = {
+          fill: {
+            fgColor: { rgb: rowColor }
+          },
+          font: {
+            sz: 11
+          },
+          alignment: {
+            vertical: 'center'
+          }
+        }
+        
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cell_address = {c: C, r: currentRow}
+          const cell_ref = XLSX.utils.encode_cell(cell_address)
+          if (ws[cell_ref]) {
+            if (!ws[cell_ref].s) ws[cell_ref].s = {}
+            Object.assign(ws[cell_ref].s, rowStyle)
+          }
+        }
+        currentRow++
+      }
+    }
+  } catch (error) {
+    console.warn('Le style ne peut pas être appliqué à l\'export Excel consolidé', error)
+  }
   
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Consolidé')
