@@ -301,7 +301,7 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
               </div>
               
               {/* Phase 2 */}
-              <div>
+              {/* <div>
                 <h4 className="font-bold text-lg text-amber-800 mb-4 flex items-center gap-2">
                   <div className="w-6 h-6 bg-amber-100 rounded-lg flex items-center justify-center">
                     <span className="text-amber-700 font-bold text-sm">2</span>
@@ -335,7 +335,7 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
                     <p className="text-amber-600 font-medium">Aucun score</p>
                   </div>
                 )}
-              </div>
+              </div> */}
             </div>
           </CardContent>
         </Card>
