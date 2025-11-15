@@ -15,8 +15,9 @@ const metierColumns: Record<Metier, string[]> = {
     'Rapidité de saisie (MPM)',
     'Précision de saisie (%)',
     'Dictée (/20)',
-    'Date de présence Phase 2',
-    'Simulation de Vente (/5)'
+   
+    'Simulation de Vente (/5)',
+     'Date de présence Phase 2',
   ],
   [Metier.BO_RECLAM]: [
     'Test Psychotechnique (/10)',
@@ -30,8 +31,9 @@ const metierColumns: Record<Metier, string[]> = {
     'Rapidité de saisie (MPM)',
     'Précision de saisie (%)',
     'Dictée (/20)',
+    
+    'Simulation de Vente (/5)',
     'Date de présence Phase 2',
-    'Simulation de Vente (/5)'
   ],
   [Metier.RESEAUX_SOCIAUX]: [
     'Rapidité de saisie (MPM)',
@@ -49,8 +51,9 @@ const metierColumns: Record<Metier, string[]> = {
   [Metier.BOT_COGNITIVE_TRAINER]: [
     'Test Excel (/5)',
     'Dictée (/20)',
+   
+    'Exercice d\'Analyse (/10)',
     'Date de présence Phase 2',
-    'Exercice d\'Analyse (/10)'
   ],
   [Metier.SMC_FIXE]: [
     'Rapidité de saisie (MPM)',
