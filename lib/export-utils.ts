@@ -177,14 +177,18 @@ export function generateSessionExport(session: any): { csv: string, filename: st
     'Moyenne FF Phase 2',
     'Décision FF Phase 2',
     // Appels
-    'Statut Appel',
-    // Décision finale et commentaire (décision avant dernière, commentaire dernière)
-    'Décision Finale',
-    'Commentaire'
+    'Statut Appel'
   ]
   
   const metierSpecificColumns = metierColumns[metier as Metier] || []
-  const headers = [...baseHeaders, ...metierSpecificColumns]
+  
+  // Ajouter les colonnes métier avant la décision finale et commentaire
+  const headers = [
+    ...baseHeaders,
+    ...metierSpecificColumns,
+    'Décision Finale',
+    'Commentaire'
+  ]
   
   // Générer les lignes
   const rows = session.candidates.map((candidate: any, index: number) => {
@@ -217,15 +221,18 @@ export function generateSessionExport(session: any): { csv: string, filename: st
       calculatePhase2Average(candidate.faceToFaceScores || []),
       candidate.scores?.phase2FfDecision || '',
       // Appels
-      candidate.scores?.callStatus || '',
-      // Décision finale et commentaire
-      candidate.scores?.finalDecision || '',
-      candidate.scores?.comments || ''
+      candidate.scores?.callStatus || ''
     ]
     
     const metierSpecificValues = metierSpecificColumns.map(col => getColumnValue(candidate, col))
     
-    return [...baseRow, ...metierSpecificValues]
+    // Ajouter les valeurs métier, puis décision finale et commentaire
+    return [
+      ...baseRow,
+      ...metierSpecificValues,
+      candidate.scores?.finalDecision || '',
+      candidate.scores?.comments || ''
+    ]
   })
   
   const csv = [
@@ -275,10 +282,7 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
     'Moyenne FF Phase 2',
     'Décision FF Phase 2',
     // Appels
-    'Statut Appel',
-    // Décision finale et commentaire
-    'Décision Finale',
-    'Commentaire'
+    'Statut Appel'
   ]
   
   const allMetierColumns = new Set<string>()
@@ -286,7 +290,13 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
     metierColumns[metier]?.forEach(col => allMetierColumns.add(col))
   })
   
-  const headers = [...baseHeaders, ...Array.from(allMetierColumns)]
+  // Ajouter les colonnes métier avant la décision finale et commentaire
+  const headers = [
+    ...baseHeaders,
+    ...Array.from(allMetierColumns),
+    'Décision Finale',
+    'Commentaire'
+  ]
   
   let candidateNumber = 1
   const rows: string[][] = []
@@ -326,10 +336,7 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
         calculatePhase2Average(candidate.faceToFaceScores || []),
         candidate.scores?.phase2FfDecision || '',
         // Appels
-        candidate.scores?.callStatus || '',
-        // Décision finale et commentaire
-        candidate.scores?.finalDecision || '',
-        candidate.scores?.comments || ''
+        candidate.scores?.callStatus || ''
       ]
       
       const metierSpecificValues = Array.from(allMetierColumns).map(col => {
@@ -340,7 +347,13 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
         return ''
       })
       
-      rows.push([...baseRow, ...metierSpecificValues])
+      // Ajouter les valeurs métier, puis décision finale et commentaire
+      rows.push([
+        ...baseRow,
+        ...metierSpecificValues,
+        candidate.scores?.finalDecision || '',
+        candidate.scores?.comments || ''
+      ])
       candidateNumber++
     }
   }
@@ -386,13 +399,18 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
     // Phase 2
     'Moyenne FF Phase 2', 'Décision FF Phase 2',
     // Appels
-    'Statut Appel',
-    // Décision finale et commentaire
-    'Décision Finale', 'Commentaire'
+    'Statut Appel'
   ]
   
   const metierSpecificColumns = metierColumns[metier as Metier] || []
-  const headers = [...baseHeaders, ...metierSpecificColumns]
+  
+  // Ajouter les colonnes métier avant la décision finale et commentaire
+  const headers = [
+    ...baseHeaders,
+    ...metierSpecificColumns,
+    'Décision Finale', 
+    'Commentaire'
+  ]
   
   const data = [headers]
   
@@ -426,14 +444,18 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
       calculatePhase2Average(candidate.faceToFaceScores || []),
       candidate.scores?.phase2FfDecision || '',
       // Appels
-      candidate.scores?.callStatus || '',
-      // Décision finale et commentaire
-      candidate.scores?.finalDecision || '',
-      candidate.scores?.comments || ''
+      candidate.scores?.callStatus || ''
     ]
     
     const metierSpecificValues = metierSpecificColumns.map(col => getColumnValue(candidate, col))
-    data.push([...baseRow, ...metierSpecificValues])
+    
+    // Ajouter les valeurs métier, puis décision finale et commentaire
+    data.push([
+      ...baseRow,
+      ...metierSpecificValues,
+      candidate.scores?.finalDecision || '',
+      candidate.scores?.comments || ''
+    ])
   })
   
   const ws = XLSX.utils.aoa_to_sheet(data)
@@ -468,16 +490,17 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
     { wch: 18 }, // Moyenne FF Phase 2
     { wch: 18 }, // Décision FF Phase 2
     // Appels
-    { wch: 15 }, // Statut Appel
-    // Décision finale et commentaire
-    { wch: 18 }, // Décision Finale
-    { wch: 40 }  // Commentaire
+    { wch: 15 }  // Statut Appel
   ]
   
   // Ajouter les largeurs pour les colonnes métier
   metierSpecificColumns.forEach(() => {
     colWidths.push({ wch: 20 })
   })
+  
+  // Ajouter les largeurs pour décision finale et commentaire
+  colWidths.push({ wch: 18 }) // Décision Finale
+  colWidths.push({ wch: 40 }) // Commentaire
   
   ws['!cols'] = colWidths
   
@@ -514,9 +537,7 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     // Phase 2
     'Moyenne FF Phase 2', 'Décision FF Phase 2',
     // Appels
-    'Statut Appel',
-    // Décision finale et commentaire
-    'Décision Finale', 'Commentaire'
+    'Statut Appel'
   ]
   
   const allMetierColumns = new Set<string>()
@@ -524,7 +545,14 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     metierColumns[metier]?.forEach(col => allMetierColumns.add(col))
   })
   
-  const headers = [...baseHeaders, ...Array.from(allMetierColumns)]
+  // Ajouter les colonnes métier avant la décision finale et commentaire
+  const headers = [
+    ...baseHeaders,
+    ...Array.from(allMetierColumns),
+    'Décision Finale',
+    'Commentaire'
+  ]
+  
   const data = [headers]
   
   let candidateNumber = 1
@@ -564,10 +592,7 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
         calculatePhase2Average(candidate.faceToFaceScores || []),
         candidate.scores?.phase2FfDecision || '',
         // Appels
-        candidate.scores?.callStatus || '',
-        // Décision finale et commentaire
-        candidate.scores?.finalDecision || '',
-        candidate.scores?.comments || ''
+        candidate.scores?.callStatus || ''
       ]
       
       const metierSpecificValues = Array.from(allMetierColumns).map(col => {
@@ -578,7 +603,13 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
         return ''
       })
       
-      data.push([...baseRow, ...metierSpecificValues])
+      // Ajouter les valeurs métier, puis décision finale et commentaire
+      data.push([
+        ...baseRow,
+        ...metierSpecificValues,
+        candidate.scores?.finalDecision || '',
+        candidate.scores?.comments || ''
+      ])
       candidateNumber++
     }
   }
@@ -616,16 +647,17 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     { wch: 18 }, // Moyenne FF Phase 2
     { wch: 18 }, // Décision FF Phase 2
     // Appels
-    { wch: 15 }, // Statut Appel
-    // Décision finale et commentaire
-    { wch: 18 }, // Décision Finale
-    { wch: 40 }  // Commentaire
+    { wch: 15 }  // Statut Appel
   ]
   
   // Ajouter les largeurs pour les colonnes métier
   Array.from(allMetierColumns).forEach(() => {
     colWidths.push({ wch: 20 })
   })
+  
+  // Ajouter les largeurs pour décision finale et commentaire
+  colWidths.push({ wch: 18 }) // Décision Finale
+  colWidths.push({ wch: 40 }) // Commentaire
   
   ws['!cols'] = colWidths
   
