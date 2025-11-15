@@ -1,6 +1,6 @@
 // lib/export-utils.ts
 import { Metier } from '@prisma/client'
-import * as XLSX from 'xlsx'
+import { metierConfig } from './metier-config'
 
 // ✅ Définir les colonnes spécifiques à chaque métier
 const metierColumns: Record<Metier, string[]> = {
@@ -94,76 +94,44 @@ function getColumnValue(candidate: any, columnName: string): string {
   }
 }
 
-// ✅ Fonction pour obtenir le nombre maximum de jurys par phase
-function getMaxJuryCount(candidates: any[], phase: number): number {
-  let maxJuries = 0
-  candidates.forEach(candidate => {
-    const phaseScores = (candidate.faceToFaceScores || []).filter((s: any) => s.phase === phase)
-    maxJuries = Math.max(maxJuries, phaseScores.length)
-  })
-  return maxJuries
-}
-
-// ✅ Fonction pour générer les colonnes dynamiques des jurys
-function generateJuryColumns(maxJuries: number, phase: number): string[] {
-  const columns: string[] = []
-  for (let i = 1; i <= maxJuries; i++) {
-    columns.push(`Jury ${i} Phase ${phase} (Nom)`)
-    columns.push(`Jury ${i} Phase ${phase} (Rôle)`)
+// ✅ Fonction pour formater les détails des jurys
+function formatJuryDetails(faceToFaceScores: any[], phase: number): string {
+  const phaseScores = faceToFaceScores.filter(s => s.phase === phase)
+  
+  if (phaseScores.length === 0) return ''
+  
+  return phaseScores.map(score => {
+    const juryName = score.juryMember?.fullName || 'Inconnu'
+    const roleType = score.juryMember?.roleType || ''
+    
+    // Pour Phase 1, calculer la moyenne des 3 critères
     if (phase === 1) {
-      columns.push(`Jury ${i} Phase ${phase} (Présentation Visuelle)`)
-      columns.push(`Jury ${i} Phase ${phase} (Communication Verbale)`)
-      columns.push(`Jury ${i} Phase ${phase} (Qualité Voix)`)
-      columns.push(`Jury ${i} Phase ${phase} (Moyenne)`)
-    } else {
-      columns.push(`Jury ${i} Phase ${phase} (Note)`)
+      const pres = Number(score.presentationVisuelle) || 0
+      const verbal = Number(score.verbalCommunication) || 0
+      const voice = Number(score.voiceQuality) || 0
+      const avg = ((pres + verbal + voice) / 3).toFixed(2)
+      return `${juryName} (${roleType}): ${avg}/5`
     }
-  }
-  return columns
+    
+    // Pour Phase 2, utiliser le score direct
+    return `${juryName} (${roleType}): ${score.score}/5`
+  }).join('; ')
 }
 
-// ✅ Fonction pour obtenir les données des jurys pour un candidat
-function getJuryData(candidate: any, phase: number, maxJuries: number): string[] {
-  const phaseScores = (candidate.faceToFaceScores || []).filter((s: any) => s.phase === phase)
-  const data: string[] = []
+// ✅ Fonction pour calculer la moyenne d'un critère Phase 1 pour tous les jurys
+function calculatePhase1CriteriaAverage(faceToFaceScores: any[], criteria: 'presentationVisuelle' | 'verbalCommunication' | 'voiceQuality'): string {
+  const phase1Scores = faceToFaceScores.filter(s => s.phase === 1)
   
-  for (let i = 0; i < maxJuries; i++) {
-    if (i < phaseScores.length) {
-      const score = phaseScores[i]
-      const juryName = score.juryMember?.fullName || 'Inconnu'
-      const roleType = score.juryMember?.roleType || ''
-      
-      data.push(juryName, roleType)
-      
-      if (phase === 1) {
-        const pres = Number(score.presentationVisuelle) || 0
-        const verbal = Number(score.verbalCommunication) || 0
-        const voice = Number(score.voiceQuality) || 0
-        const avg = ((pres + verbal + voice) / 3).toFixed(2)
-        data.push(
-          pres.toString(),
-          verbal.toString(),
-          voice.toString(),
-          avg
-        )
-      } else {
-        const note = score.score?.toString() || ''
-        data.push(note)
-      }
-    } else {
-      // Remplir avec des valeurs vides si pas de jury
-      if (phase === 1) {
-        data.push('', '', '', '', '', '')
-      } else {
-        data.push('', '', '')
-      }
-    }
-  }
+  if (phase1Scores.length === 0) return ''
   
-  return data
+  const avg = phase1Scores.reduce((sum, score) => {
+    return sum + (Number(score[criteria]) || 0)
+  }, 0) / phase1Scores.length
+  
+  return avg.toFixed(2)
 }
 
-// ✅ Fonction pour calculer la moyenne Phase 1
+// ✅ Fonction pour calculer la moyenne Phase 1 (moyenne des 3 critères)
 function calculatePhase1Average(faceToFaceScores: any[]): string {
   const phase1Scores = faceToFaceScores.filter(s => s.phase === 1)
   
@@ -190,261 +158,157 @@ function calculatePhase2Average(faceToFaceScores: any[]): string {
   return avg.toFixed(2)
 }
 
-// ✅ Fonction pour appliquer le style professionnel au workbook
-function applyProfessionalStyle(ws: XLSX.WorkSheet, headers: string[], dataLength: number) {
-  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
-  
-  // Style pour l'en-tête principal (orange)
-  const headerStyle = {
-    fill: { fgColor: { rgb: 'FF6600' } }, // Orange vif
-    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 12, name: 'Calibri' },
-    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-    border: {
-      top: { style: 'thin', color: { rgb: '000000' } },
-      bottom: { style: 'thin', color: { rgb: '000000' } },
-      left: { style: 'thin', color: { rgb: '000000' } },
-      right: { style: 'thin', color: { rgb: '000000' } }
-    }
+// ✅ Fonction utilitaire pour échapper les valeurs CSV
+function escapeCsvValue(value: string): string {
+  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+    return `"${value.replace(/"/g, '""')}"`
   }
-  
-  // Style pour les lignes alternées (beige clair et blanc)
-  const evenRowStyle = {
-    fill: { fgColor: { rgb: 'FFF5E6' } }, // Beige très clair
-    font: { sz: 11, name: 'Calibri' },
-    alignment: { vertical: 'center', wrapText: false },
-    border: {
-      top: { style: 'thin', color: { rgb: 'E0E0E0' } },
-      bottom: { style: 'thin', color: { rgb: 'E0E0E0' } },
-      left: { style: 'thin', color: { rgb: 'E0E0E0' } },
-      right: { style: 'thin', color: { rgb: 'E0E0E0' } }
-    }
-  }
-  
-  const oddRowStyle = {
-    fill: { fgColor: { rgb: 'FFFFFF' } }, // Blanc
-    font: { sz: 11, name: 'Calibri' },
-    alignment: { vertical: 'center', wrapText: false },
-    border: {
-      top: { style: 'thin', color: { rgb: 'E0E0E0' } },
-      bottom: { style: 'thin', color: { rgb: 'E0E0E0' } },
-      left: { style: 'thin', color: { rgb: 'E0E0E0' } },
-      right: { style: 'thin', color: { rgb: 'E0E0E0' } }
-    }
-  }
-  
-  // Style pour les colonnes de scores (orange clair)
-  const scoreColumnStyle = {
-    fill: { fgColor: { rgb: 'FFE4CC' } }, // Orange très clair
-    font: { sz: 11, name: 'Calibri', bold: true },
-    alignment: { horizontal: 'center', vertical: 'center' },
-    border: {
-      top: { style: 'thin', color: { rgb: 'E0E0E0' } },
-      bottom: { style: 'thin', color: { rgb: 'E0E0E0' } },
-      left: { style: 'thin', color: { rgb: 'E0E0E0' } },
-      right: { style: 'thin', color: { rgb: 'E0E0E0' } }
-    }
-  }
-  
-  // Appliquer le style à l'en-tête
-  for (let col = range.s.c; col <= range.e.c; col++) {
-    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
-    if (!ws[cellAddress]) continue
-    ws[cellAddress].s = headerStyle
-  }
-  
-  // Identifier les colonnes de scores/moyennes
-  const scoreColumns = new Set<number>()
-  headers.forEach((header, index) => {
-    if (
-      header.includes('Moyenne') ||
-      header.includes('(/') ||
-      header.includes('(%)') ||
-      header.includes('(MPM)') ||
-      header.includes('Note') ||
-      header.includes('Présentation') ||
-      header.includes('Communication') ||
-      header.includes('Qualité')
-    ) {
-      scoreColumns.add(index)
-    }
-  })
-  
-  // Appliquer le style aux lignes de données
-  for (let row = 1; row <= dataLength; row++) {
-    const isEven = row % 2 === 0
-    
-    for (let col = range.s.c; col <= range.e.c; col++) {
-      const cellAddress = XLSX.utils.encode_cell({ r: row, c: col })
-      if (!ws[cellAddress]) continue
-      
-      // Appliquer le style approprié
-      if (scoreColumns.has(col)) {
-        ws[cellAddress].s = scoreColumnStyle
-      } else {
-        ws[cellAddress].s = isEven ? evenRowStyle : oddRowStyle
-      }
-    }
-  }
-  
-  // Ajuster la hauteur de la première ligne (en-tête)
-  if (!ws['!rows']) ws['!rows'] = []
-  ws['!rows'][0] = { hpt: 30 } // Hauteur en points
-  
-  // Figer la première ligne
-  ws['!freeze'] = { xSplit: 0, ySplit: 1 }
+  return value
 }
 
-// ✅ Export XLSX par session
-export async function generateSessionExportXLSX(session: any): Promise<{ buffer: ArrayBuffer, filename: string }> {
-  const XLSX = await import('xlsx')
-  
+// ✅ Export par session (CSV)
+export function generateSessionExport(session: any): { csv: string, filename: string } {
   const metier = session.metier
   const sessionDate = new Date(session.date).toISOString().split('T')[0]
   
-  // Calculer le nombre max de jurys par phase
-  const maxJuryPhase1 = getMaxJuryCount(session.candidates, 1)
-  const maxJuryPhase2 = getMaxJuryCount(session.candidates, 2)
-  
-  // Générer les colonnes des jurys
-  const juryPhase1Columns = generateJuryColumns(maxJuryPhase1, 1)
-  const juryPhase2Columns = generateJuryColumns(maxJuryPhase2, 2)
-  
-  // En-têtes de base - Informations personnelles et session
+  // En-têtes réorganisés
   const baseHeaders = [
-    'N°',
+    'Numéro',
     'Noms et Prénoms',
+    'Numéro de Téléphone',
     'Date de naissance',
     'Âge',
-    'Numéro de Téléphone',
-    'Email',
-    'Lieu d\'habitation',
     'Diplôme',
     'Établissement fréquenté',
+    'Email',
+    'Lieu d\'habitation',
+    'Date d\'envoi SMS',
+    'Disponibilité candidat',
+    'Date de présence entretien',
     'Métier Candidat',
     'Session Métier',
     'Date de Session',
     'Jour de Session',
     'Statut de Session',
-    'Date d\'envoi SMS',
-    'Disponibilité candidat',
-    'Date de présence entretien'
-  ]
-  
-  const metierSpecificColumns = metierColumns[metier as Metier] || []
-  
-  // Combiner tous les en-têtes : Infos de base + Scores métiers + Évaluations Phase 1 + Évaluations Phase 2 + Décisions
-  const decisionHeaders = [
+    // Phase 1
+    'Présentation Visuelle',
+    'Communication Verbale',
+    'Qualité Vocale',
     'Moyenne FF Phase 1',
+    'Détail Jurys Phase 1',
     'Décision FF Phase 1',
     'Décision Phase 1',
+    // Phase 2
     'Moyenne FF Phase 2',
+    'Détail Jurys Phase 2',
     'Décision FF Phase 2',
+    // Appels
     'Statut Appel',
+    // Décision finale et commentaire
     'Décision Finale',
     'Commentaire'
   ]
   
-  const headers = [...baseHeaders, ...metierSpecificColumns, ...juryPhase1Columns, ...juryPhase2Columns, ...decisionHeaders]
+  const metierSpecificColumns = metierColumns[metier as Metier] || []
+  const headers = [...baseHeaders, ...metierSpecificColumns]
   
-  // Générer les données
-  const data = [headers]
-  
-  session.candidates.forEach((candidate: any, index: number) => {
+  // Générer les lignes
+  const rows = session.candidates.map((candidate: any, index: number) => {
     const baseRow = [
-      index + 1,
+      (index + 1).toString(),
       candidate.fullName || '',
-      candidate.birthDate ? new Date(candidate.birthDate).toLocaleDateString('fr-FR') : '',
-      candidate.age || '',
       candidate.phone || '',
-      candidate.email || '',
-      candidate.location || '',
+      candidate.birthDate ? new Date(candidate.birthDate).toLocaleDateString('fr-FR') : '',
+      candidate.age?.toString() || '',
       candidate.diploma || '',
       candidate.institution || '',
+      candidate.email || '',
+      candidate.location || '',
+      candidate.smsSentDate ? new Date(candidate.smsSentDate).toLocaleDateString('fr-FR') : '',
+      candidate.availability || '',
+      candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '',
       candidate.metier || '',
       session.metier || '',
       sessionDate,
       session.jour || '',
       session.status || '',
-      candidate.smsSentDate ? new Date(candidate.smsSentDate).toLocaleDateString('fr-FR') : '',
-      candidate.availability || '',
-      candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : ''
-    ]
-    
-    const metierSpecificValues = metierSpecificColumns.map(col => getColumnValue(candidate, col))
-    const juryPhase1Data = getJuryData(candidate, 1, maxJuryPhase1)
-    const juryPhase2Data = getJuryData(candidate, 2, maxJuryPhase2)
-    
-    const decisionRow = [
+      // Phase 1
+      calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'presentationVisuelle'),
+      calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'verbalCommunication'),
+      calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'voiceQuality'),
       calculatePhase1Average(candidate.faceToFaceScores || []),
+      formatJuryDetails(candidate.faceToFaceScores || [], 1),
       candidate.scores?.phase1FfDecision || '',
       candidate.scores?.phase1Decision || '',
+      // Phase 2
       calculatePhase2Average(candidate.faceToFaceScores || []),
+      formatJuryDetails(candidate.faceToFaceScores || [], 2),
       candidate.scores?.phase2FfDecision || '',
+      // Appels
       candidate.scores?.callStatus || '',
+      // Décision finale et commentaire
       candidate.scores?.finalDecision || '',
       candidate.scores?.comments || ''
     ]
     
-    data.push([...baseRow, ...metierSpecificValues, ...juryPhase1Data, ...juryPhase2Data, ...decisionRow])
+    const metierSpecificValues = metierSpecificColumns.map(col => getColumnValue(candidate, col))
+    
+    return [...baseRow, ...metierSpecificValues]
   })
   
-  // Créer le workbook
-  const ws = XLSX.utils.aoa_to_sheet(data)
+  const csv = [
+    headers.map(escapeCsvValue).join(','),
+    ...rows.map((row: string[]) => row.map(escapeCsvValue).join(','))
+  ].join('\n')
   
-  // Ajuster la largeur des colonnes
-  const colWidths = headers.map((header) => {
-    const maxLength = Math.max(header.length, 15)
-    return { wch: Math.min(maxLength + 2, 30) }
-  })
-  ws['!cols'] = colWidths
+  const filename = `session_${metier}_${sessionDate}_${session.jour}.csv`
   
-  // Appliquer le style professionnel
-  applyProfessionalStyle(ws, headers, data.length - 1)
-  
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Session')
-  
-  const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-  const filename = `session_${metier}_${sessionDate}_${session.jour}.xlsx`
-  
-  return { buffer, filename }
+  return { csv, filename }
 }
 
-// ✅ Export XLSX consolidé
-export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{ buffer: ArrayBuffer, filename: string }> {
-  const XLSX = await import('xlsx')
+// ✅ Export consolidé (CSV)
+export function generateConsolidatedExport(sessions: any[]): { csv: string, filename: string } {
+  const metiersPresent = Array.from(new Set(
+    sessions.flatMap(s => s.candidates.map((c: any) => c.metier))
+  )) as Metier[]
   
-  const allCandidates = sessions.flatMap(s => s.candidates)
-  const metiersPresent = Array.from(new Set(allCandidates.map((c: any) => c.metier))) as Metier[]
-  
-  // Calculer le nombre max de jurys par phase pour tous les candidats
-  const maxJuryPhase1 = getMaxJuryCount(allCandidates, 1)
-  const maxJuryPhase2 = getMaxJuryCount(allCandidates, 2)
-  
-  // Générer les colonnes des jurys
-  const juryPhase1Columns = generateJuryColumns(maxJuryPhase1, 1)
-  const juryPhase2Columns = generateJuryColumns(maxJuryPhase2, 2)
-  
-  // En-têtes de base - Informations personnelles et session
+  // En-têtes réorganisés
   const baseHeaders = [
-    'N°',
+    'Numéro',
     'Noms et Prénoms',
+    'Numéro de Téléphone',
     'Date de naissance',
     'Âge',
-    'Numéro de Téléphone',
-    'Email',
-    'Lieu d\'habitation',
     'Diplôme',
     'Établissement fréquenté',
+    'Email',
+    'Lieu d\'habitation',
+    'Date d\'envoi SMS',
+    'Disponibilité candidat',
+    'Date de présence entretien',
     'Métier Candidat',
     'Session Métier',
     'Date de Session',
     'Jour de Session',
     'Statut de Session',
     'Lieu de Session',
-    'Date d\'envoi SMS',
-    'Disponibilité candidat',
-    'Date de présence entretien'
+    // Phase 1
+    'Présentation Visuelle',
+    'Communication Verbale',
+    'Qualité Vocale',
+    'Moyenne FF Phase 1',
+    'Détail Jurys Phase 1',
+    'Décision FF Phase 1',
+    'Décision Phase 1',
+    // Phase 2
+    'Moyenne FF Phase 2',
+    'Détail Jurys Phase 2',
+    'Décision FF Phase 2',
+    // Appels
+    'Statut Appel',
+    // Décision finale et commentaire
+    'Décision Finale',
+    'Commentaire'
   ]
   
   const allMetierColumns = new Set<string>()
@@ -452,19 +316,266 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     metierColumns[metier]?.forEach(col => allMetierColumns.add(col))
   })
   
-  // Combiner tous les en-têtes : Infos de base + Scores métiers + Évaluations Phase 1 + Évaluations Phase 2 + Décisions
-  const decisionHeaders = [
-    'Moyenne FF Phase 1',
-    'Décision FF Phase 1',
-    'Décision Phase 1',
-    'Moyenne FF Phase 2',
-    'Décision FF Phase 2',
+  const headers = [...baseHeaders, ...Array.from(allMetierColumns)]
+  
+  let candidateNumber = 1
+  const rows: string[][] = []
+  
+  for (const session of sessions) {
+    for (const candidate of session.candidates) {
+      const candidateMetier = candidate.metier as Metier
+      const sessionDate = new Date(session.date).toISOString().split('T')[0]
+      
+      const baseRow = [
+        candidateNumber.toString(),
+        candidate.fullName || '',
+        candidate.phone || '',
+        candidate.birthDate ? new Date(candidate.birthDate).toLocaleDateString('fr-FR') : '',
+        candidate.age?.toString() || '',
+        candidate.diploma || '',
+        candidate.institution || '',
+        candidate.email || '',
+        candidate.location || '',
+        candidate.smsSentDate ? new Date(candidate.smsSentDate).toLocaleDateString('fr-FR') : '',
+        candidate.availability || '',
+        candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '',
+        candidate.metier || '',
+        session.metier || '',
+        sessionDate,
+        session.jour || '',
+        session.status || '',
+        session.location || '',
+        // Phase 1
+        calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'presentationVisuelle'),
+        calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'verbalCommunication'),
+        calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'voiceQuality'),
+        calculatePhase1Average(candidate.faceToFaceScores || []),
+        formatJuryDetails(candidate.faceToFaceScores || [], 1),
+        candidate.scores?.phase1FfDecision || '',
+        candidate.scores?.phase1Decision || '',
+        // Phase 2
+        calculatePhase2Average(candidate.faceToFaceScores || []),
+        formatJuryDetails(candidate.faceToFaceScores || [], 2),
+        candidate.scores?.phase2FfDecision || '',
+        // Appels
+        candidate.scores?.callStatus || '',
+        // Décision finale et commentaire
+        candidate.scores?.finalDecision || '',
+        candidate.scores?.comments || ''
+      ]
+      
+      const metierSpecificValues = Array.from(allMetierColumns).map(col => {
+        const candidateMetierColumns = metierColumns[candidateMetier] || []
+        if (candidateMetierColumns.includes(col)) {
+          return getColumnValue(candidate, col)
+        }
+        return ''
+      })
+      
+      rows.push([...baseRow, ...metierSpecificValues])
+      candidateNumber++
+    }
+  }
+  
+  const csv = [
+    headers.map(escapeCsvValue).join(','),
+    ...rows.map((row: string[]) => row.map(escapeCsvValue).join(','))
+  ].join('\n')
+  
+  let filename = 'export_consolide'
+  if (sessions.length === 1) {
+    const session = sessions[0]
+    const sessionDate = new Date(session.date).toISOString().split('T')[0]
+    filename = `metier_${session.metier}_${sessionDate}_${session.status.toLowerCase()}_consolide`
+  } else if (metiersPresent.length === 1) {
+    filename = `metier_${metiersPresent[0]}_${new Date().toISOString().split('T')[0]}_consolide`
+  } else {
+    filename = `export_complet_${new Date().toISOString().split('T')[0]}_consolide`
+  }
+  
+  filename += '.csv'
+  
+  return { csv, filename }
+}
+
+// 🆕 Export XLSX par session avec styling avancé
+export async function generateSessionExportXLSX(session: any): Promise<{ buffer: ArrayBuffer, filename: string }> {
+  const XLSX = await import('xlsx')
+  
+  const metier = session.metier
+  const sessionDate = new Date(session.date).toISOString().split('T')[0]
+  
+  // En-têtes réorganisés
+  const baseHeaders = [
+    'Numéro', 'Noms et Prénoms', 'Numéro de Téléphone', 'Date de naissance', 'Âge',
+    'Diplôme', 'Établissement fréquenté', 'Email', 'Lieu d\'habitation',
+    'Date d\'envoi SMS', 'Disponibilité candidat', 'Date de présence entretien',
+    'Métier Candidat', 'Session Métier', 'Date de Session', 'Jour de Session',
+    'Statut de Session',
+    // Phase 1
+    'Présentation Visuelle', 'Communication Verbale', 'Qualité Vocale',
+    'Moyenne FF Phase 1', 'Détail Jurys Phase 1', 'Décision FF Phase 1', 'Décision Phase 1',
+    // Phase 2
+    'Moyenne FF Phase 2', 'Détail Jurys Phase 2', 'Décision FF Phase 2',
+    // Appels
     'Statut Appel',
-    'Décision Finale',
-    'Commentaire'
+    // Décision finale et commentaire
+    'Décision Finale', 'Commentaire'
   ]
   
-  const headers = [...baseHeaders, ...Array.from(allMetierColumns), ...juryPhase1Columns, ...juryPhase2Columns, ...decisionHeaders]
+  const metierSpecificColumns = metierColumns[metier as Metier] || []
+  const headers = [...baseHeaders, ...metierSpecificColumns]
+  
+  const data = [headers]
+  
+  session.candidates.forEach((candidate: any, index: number) => {
+    const baseRow = [
+      index + 1,
+      candidate.fullName || '',
+      candidate.phone || '',
+      candidate.birthDate ? new Date(candidate.birthDate).toLocaleDateString('fr-FR') : '',
+      candidate.age || '',
+      candidate.diploma || '',
+      candidate.institution || '',
+      candidate.email || '',
+      candidate.location || '',
+      candidate.smsSentDate ? new Date(candidate.smsSentDate).toLocaleDateString('fr-FR') : '',
+      candidate.availability || '',
+      candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '',
+      candidate.metier || '',
+      session.metier || '',
+      sessionDate,
+      session.jour || '',
+      session.status || '',
+      // Phase 1
+      calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'presentationVisuelle'),
+      calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'verbalCommunication'),
+      calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'voiceQuality'),
+      calculatePhase1Average(candidate.faceToFaceScores || []),
+      formatJuryDetails(candidate.faceToFaceScores || [], 1),
+      candidate.scores?.phase1FfDecision || '',
+      candidate.scores?.phase1Decision || '',
+      // Phase 2
+      calculatePhase2Average(candidate.faceToFaceScores || []),
+      formatJuryDetails(candidate.faceToFaceScores || [], 2),
+      candidate.scores?.phase2FfDecision || '',
+      // Appels
+      candidate.scores?.callStatus || '',
+      // Décision finale et commentaire
+      candidate.scores?.finalDecision || '',
+      candidate.scores?.comments || ''
+    ]
+    
+    const metierSpecificValues = metierSpecificColumns.map(col => getColumnValue(candidate, col))
+    data.push([...baseRow, ...metierSpecificValues])
+  })
+  
+  const ws = XLSX.utils.aoa_to_sheet(data)
+  
+  // Styles pour les en-têtes
+  const headerStyle = {
+    font: { bold: true, color: { rgb: "FFFFFF" } },
+    fill: { fgColor: { rgb: "4472C4" } },
+    alignment: { horizontal: "center", vertical: "center" }
+  }
+  
+  // Largeur des colonnes optimisée
+  const colWidths = [
+    { wch: 8 },  // Numéro
+    { wch: 25 }, // Noms et Prénoms
+    { wch: 15 }, // Téléphone
+    { wch: 15 }, // Date de naissance
+    { wch: 8 },  // Âge
+    { wch: 20 }, // Diplôme
+    { wch: 25 }, // Établissement
+    { wch: 25 }, // Email
+    { wch: 20 }, // Lieu d'habitation
+    { wch: 15 }, // Date SMS
+    { wch: 20 }, // Disponibilité
+    { wch: 18 }, // Date présence
+    { wch: 18 }, // Métier Candidat
+    { wch: 18 }, // Session Métier
+    { wch: 15 }, // Date Session
+    { wch: 12 }, // Jour
+    { wch: 15 }, // Statut Session
+    // Phase 1
+    { wch: 18 }, // Présentation Visuelle
+    { wch: 20 }, // Communication Verbale
+    { wch: 15 }, // Qualité Vocale
+    { wch: 18 }, // Moyenne FF Phase 1
+    { wch: 35 }, // Détail Jurys Phase 1
+    { wch: 18 }, // Décision FF Phase 1
+    { wch: 18 }, // Décision Phase 1
+    // Phase 2
+    { wch: 18 }, // Moyenne FF Phase 2
+    { wch: 35 }, // Détail Jurys Phase 2
+    { wch: 18 }, // Décision FF Phase 2
+    // Appels
+    { wch: 15 }, // Statut Appel
+    // Décision finale et commentaire
+    { wch: 18 }, // Décision Finale
+    { wch: 40 }  // Commentaire
+  ]
+  
+  // Ajouter les largeurs pour les colonnes métier
+  metierSpecificColumns.forEach(() => {
+    colWidths.push({ wch: 20 })
+  })
+  
+  ws['!cols'] = colWidths
+  
+  // Appliquer le style aux en-têtes (première ligne)
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+  for (let col = range.s.c; col <= range.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+    if (!ws[cellAddress]) continue
+    ws[cellAddress].s = headerStyle
+  }
+  
+  // Figer la première ligne
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 }
+  
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Session')
+  
+  const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true })
+  const filename = `session_${metier}_${sessionDate}_${session.jour}.xlsx`
+  
+  return { buffer, filename }
+}
+
+// 🆕 Export XLSX consolidé avec styling avancé
+export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{ buffer: ArrayBuffer, filename: string }> {
+  const XLSX = await import('xlsx')
+  
+  const metiersPresent = Array.from(new Set(
+    sessions.flatMap(s => s.candidates.map((c: any) => c.metier))
+  )) as Metier[]
+  
+  // En-têtes réorganisés
+  const baseHeaders = [
+    'Numéro', 'Noms et Prénoms', 'Numéro de Téléphone', 'Date de naissance', 'Âge',
+    'Diplôme', 'Établissement fréquenté', 'Email', 'Lieu d\'habitation',
+    'Date d\'envoi SMS', 'Disponibilité candidat', 'Date de présence entretien',
+    'Métier Candidat', 'Session Métier', 'Date de Session', 'Jour de Session',
+    'Statut de Session', 'Lieu de Session',
+    // Phase 1
+    'Présentation Visuelle', 'Communication Verbale', 'Qualité Vocale',
+    'Moyenne FF Phase 1', 'Détail Jurys Phase 1', 'Décision FF Phase 1', 'Décision Phase 1',
+    // Phase 2
+    'Moyenne FF Phase 2', 'Détail Jurys Phase 2', 'Décision FF Phase 2',
+    // Appels
+    'Statut Appel',
+    // Décision finale et commentaire
+    'Décision Finale', 'Commentaire'
+  ]
+  
+  const allMetierColumns = new Set<string>()
+  metiersPresent.forEach(metier => {
+    metierColumns[metier]?.forEach(col => allMetierColumns.add(col))
+  })
+  
+  const headers = [...baseHeaders, ...Array.from(allMetierColumns)]
   const data = [headers]
   
   let candidateNumber = 1
@@ -477,22 +588,39 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
       const baseRow = [
         candidateNumber,
         candidate.fullName || '',
+        candidate.phone || '',
         candidate.birthDate ? new Date(candidate.birthDate).toLocaleDateString('fr-FR') : '',
         candidate.age || '',
-        candidate.phone || '',
-        candidate.email || '',
-        candidate.location || '',
         candidate.diploma || '',
         candidate.institution || '',
+        candidate.email || '',
+        candidate.location || '',
+        candidate.smsSentDate ? new Date(candidate.smsSentDate).toLocaleDateString('fr-FR') : '',
+        candidate.availability || '',
+        candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '',
         candidate.metier || '',
         session.metier || '',
         sessionDate,
         session.jour || '',
         session.status || '',
         session.location || '',
-        candidate.smsSentDate ? new Date(candidate.smsSentDate).toLocaleDateString('fr-FR') : '',
-        candidate.availability || '',
-        candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : ''
+        // Phase 1
+        calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'presentationVisuelle'),
+        calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'verbalCommunication'),
+        calculatePhase1CriteriaAverage(candidate.faceToFaceScores || [], 'voiceQuality'),
+        calculatePhase1Average(candidate.faceToFaceScores || []),
+        formatJuryDetails(candidate.faceToFaceScores || [], 1),
+        candidate.scores?.phase1FfDecision || '',
+        candidate.scores?.phase1Decision || '',
+        // Phase 2
+        calculatePhase2Average(candidate.faceToFaceScores || []),
+        formatJuryDetails(candidate.faceToFaceScores || [], 2),
+        candidate.scores?.phase2FfDecision || '',
+        // Appels
+        candidate.scores?.callStatus || '',
+        // Décision finale et commentaire
+        candidate.scores?.finalDecision || '',
+        candidate.scores?.comments || ''
       ]
       
       const metierSpecificValues = Array.from(allMetierColumns).map(col => {
@@ -503,42 +631,81 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
         return ''
       })
       
-      const juryPhase1Data = getJuryData(candidate, 1, maxJuryPhase1)
-      const juryPhase2Data = getJuryData(candidate, 2, maxJuryPhase2)
-      
-      const decisionRow = [
-        calculatePhase1Average(candidate.faceToFaceScores || []),
-        candidate.scores?.phase1FfDecision || '',
-        candidate.scores?.phase1Decision || '',
-        calculatePhase2Average(candidate.faceToFaceScores || []),
-        candidate.scores?.phase2FfDecision || '',
-        candidate.scores?.callStatus || '',
-        candidate.scores?.finalDecision || '',
-        candidate.scores?.comments || ''
-      ]
-      
-      data.push([...baseRow, ...metierSpecificValues, ...juryPhase1Data, ...juryPhase2Data, ...decisionRow])
+      data.push([...baseRow, ...metierSpecificValues])
       candidateNumber++
     }
   }
   
-  // Créer le workbook
   const ws = XLSX.utils.aoa_to_sheet(data)
   
-  // Ajuster la largeur des colonnes
-  const colWidths = headers.map((header) => {
-    const maxLength = Math.max(header.length, 15)
-    return { wch: Math.min(maxLength + 2, 30) }
+  // Styles pour les en-têtes
+  const headerStyle = {
+    font: { bold: true, color: { rgb: "FFFFFF" } },
+    fill: { fgColor: { rgb: "4472C4" } },
+    alignment: { horizontal: "center", vertical: "center" }
+  }
+  
+  // Largeur des colonnes optimisée
+  const colWidths = [
+    { wch: 8 },  // Numéro
+    { wch: 25 }, // Noms et Prénoms
+    { wch: 15 }, // Téléphone
+    { wch: 15 }, // Date de naissance
+    { wch: 8 },  // Âge
+    { wch: 20 }, // Diplôme
+    { wch: 25 }, // Établissement
+    { wch: 25 }, // Email
+    { wch: 20 }, // Lieu d'habitation
+    { wch: 15 }, // Date SMS
+    { wch: 20 }, // Disponibilité
+    { wch: 18 }, // Date présence
+    { wch: 18 }, // Métier Candidat
+    { wch: 18 }, // Session Métier
+    { wch: 15 }, // Date Session
+    { wch: 12 }, // Jour
+    { wch: 15 }, // Statut Session
+    { wch: 18 }, // Lieu de Session
+    // Phase 1
+    { wch: 18 }, // Moyenne FF Phase 1
+    { wch: 35 }, // Détail Jurys Phase 1
+    { wch: 18 }, // Décision FF Phase 1
+    { wch: 18 }, // Décision Phase 1
+    // Phase 2
+    { wch: 18 }, // Moyenne FF Phase 2
+    { wch: 35 }, // Détail Jurys Phase 2
+    { wch: 18 }, // Décision FF Phase 2
+    // Appels
+    { wch: 15 }, // Statut Appel
+    { wch: 12 }, // Tentatives
+    { wch: 15 }, // Date Dernier Appel
+    { wch: 30 }, // Notes d'Appel
+    // Décision finale et commentaire
+    { wch: 18 }, // Décision Finale
+    { wch: 40 }  // Commentaire
+  ]
+  
+  // Ajouter les largeurs pour les colonnes métier
+  Array.from(allMetierColumns).forEach(() => {
+    colWidths.push({ wch: 20 })
   })
+  
   ws['!cols'] = colWidths
   
-  // Appliquer le style professionnel
-  applyProfessionalStyle(ws, headers, data.length - 1)
+  // Appliquer le style aux en-têtes
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+  for (let col = range.s.c; col <= range.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+    if (!ws[cellAddress]) continue
+    ws[cellAddress].s = headerStyle
+  }
+  
+  // Figer la première ligne
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 }
   
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Consolidé')
   
-  const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true })
   
   let filename = 'export_consolide'
   if (sessions.length === 1) {
