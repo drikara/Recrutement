@@ -1,34 +1,33 @@
-// lib/auth.ts - CONFIGURATION CORRIGÉE
+// lib/auth.ts
 import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 import { prisma } from "./prisma"
+
+const baseURL = process.env.BETTER_AUTH_URL || 
+  process.env.NEXTAUTH_URL || 
+  "https://consolidations-notes-1.vercel.app"
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
   secret: process.env.BETTER_AUTH_SECRET!,
-  baseURL: process.env.BETTER_AUTH_URL || process.env.NEXTAUTH_URL || "https://consolidations-notes-1.vercel.app",
+  baseURL: baseURL,
   
-  // ⭐ CORRECTION : Utiliser allowedOrigins au lieu de trustedOrigins
-  allowedOrigins: [
-    "https://consolidations-notes-1.vercel.app",
-    "https://consolidations-notes-1-32sygcg4c.vercel.app",
-    "http://localhost:3000",
-  ],
+  // ⭐ CORRECTION : Configuration simplifiée et correcte
+  trustedOrigins: [baseURL],
   
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
     minPasswordLength: 8,
-    maxPasswordLength: 128,
   },
   
   user: {
     additionalFields: {
       role: {
         type: "string",
-        required: false,
+        required: true,
         defaultValue: "JURY",
       },
       lastLogin: {
@@ -39,16 +38,13 @@ export const auth = betterAuth({
   },
   
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 24 hours
+    expiresIn: 60 * 60 * 24 * 7, // 7 jours
+    updateAge: 60 * 60 * 24, // 24 heures
   },
   
-  // ⭐ CORRECTION : Configuration cookies améliorée
   advanced: {
     cookiePrefix: "better-auth",
-    // IMPORTANT: Pour Vercel
     useSecureCookies: process.env.NODE_ENV === "production",
-    sameSite: "lax", // ou "none" si vous avez des problèmes cross-domain
   },
 })
 
