@@ -30,18 +30,8 @@ interface RecruitmentSession {
   status: string
   description: string | null
   location: string | null
-  _count: {
-    candidates: number
-    juryPresences: number
-  }
-  candidates: Array<{
-    id: string
-    fullName: string
-    metier: string
-    scores?: {
-      finalDecision: string | null
-    } | null
-  }>
+  candidatesCount: number  // ✅ Changement ici
+  juryPresencesCount: number  // ✅ Changement ici
 }
 
 export default function SessionsPage() {
@@ -78,8 +68,10 @@ export default function SessionsPage() {
       }
       
       const data = await response.json()
+      console.log('📊 Sessions chargées:', data)
       setSessions(data)
     } catch (err) {
+      console.error('❌ Erreur:', err)
       setError(err instanceof Error ? err.message : 'Une erreur est survenue')
     } finally {
       setLoading(false)
@@ -309,7 +301,7 @@ export default function SessionsPage() {
                     <div className="flex items-center gap-2 mb-2">
                       <Users className="w-4 h-4 text-gray-500" />
                       <div className="text-2xl font-bold text-gray-800">
-                        {sessions.reduce((acc, s) => acc + s._count.candidates, 0)}
+                        {sessions.reduce((acc, s) => acc + (s.candidatesCount || 0), 0)}
                       </div>
                     </div>
                     <div className="text-sm text-gray-600">Candidats total</div>
@@ -318,7 +310,6 @@ export default function SessionsPage() {
               </div>
               
               <div className="flex gap-3">
-              
                 <Link
                   href="/wfm/sessions/new"
                   className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all duration-200 shadow-lg hover:shadow-xl"
@@ -572,39 +563,18 @@ export default function SessionsPage() {
                             <StatutBadge status={session.status} />
                           </td>
                           <td className="px-6 py-6 whitespace-nowrap">
-                            <div className="flex items-center space-x-3">
-                              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
-                                <Users className="w-4 h-4 text-gray-500" />
-                                <span className="text-sm font-semibold text-gray-800">
-                                  {session._count.candidates}
-                                </span>
-                              </div>
-                              {session._count.candidates > 0 && (
-                                <div className="flex -space-x-2">
-                                  {session.candidates.slice(0, 3).map((candidate, index) => (
-                                    <div
-                                      key={candidate.id}
-                                      className="w-8 h-8 bg-gradient-to-br from-orange-200 to-orange-300 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold text-orange-700 shadow-sm"
-                                      style={{ zIndex: 3 - index }}
-                                      title={candidate.fullName}
-                                    >
-                                      <UserCheck className="w-3 h-3" />
-                                    </div>
-                                  ))}
-                                  {session._count.candidates > 3 && (
-                                    <div className="w-8 h-8 bg-gray-200 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold text-gray-600 shadow-sm">
-                                      +{session._count.candidates - 3}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
+                            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
+                              <Users className="w-4 h-4 text-gray-500" />
+                              <span className="text-sm font-semibold text-gray-800">
+                                {session.candidatesCount || 0}
+                              </span>
                             </div>
                           </td>
                           <td className="px-6 py-6 whitespace-nowrap">
                             <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
                               <UserCheck className="w-4 h-4 text-gray-500" />
                               <span className="text-sm font-semibold text-gray-800">
-                                {session._count.juryPresences}
+                                {session.juryPresencesCount || 0}
                               </span>
                             </div>
                           </td>
