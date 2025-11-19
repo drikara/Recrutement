@@ -1,11 +1,15 @@
-// lib/auth-client.ts
+// lib/auth-client.ts - CORRIGÉ
 import { createAuthClient } from "better-auth/react"
 
+const baseURL = process.env.NEXT_PUBLIC_APP_URL || 
+  (typeof window !== 'undefined' ? window.location.origin : '')
+
 export const authClient = createAuthClient({
-  baseURL: typeof window !== 'undefined' ? window.location.origin : '',
-  //  IMPORTANT: Ajoutez cette option
+  baseURL: baseURL,
+  // ⭐ IMPORTANT: Configuration fetch corrigée
   fetchOptions: {
-    credentials: "include", // Pour que les cookies soient envoyés
+    credentials: "include",
+    mode: "cors",
   },
 })
 
