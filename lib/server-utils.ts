@@ -19,7 +19,22 @@ function convertDecimal(value: any): any {
   return value
 }
 
-// ⭐ CORRECTION: Fonction pour un seul candidat - mapping correct selon le schéma Prisma
+// Fonction utilitaire pour calculer l'âge
+function calculateAge(birthDate: Date): number {
+  if (!birthDate) return 0
+  const today = new Date()
+  const birth = new Date(birthDate)
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthDiff = today.getMonth() - birth.getMonth()
+  
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--
+  }
+  
+  return age
+}
+
+// Fonction pour un seul candidat - mapping correct selon le schéma Prisma
 export function transformPrismaData(candidate: any): any {
   if (!candidate) return null
   
@@ -48,9 +63,9 @@ export function transformPrismaData(candidate: any): any {
   // ✅ Transformation des données - utilisant les noms Prisma (camelCase)
   return {
     id: convertedCandidate.id,
-    fullName: convertedCandidate.fullName || '', // ✅ Prisma retourne fullName en camelCase
-    phone: convertedCandidate.phone || '', // ✅ Déjà en camelCase dans le schéma
-    email: convertedCandidate.email || '', // ✅ Déjà en camelCase dans le schéma
+    fullName: convertedCandidate.fullName || '',
+    phone: convertedCandidate.phone || '',
+    email: convertedCandidate.email || '',
     metier: convertedCandidate.metier || '',
     age: convertedCandidate.age || calculateAge(convertedCandidate.birthDate),
     location: convertedCandidate.location || '',
@@ -113,29 +128,32 @@ export function transformPrismaData(candidate: any): any {
   }
 }
 
-// Fonction pour un tableau de candidats
+// Fonction pour un tableau de candidats avec gestion d'erreur robuste
 export function transformPrismaDataArray(candidates: any[]): any[] {
-  if (!Array.isArray(candidates)) {
-    console.error('transformPrismaDataArray: input is not an array', candidates)
+  // CORRECTION : Vérifications plus robustes
+  if (!candidates) {
+    console.warn('transformPrismaDataArray: candidates est null ou undefined')
     return []
   }
   
-  return candidates
-    .map(candidate => transformPrismaData(candidate))
-    .filter(Boolean) // Retire les valeurs null/undefined
-}
-
-// Fonction utilitaire pour calculer l'âge
-function calculateAge(birthDate: Date): number {
-  if (!birthDate) return 0
-  const today = new Date()
-  const birth = new Date(birthDate)
-  let age = today.getFullYear() - birth.getFullYear()
-  const monthDiff = today.getMonth() - birth.getMonth()
-  
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age--
+  if (!Array.isArray(candidates)) {
+    console.error('transformPrismaDataArray: input is not an array', typeof candidates, candidates)
+    return []
   }
   
-  return age
+  try {
+    return candidates
+      .map(candidate => {
+        try {
+          return transformPrismaData(candidate)
+        } catch (error) {
+          console.error('Error transforming candidate:', candidate, error)
+          return null
+        }
+      })
+      .filter(Boolean) // Retire les valeurs null/undefined
+  } catch (error) {
+    console.error('Error in transformPrismaDataArray:', error)
+    return []
+  }
 }

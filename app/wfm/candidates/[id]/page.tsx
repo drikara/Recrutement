@@ -5,7 +5,7 @@ import { headers } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { CandidateDetails } from "@/components/candidates-details"
-import { transformPrismaData } from "@/lib/server-utils" // 
+import { transformPrismaData } from "@/lib/server-utils"
 
 interface CandidateDetailPageProps {
   params: Promise<{
@@ -24,42 +24,51 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
 
   const { id } = await params
 
-  // Récupérer les données du candidat avec toutes les relations nécessaires
-  const candidate = await prisma.candidate.findUnique({
-    where: {
-      id: parseInt(id),
-    },
-    include: {
-      scores: true,
-      session: true,
-      faceToFaceScores: {
-        include: {
-          juryMember: {
-            select: {
-              fullName: true,
-              roleType: true,
-              specialite: true
+  try {
+    // Récupérer les données du candidat avec toutes les relations nécessaires
+    const candidate = await prisma.candidate.findUnique({
+      where: {
+        id: parseInt(id),
+      },
+      include: {
+        scores: true,
+        session: true,
+        faceToFaceScores: {
+          include: {
+            juryMember: {
+              select: {
+                fullName: true,
+                roleType: true,
+                specialite: true
+              }
             }
           }
         }
       }
-    }
-  })
+    })
 
-  if (!candidate) {
+    if (!candidate) {
+      notFound()
+    }
+
+    // Utiliser transformPrismaData du serveur
+    const formattedCandidate = transformPrismaData(candidate)
+
+    if (!formattedCandidate) {
+      notFound()
+    }
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20">
+        <DashboardHeader user={session.user} role="WFM" />
+        
+        <main className="container mx-auto p-6 max-w-7xl">
+          <CandidateDetails candidate={formattedCandidate} />
+        </main>
+      </div>
+    )
+  } catch (error) {
+    console.error("Error loading candidate details:", error)
     notFound()
   }
-
-  // Utiliser transformPrismaData du serveur
-  const formattedCandidate = transformPrismaData(candidate)
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20">
-      <DashboardHeader user={session.user} role="WFM" />
-      
-      <main className="container mx-auto p-6 max-w-7xl">
-        <CandidateDetails candidate={formattedCandidate} />
-      </main>
-    </div>
-  )
 }

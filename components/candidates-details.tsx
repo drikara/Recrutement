@@ -1,3 +1,4 @@
+// components/candidates-details.tsx
 "use client"
 
 import Link from "next/link"
@@ -330,7 +331,7 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
               <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
                 <span className="font-semibold text-purple-700">Vitesse Saisie:</span>
                 <span className="text-gray-900 font-medium">{candidate.scores.typingSpeed} MPM</span>
-              </div>
+            </div>
             )}
             {candidate.scores?.typingAccuracy && (
               <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">

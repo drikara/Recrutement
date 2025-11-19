@@ -1,3 +1,4 @@
+// components/candidates-list.tsx
 'use client'
 
 import { useState, useMemo } from 'react'
@@ -60,6 +61,9 @@ export function CandidatesList({
   const [selectedCandidates, setSelectedCandidates] = useState<number[]>([])
   const [showFilters, setShowFilters] = useState(false)
 
+  // CORRECTION : Vérification de sécurité renforcée
+  const safeCandidates = Array.isArray(candidates) ? candidates : []
+
   const handleDeleteCandidate = async (candidateId: number) => {
     if (confirm('Êtes-vous sûr de vouloir supprimer ce candidat ? Cette action est irréversible.')) {
       try {
@@ -86,13 +90,8 @@ export function CandidatesList({
   }
 
   const filteredCandidates = useMemo(() => {
-    // CORRECTION : Vérification que candidates est défini
-    if (!candidates || !Array.isArray(candidates)) {
-      return []
-    }
-
-    let result = candidates.filter(candidate => {
-      // Vérifier si candidate existe
+    // CORRECTION : Utiliser safeCandidates au lieu de candidates
+    let result = safeCandidates.filter(candidate => {
       if (!candidate) return false
 
       // ✅ Vérifier si le filtre n'est pas 'all'
@@ -135,7 +134,7 @@ export function CandidatesList({
     })
 
     return result
-  }, [candidates, filters])
+  }, [safeCandidates, filters])
 
   const getStatusColor = (status: string, type: 'final' | 'call' = 'final') => {
     const colors = {
@@ -186,14 +185,27 @@ export function CandidatesList({
   }
 
   // CORRECTION : Vérification de sécurité avant le rendu
-  if (!candidates) {
+  if (!safeCandidates || safeCandidates.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20 p-6">
         <div className="text-center py-16">
           <div className="w-24 h-24 bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner">
             <User className="w-12 h-12 text-gray-400" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Chargement des candidats...</h3>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Aucun candidat disponible</h3>
+          <p className="text-gray-500 mb-6">
+            {safeCandidates.length === 0 
+              ? "Commencez par ajouter votre premier candidat pour le voir apparaître ici" 
+              : "Erreur de chargement des candidats"
+            }
+          </p>
+          <Link
+            href="/wfm/candidates/new"
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-2xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+          >
+            <Plus className="w-5 h-5" />
+            Ajouter un candidat
+          </Link>
         </div>
       </div>
     )
@@ -379,12 +391,12 @@ export function CandidatesList({
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Aucun candidat trouvé</h3>
             <p className="text-gray-500 max-w-md mx-auto">
-              {candidates.length === 0 
+              {safeCandidates.length === 0 
                 ? "Commencez par ajouter votre premier candidat pour le voir apparaître ici" 
                 : "Aucun candidat ne correspond à vos critères de recherche. Essayez de modifier vos filtres."
               }
             </p>
-            {candidates.length === 0 && (
+            {safeCandidates.length === 0 && (
               <Link
                 href="/wfm/candidates/new"
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-2xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl mt-6"
