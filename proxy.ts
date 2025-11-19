@@ -1,50 +1,19 @@
-// proxy.ts - VERSION SIMPLIFIÉE
+// proxy.ts
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getCurrentSession } from '@/lib/session'
 
-export async function middleware(request: NextRequest) {
+const protectedWFMRoutes = ['/wfm', '/api/wfm']
+
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
-  console.log('🔍 PROXY - Pathname:', pathname, 'Method:', request.method)
+  console.log('🔍 PROXY - Pathname:', pathname)
 
-  // ⭐ CORRECTION : Laisser passer les routes API sans redirection
-  if (pathname.startsWith('/api')) {
-    // Laisser passer les routes auth
-    if (pathname.startsWith('/api/auth')) {
-      return NextResponse.next()
-    }
-
-    try {
-      const session = await getCurrentSession()
-
-      if (!session?.user) {
-        console.log('❌ No session for API route:', pathname)
-        // Pour les APIs, retourner une erreur JSON au lieu de rediriger
-        return NextResponse.json(
-          { error: "Non authentifié" }, 
-          { status: 401 }
-        )
-      }
-
-      console.log(`✅ API Proxy: ${pathname} - Role: ${(session.user as any).role}`)
-
-      // Vérification des rôles pour les routes protégées
-      if (pathname.startsWith('/api/wfm') && (session.user as any).role !== 'WFM') {
-        return NextResponse.json(
-          { error: "Accès non autorisé" }, 
-          { status: 403 }
-        )
-      }
-
-      return NextResponse.next()
-    } catch (error) {
-      console.error('❌ Proxy API error:', error)
-      return NextResponse.json(
-        { error: "Erreur d'authentification" }, 
-        { status: 500 }
-      )
-    }
+  // Laisser passer les routes auth (CORS géré par middleware.ts)
+  if (pathname.startsWith('/api/auth')) {
+    console.log('🔓 Auth route bypassed:', pathname)
+    return NextResponse.next()
   }
 
   // Redirection depuis /unauthorized
@@ -53,10 +22,10 @@ export async function middleware(request: NextRequest) {
     const session = await getCurrentSession()
     
     if (session?.user) {
-      const redirectPath = (session.user as any).role === 'WFM' 
+      const redirectPath = session.user.role === 'WFM' 
         ? '/wfm/dashboard' 
         : '/jury/dashboard'
-      console.log(`🎯 Redirecting to: ${redirectPath}`)
+      console.log(`🎯 Redirecting to: ${redirectPath} (role: ${session.user.role})`)
       return NextResponse.redirect(new URL(redirectPath, request.url))
     }
     return NextResponse.redirect(new URL('/auth/login', request.url))
@@ -70,15 +39,15 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next()
     }
 
-    // Vérification de session pour les routes protégées
+    // Vérification de session
     if (!session?.user) {
       console.log('❌ No session for:', pathname)
       return NextResponse.redirect(new URL('/auth/login', request.url))
     }
 
-    const userRole = (session.user as any).role
+    const userRole = session.user.role
 
-    console.log(`✅ Proxy: ${pathname} - Role: ${userRole}`)
+    console.log(`✅ Proxy: ${pathname} - Role: ${userRole} - Email: ${session.user.email}`)
 
     // Protection routes WFM
     if (pathname.startsWith('/wfm') && userRole !== 'WFM') {
@@ -101,6 +70,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ]
 }
