@@ -1,65 +1,153 @@
-// app/api/export/session/route.ts
+// app/api/sessions/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
-import { generateSessionExportXLSX } from "@/lib/export-utils"
+import { Metier, SessionStatus } from "@prisma/client"
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
+    console.log("🎯 GET /api/sessions - Récupération de toutes les sessions")
+
     const session = await auth.api.getSession({
       headers: await headers(),
     })
 
-    if (!session || (session.user as any).role !== "WFM") {
+    console.log("👤 Session utilisateur:", session?.user)
+
+    if (!session) {
+      console.log("❌ Non autorisé - Pas de session")
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const sessionId = searchParams.get('sessionId')
+    // Vérifier le rôle
+    const userRole = (session.user as any).role
+    console.log("🔐 Rôle utilisateur:", userRole)
 
-    if (!sessionId) {
-      return NextResponse.json({ error: "sessionId requis" }, { status: 400 })
+    if (userRole !== "WFM") {
+      console.log("❌ Non autorisé - Rôle insuffisant:", userRole)
+      return NextResponse.json({ error: "Accès réservé aux WFM" }, { status: 403 })
     }
 
-    // Récupérer la session avec les candidats
-    const recruitmentSession = await prisma.recruitmentSession.findUnique({
-      where: { id: sessionId },
+    // Récupérer toutes les sessions avec le nombre de candidats
+    const sessions = await prisma.recruitmentSession.findMany({
+      orderBy: { date: 'desc' },
       include: {
         candidates: {
-          include: {
-            scores: true,
-            faceToFaceScores: {
-              include: {
-                juryMember: {
-                  select: {
-                    fullName: true,
-                    roleType: true
-                  }
-                }
-              }
-            }
+          select: {
+            id: true,
+          },
+        },
+        _count: {
+          select: {
+            candidates: true,
+            juryPresences: true,
           }
         }
-      }
-    })
-
-    if (!recruitmentSession) {
-      return NextResponse.json({ error: "Session non trouvée" }, { status: 404 })
-    }
-
-    // Générer l'export
-    const exportResult = await generateSessionExportXLSX(recruitmentSession)
-
-    // Retourner le fichier Excel
-    return new NextResponse(exportResult.buffer, {
-      headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="${exportResult.filename}"`,
       },
     })
+
+    console.log(`📊 ${sessions.length} sessions trouvées`)
+
+    // Formater les données pour inclure le nombre de candidats
+    const formattedSessions = sessions.map(session => ({
+      id: session.id,
+      metier: session.metier,
+      date: session.date,
+      jour: session.jour,
+      status: session.status,
+      description: session.description,
+      location: session.location,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      candidatesCount: session._count.candidates,
+      juryPresencesCount: session._count.juryPresences,
+    }))
+
+    return NextResponse.json(formattedSessions)
+    
   } catch (error) {
-    console.error("Session export error:", error)
-    return NextResponse.json({ error: "Erreur lors de l'export de session" }, { status: 500 })
+    console.error("❌ Erreur GET sessions:", error)
+    return NextResponse.json({ 
+      error: "Erreur lors de la récupération des sessions" 
+    }, { status: 500 })
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    console.log("🎯 POST /api/sessions - Création d'une nouvelle session")
+
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    })
+
+    console.log("👤 Session utilisateur:", session?.user)
+
+    if (!session || (session.user as any).role !== "WFM") {
+      console.log("❌ Non autorisé - Rôle:", (session?.user as any)?.role)
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+    }
+
+    const body = await request.json()
+    console.log("📦 Données reçues:", body)
+
+    const { metier, date, jour, status, description, location } = body
+
+    // Validation
+    if (!metier || !date) {
+      console.log("❌ Champs manquants:", { metier, date })
+      return NextResponse.json({ 
+        error: "Le métier et la date sont obligatoires" 
+      }, { status: 400 })
+    }
+
+    // Calcul du jour si absent
+    let calculatedJour = jour
+    if (!calculatedJour && date) {
+      try {
+        const selectedDate = new Date(date + 'T00:00:00')
+        const frenchDays = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+        calculatedJour = frenchDays[selectedDate.getDay()]
+        console.log("📅 Jour calculé:", calculatedJour)
+      } catch (error) {
+        console.error("❌ Erreur calcul jour:", error)
+        return NextResponse.json({ 
+          error: "Format de date invalide" 
+        }, { status: 400 })
+      }
+    }
+
+    // Créer la session
+    const newSession = await prisma.recruitmentSession.create({
+      data: {
+        metier,
+        date: new Date(date + 'T00:00:00'),
+        jour: calculatedJour,
+        status: status || 'PLANIFIED',
+        description: description || null,
+        location: location || null,
+      },
+    })
+
+    console.log("✅ Session créée:", newSession.id)
+
+    return NextResponse.json(newSession)
+    
+  } catch (error) {
+    console.error("❌ Erreur POST sessions:", error)
+    
+    if (error instanceof Error) {
+      // Gérer les erreurs de contrainte unique si nécessaire
+      if (error.message.includes('Unique constraint')) {
+        return NextResponse.json({ 
+          error: "Une session avec ces caractéristiques existe déjà" 
+        }, { status: 400 })
+      }
+    }
+    
+    return NextResponse.json({ 
+      error: "Erreur lors de la création de la session" 
+    }, { status: 500 })
   }
 }

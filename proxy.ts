@@ -3,16 +3,20 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getCurrentSession } from '@/lib/session'
 
-const protectedWFMRoutes = ['/wfm', '/api/wfm']
-
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
+  const method = request.method
 
-  console.log('🔍 PROXY - Pathname:', pathname)
+  console.log('🔍 PROXY - Pathname:', pathname, 'Method:', method)
 
-  // Laisser passer les routes auth (CORS géré par middleware.ts)
-  if (pathname.startsWith('/api/auth')) {
+  // Laisser passer les routes auth et API auth
+  if (pathname.startsWith('/api/auth') || pathname.startsWith('/auth/')) {
     console.log('🔓 Auth route bypassed:', pathname)
+    return NextResponse.next()
+  }
+
+  // Laisser passer les routes static
+  if (pathname.startsWith('/_next') || pathname.includes('.')) {
     return NextResponse.next()
   }
 
@@ -36,10 +40,18 @@ export async function proxy(request: NextRequest) {
 
     // Routes publiques
     if (pathname.startsWith('/auth') || pathname === '/') {
+      if (session?.user) {
+        // Rediriger les utilisateurs connectés depuis les pages auth
+        const redirectPath = session.user.role === 'WFM' 
+          ? '/wfm/dashboard' 
+          : '/jury/dashboard'
+        console.log(`🔄 Redirection depuis auth vers: ${redirectPath}`)
+        return NextResponse.redirect(new URL(redirectPath, request.url))
+      }
       return NextResponse.next()
     }
 
-    // Vérification de session
+    // Vérification de session pour les routes protégées
     if (!session?.user) {
       console.log('❌ No session for:', pathname)
       return NextResponse.redirect(new URL('/auth/login', request.url))
@@ -61,6 +73,20 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL('/unauthorized', request.url))
     }
 
+    // Protection des API routes
+    if (pathname.startsWith('/api/')) {
+      // APIs WFM - protéger seulement les routes spécifiques
+      if (pathname.startsWith('/api/sessions') && userRole !== 'WFM') {
+        console.log(`🚫 API WFM access denied for role: ${userRole}`)
+        return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
+      }
+      
+      // APIs Jury  
+      if (pathname.startsWith('/api/jury') && userRole !== 'JURY') {
+        return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
+      }
+    }
+
     return NextResponse.next()
   } catch (error) {
     console.error('❌ Proxy error:', error)
@@ -70,6 +96,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ]
 }

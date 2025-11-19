@@ -15,8 +15,6 @@ export async function getCurrentSession() {
       return null
     }
 
-    // ⭐ CORRECTION: Ne pas forcer le rôle à "JURY"
-    // Laisser le rôle tel qu'il vient de la base de données
     console.log("🔐 User role from auth:", session.user.role)
     
     return session
