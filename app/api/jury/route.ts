@@ -8,22 +8,23 @@ export async function POST(request: Request) {
   try {
     console.log("🎯 POST /api/jury - Création d'un membre du jury")
     
+    // ⭐ CORRECTION: Récupération de session avec BetterAuth
     const session = await auth.api.getSession({
       headers: await headers(),
     })
 
     console.log("👤 Session user:", session?.user)
-    console.log("🔐 User role:", session?.user?.role)
+    console.log("🔐 User data:", session?.user)
 
-    // Vérification de session et rôle
+    // Vérification de session
     if (!session) {
       console.log("❌ Pas de session")
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
-    // ⭐ CORRECTION: Vérification directe du rôle
-    if (session.user?.role !== "WFM") {
-      console.log("❌ Rôle non autorisé:", session.user?.role)
+    // ⭐ CORRECTION: Avec BetterAuth, le rôle est dans session.user.role
+    if (session.user.role !== "WFM") {
+      console.log("❌ Rôle non autorisé:", session.user.role)
       return NextResponse.json({ 
         error: "Accès réservé aux WFM" 
       }, { status: 403 })
@@ -108,19 +109,19 @@ export async function GET() {
   try {
     console.log("🎯 GET /api/jury - Récupération des membres du jury")
     
+    // ⭐ CORRECTION: Récupération de session avec BetterAuth
     const session = await auth.api.getSession({
       headers: await headers(),
     })
 
     console.log("👤 Session user:", session?.user)
-    console.log("🔐 User role:", session?.user?.role)
 
     if (!session) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
     // Seul WFM peut voir tous les membres du jury
-    if (session.user?.role !== "WFM") {
+    if (session.user.role !== "WFM") {
       return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 

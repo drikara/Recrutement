@@ -13,22 +13,22 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const { id } = await params
     console.log(`🎯 PUT /api/jury/${id} - Mise à jour membre du jury`)
     
+    // ⭐ CORRECTION: Récupération de session avec BetterAuth
     const session = await auth.api.getSession({
       headers: await headers(),
     })
 
     console.log("👤 Session user:", session?.user)
-    console.log("🔐 Role:", session?.user?.role)
 
-    // ⭐ CORRECTION: Vérification améliorée
+    // Vérification de session
     if (!session) {
       console.log("❌ Non autorisé - Pas de session")
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
-    // ⭐ CORRECTION: Vérification directe du rôle
-    if (session.user?.role !== "WFM") {
-      console.log("❌ Rôle non autorisé:", session.user?.role)
+    // ⭐ CORRECTION: Avec BetterAuth, le rôle est directement accessible
+    if (session.user.role !== "WFM") {
+      console.log("❌ Rôle non autorisé:", session.user.role)
       return NextResponse.json({ error: "Accès réservé aux WFM" }, { status: 403 })
     }
 
@@ -105,22 +105,22 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const { id } = await params
     console.log(`🎯 DELETE /api/jury/${id} - Suppression membre du jury`)
     
+    // ⭐ CORRECTION: Récupération de session avec BetterAuth
     const session = await auth.api.getSession({
       headers: await headers(),
     })
 
     console.log("👤 Session user:", session?.user)
-    console.log("🔐 User role:", session?.user?.role)
 
-    // ⭐ CORRECTION: Vérification améliorée
+    // Vérification de session
     if (!session) {
       console.log("❌ Pas de session")
       return NextResponse.json({ error: "Non autorisé - Pas de session" }, { status: 401 })
     }
 
-    // ⭐ CORRECTION: Vérification directe du rôle
-    if (session.user?.role !== "WFM") {
-      console.log("❌ Rôle non autorisé:", session.user?.role)
+    // ⭐ CORRECTION: Avec BetterAuth, le rôle est directement accessible
+    if (session.user.role !== "WFM") {
+      console.log("❌ Rôle non autorisé:", session.user.role)
       return NextResponse.json({ 
         error: "Non autorisé - Accès réservé aux WFM" 
       }, { status: 403 })
@@ -197,12 +197,12 @@ export async function GET(request: Request, { params }: RouteParams) {
     const { id } = await params
     console.log(`🎯 GET /api/jury/${id} - Récupération membre spécifique`)
     
+    // ⭐ CORRECTION: Récupération de session avec BetterAuth
     const session = await auth.api.getSession({
       headers: await headers(),
     })
 
     console.log("👤 Session user:", session?.user)
-    console.log("🔐 User role:", session?.user?.role)
 
     if (!session) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
