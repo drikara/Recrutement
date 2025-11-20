@@ -12,8 +12,21 @@ export async function POST(request: Request) {
       headers: await headers(),
     })
 
-    if (!session || (session.user as any).role !== "WFM") {
+    console.log("👤 Session user:", session?.user)
+    console.log("🔐 User role:", session?.user?.role)
+
+    // Vérification de session et rôle
+    if (!session) {
+      console.log("❌ Pas de session")
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+    }
+
+    // ⭐ CORRECTION: Vérification directe du rôle
+    if (session.user?.role !== "WFM") {
+      console.log("❌ Rôle non autorisé:", session.user?.role)
+      return NextResponse.json({ 
+        error: "Accès réservé aux WFM" 
+      }, { status: 403 })
     }
 
     const data = await request.json()
@@ -99,12 +112,15 @@ export async function GET() {
       headers: await headers(),
     })
 
+    console.log("👤 Session user:", session?.user)
+    console.log("🔐 User role:", session?.user?.role)
+
     if (!session) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
     // Seul WFM peut voir tous les membres du jury
-    if ((session.user as any).role !== "WFM") {
+    if (session.user?.role !== "WFM") {
       return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 

@@ -18,11 +18,18 @@ export async function PUT(request: Request, { params }: RouteParams) {
     })
 
     console.log("👤 Session user:", session?.user)
-    console.log("🔐 Role:", (session?.user as any)?.role)
+    console.log("🔐 Role:", session?.user?.role)
 
-    if (!session || (session.user as any).role !== "WFM") {
-      console.log("❌ Non autorisé - Role:", (session?.user as any)?.role)
+    // ⭐ CORRECTION: Vérification améliorée
+    if (!session) {
+      console.log("❌ Non autorisé - Pas de session")
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+    }
+
+    // ⭐ CORRECTION: Vérification directe du rôle
+    if (session.user?.role !== "WFM") {
+      console.log("❌ Rôle non autorisé:", session.user?.role)
+      return NextResponse.json({ error: "Accès réservé aux WFM" }, { status: 403 })
     }
 
     const data = await request.json()
@@ -103,15 +110,17 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     })
 
     console.log("👤 Session user:", session?.user)
-    console.log("🔐 User role:", (session?.user as any)?.role)
+    console.log("🔐 User role:", session?.user?.role)
 
+    // ⭐ CORRECTION: Vérification améliorée
     if (!session) {
       console.log("❌ Pas de session")
       return NextResponse.json({ error: "Non autorisé - Pas de session" }, { status: 401 })
     }
 
-    if ((session.user as any).role !== "WFM") {
-      console.log("❌ Rôle non autorisé:", (session.user as any).role)
+    // ⭐ CORRECTION: Vérification directe du rôle
+    if (session.user?.role !== "WFM") {
+      console.log("❌ Rôle non autorisé:", session.user?.role)
       return NextResponse.json({ 
         error: "Non autorisé - Accès réservé aux WFM" 
       }, { status: 403 })
@@ -191,6 +200,9 @@ export async function GET(request: Request, { params }: RouteParams) {
     const session = await auth.api.getSession({
       headers: await headers(),
     })
+
+    console.log("👤 Session user:", session?.user)
+    console.log("🔐 User role:", session?.user?.role)
 
     if (!session) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })

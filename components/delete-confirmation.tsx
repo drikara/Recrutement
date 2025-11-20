@@ -22,9 +22,11 @@ export function DeleteConfirmation({ juryMember }: { juryMember: any }) {
     try {
       console.log(`🗑️ Suppression du membre jury ID: ${juryMember.id}`)
       
-      // ⭐ CORRECTION: Utiliser la bonne URL API
       const response = await fetch(`/api/jury/${juryMember.id}`, {
         method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
       })
 
       const result = await response.json()
@@ -72,7 +74,7 @@ export function DeleteConfirmation({ juryMember }: { juryMember: any }) {
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-4 bg-red-50 rounded-xl">
               <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-orange-500 rounded-xl flex items-center justify-center text-white font-semibold">
-                {juryMember.fullName.split(' ').map((n: any[]) => n[0]).join('').slice(0, 2)}
+                {juryMember.fullName.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
               </div>
               <div>
                 <h3 className="font-bold text-gray-900">{juryMember.fullName}</h3>
