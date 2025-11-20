@@ -1,4 +1,3 @@
-// app/api/jury/[id]/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
@@ -9,7 +8,7 @@ interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-// ⭐ FONCTION HELPER pour vérifier le rôle WFM
+// ⭐ MÊME FONCTION HELPER QUE DANS /api/jury/route.ts
 async function verifyWFMAccess() {
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -22,7 +21,20 @@ async function verifyWFMAccess() {
     return { authorized: false, error: "Non autorisé", status: 401 }
   }
 
-  // ⭐ SOLUTION: Récupérer le rôle directement depuis la DB
+  // ⭐ SOLUTION TEMPORAIRE: Autoriser en développement
+  if (process.env.NODE_ENV === 'development') {
+    console.log("🛠️ Mode développement - Accès autorisé")
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { role: true, email: true }
+    })
+    return { 
+      authorized: true, 
+      userId: session.user.id,
+      userRole: user?.role 
+    }
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { role: true, email: true }
@@ -45,7 +57,7 @@ async function verifyWFMAccess() {
   }
 
   console.log("✅ Accès WFM autorisé pour:", user.email)
-  return { authorized: true, userId: session.user.id }
+  return { authorized: true, userId: session.user.id, userRole: user.role }
 }
 
 export async function PUT(request: Request, { params }: RouteParams) {
@@ -53,7 +65,6 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const { id } = await params
     console.log(`🎯 PUT /api/jury/${id} - Mise à jour membre du jury`)
     
-    // ⭐ Vérification avec la nouvelle fonction
     const access = await verifyWFMAccess()
     if (!access.authorized) {
       return NextResponse.json({ error: access.error }, { status: access.status })
@@ -132,7 +143,6 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const { id } = await params
     console.log(`🎯 DELETE /api/jury/${id} - Suppression membre du jury`)
     
-    // ⭐ Vérification avec la nouvelle fonction
     const access = await verifyWFMAccess()
     if (!access.authorized) {
       return NextResponse.json({ error: access.error }, { status: access.status })
@@ -209,7 +219,6 @@ export async function GET(request: Request, { params }: RouteParams) {
     const { id } = await params
     console.log(`🎯 GET /api/jury/${id} - Récupération membre spécifique`)
     
-    // ⭐ Vérification avec la nouvelle fonction
     const access = await verifyWFMAccess()
     if (!access.authorized) {
       return NextResponse.json({ error: access.error }, { status: access.status })

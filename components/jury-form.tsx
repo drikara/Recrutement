@@ -38,11 +38,10 @@ export function JuryForm({ juryMember, availableUsers, availableSessions = [] }:
     user_id: juryMember?.userId || '',
     full_name: juryMember?.fullName || '',
     role_type: juryMember?.roleType || '' as JuryRoleType | '',
-    specialite: juryMember?.specialite || '',
+    specialite: juryMember?.specialite || null as Metier | null, // ⭐ CORRECTION: null au lieu de string vide
     department: juryMember?.department || '',
     phone: juryMember?.phone || '',
     notes: juryMember?.notes || '',
-    // ✅ NOUVEAU: Sélection de sessions
     sessions: [] as string[],
     wasPresent: true,
   })
@@ -53,10 +52,10 @@ export function JuryForm({ juryMember, availableUsers, availableSessions = [] }:
     setError(null)
 
     try {
-      // 1. Créer ou modifier le membre du jury
+      // ⭐ CORRECTION: Utiliser uniquement /api/jury
       const juryUrl = juryMember 
-        ? `/api/jury-members/${juryMember.id}` 
-        : '/api/jury-members'
+        ? `/api/jury/${juryMember.id}` 
+        : '/api/jury'  // ⭐ Changé de /api/jury-members vers /api/jury
       
       const juryMethod = juryMember ? 'PUT' : 'POST'
 
@@ -64,11 +63,13 @@ export function JuryForm({ juryMember, availableUsers, availableSessions = [] }:
         user_id: formData.user_id,
         full_name: formData.full_name,
         role_type: formData.role_type,
-        specialite: formData.specialite || null,
+        specialite: formData.specialite, // ⭐ CORRECTION: Déjà Metier | null
         department: formData.department || null,
         phone: formData.phone || null,
         notes: formData.notes || null,
       }
+
+      console.log('📤 Envoi des données à:', juryUrl, juryPayload)
 
       const juryResponse = await fetch(juryUrl, {
         method: juryMethod,
@@ -136,6 +137,14 @@ export function JuryForm({ juryMember, availableUsers, availableSessions = [] }:
       sessions: prev.sessions.includes(sessionId)
         ? prev.sessions.filter(id => id !== sessionId)
         : [...prev.sessions, sessionId]
+    }))
+  }
+
+  // ⭐ CORRECTION: Gestion correcte de la spécialité
+  const handleSpecialiteChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      specialite: value === "" ? null : value as Metier
     }))
   }
 
@@ -216,14 +225,14 @@ export function JuryForm({ juryMember, availableUsers, availableSessions = [] }:
         </select>
       </div>
 
-      {/* Spécialité */}
+      {/* Spécialité - CORRECTION */}
       <div className="space-y-2">
         <label className="block text-sm font-semibold text-gray-700">
           Spécialité
         </label>
         <select
-          value={formData.specialite}
-          onChange={(e) => setFormData(prev => ({ ...prev, specialite: e.target.value }))}
+          value={formData.specialite || ""} // ⭐ CORRECTION: Gérer null
+          onChange={(e) => handleSpecialiteChange(e.target.value)} // ⭐ CORRECTION: Utiliser la fonction dédiée
           className="w-full px-4 py-3 border-2 border-orange-200 rounded-xl focus:border-orange-400 focus:ring-2 focus:ring-orange-200 bg-white"
           disabled={loading}
         >
