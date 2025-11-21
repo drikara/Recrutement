@@ -87,7 +87,7 @@ export default async function JuryEvaluationPage({
       
       <main className="container mx-auto p-6 space-y-6">
         <Link href="/jury/evaluations">
-          <Button variant="outline" className="flex items-center gap-2 bg-orange-500 text-white hover:bg-orange-600 transition-all duration-200 shadow-md cursor-pointer">
+          <Button variant="outline" className="flex items-center  my-4 bg-orange-500 text-white hover:bg-orange-600 transition-all duration-200 shadow-md cursor-pointer">
             <ArrowLeft className="w-4 h-4" />
             Retour aux évaluations
           </Button>
