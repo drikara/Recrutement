@@ -1,98 +1,122 @@
-// ===============================================
-// Fichier 1: app/api/sessions/[id]/jury/route.ts
-// ===============================================
-import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
+import { prisma } from "@/lib/prisma"
+import { DashboardHeader } from "@/components/dashboard-header"
+import { SessionDetails } from "@/components/session-details"
+import Link from "next/link"
 
-interface RouteParams {
+interface PageProps {
   params: Promise<{ id: string }>
 }
 
-export async function POST(request: Request, { params }: RouteParams) {
-  try {
-    const { id } = await params
-    console.log(`🎯 POST /api/sessions/${id}/jury - Ajout membre du jury`)
+export default async function SessionDetailPage({ params }: PageProps) {
+  const { id } = await params
+  
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  })
 
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    })
+  if (!session) {
+    redirect("/auth/login")
+  }
 
-    if (!session || (session.user as any).role !== "WFM") {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
-    }
+  const userRole = (session.user as any).role || "JURY"
 
-    const data = await request.json()
-    const { juryMemberId, wasPresent, absenceReason } = data
-
-    if (!juryMemberId) {
-      return NextResponse.json({ 
-        error: "juryMemberId requis" 
-      }, { status: 400 })
-    }
-
-    // Vérifier que la session existe
-    const recruitmentSession = await prisma.recruitmentSession.findUnique({
-      where: { id }
-    })
-
-    if (!recruitmentSession) {
-      return NextResponse.json({ 
-        error: "Session non trouvée" 
-      }, { status: 404 })
-    }
-
-    // Vérifier que le jury existe
-    const juryMember = await prisma.juryMember.findUnique({
-      where: { id: juryMemberId }
-    })
-
-    if (!juryMember) {
-      return NextResponse.json({ 
-        error: "Membre du jury non trouvé" 
-      }, { status: 404 })
-    }
-
-    // Vérifier que le jury n'est pas déjà dans cette session
-    const existingPresence = await prisma.juryPresence.findFirst({
-      where: {
-        sessionId: id,
-        juryMemberId: juryMemberId
-      }
-    })
-
-    if (existingPresence) {
-      return NextResponse.json({ 
-        error: "Ce membre est déjà assigné à cette session" 
-      }, { status: 400 })
-    }
-
-    // Créer la présence
-    const juryPresence = await prisma.juryPresence.create({
-      data: {
-        sessionId: id,
-        juryMemberId: juryMemberId,
-        wasPresent: wasPresent ?? true,
-        absenceReason: !wasPresent ? absenceReason : null
-      },
-      include: {
-        juryMember: {
-          select: {
-            id: true,
-            fullName: true,
-            roleType: true,
-            specialite: true
+  // Récupérer les détails de la session avec toutes les relations
+  const recruitmentSession = await prisma.recruitmentSession.findUnique({
+    where: { id },
+    include: {
+      candidates: {
+        include: {
+          scores: true,
+          faceToFaceScores: {
+            include: {
+              juryMember: {
+                select: {
+                  fullName: true,
+                  roleType: true
+                }
+              }
+            }
           }
         }
+      },
+      juryPresences: {
+        include: {
+          juryMember: {
+            select: {
+              id: true,
+              fullName: true,
+              roleType: true,
+              specialite: true
+            }
+          }
+        }
+      },
+      _count: {
+        select: {
+          candidates: true,
+          juryPresences: true
+        }
+      }
+    }
+  })
+
+  if (!recruitmentSession) {
+    redirect("/wfm/sessions")
+  }
+
+  // Récupérer tous les membres du jury disponibles (pour WFM)
+  let availableJuryMembers: any[] = []
+  if (userRole === "WFM") {
+    availableJuryMembers = await prisma.juryMember.findMany({
+      select: {
+        id: true,
+        fullName: true,
+        roleType: true,
+        specialite: true
+      },
+      orderBy: {
+        fullName: 'asc'
       }
     })
-
-    console.log("✅ Jury ajouté à la session:", juryPresence.id)
-    return NextResponse.json(juryPresence)
-
-  } catch (error) {
-    console.error("❌ Erreur POST jury:", error)
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <DashboardHeader 
+        user={session.user} 
+        role={userRole}
+      />
+      
+      <main className="container mx-auto p-6 max-w-7xl">
+        {/* Breadcrumb */}
+        <div className="mb-6">
+          <Link
+            href="/wfm/sessions"
+            className="inline-flex items-center gap-2 text-orange-600 hover:text-orange-700 font-medium transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Retour aux sessions
+          </Link>
+        </div>
+
+        {/* Composant de détails */}
+        <SessionDetails 
+          session={recruitmentSession} 
+          availableJuryMembers={availableJuryMembers}
+        />
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t mt-8 py-4">
+        <div className="container mx-auto px-6 text-center text-gray-600 text-sm">
+          © {new Date().getFullYear()} Orange Côte d'Ivoire. Developed by okd_dev. All rights reserved.
+        </div>
+      </footer>
+    </div>
+  )
 }
