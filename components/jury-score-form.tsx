@@ -15,52 +15,128 @@ interface JuryScoreFormProps {
     fullName: string
     roleType: string
   }
-  existingScores: Array<{
-    phase: number
-    score: number
-    presentation_visuelle?: number | null
-    verbal_communication?: number | null
-    voice_quality?: number | null
-    comments?: string | null
-  }>
+  phase1Complete: boolean
+  canDoPhase2: boolean
 }
 
-export function JuryScoreForm({ candidate, juryMember, existingScores }: JuryScoreFormProps) {
+// ✨ Composant de notation par boutons (0 à 5)
+function ScoreButtons({ 
+  value, 
+  onChange, 
+  label, 
+  description 
+}: { 
+  value: number | null
+  onChange: (score: number) => void
+  label: string
+  description: string
+}) {
+  const scores = [0, 1, 2, 3, 4, 5]
+  
+  return (
+    <div className="space-y-3">
+      <label className="block text-sm font-medium text-gray-700">
+        {label} *
+      </label>
+      
+      {/* Boutons de notation */}
+      <div className="flex gap-2">
+        {scores.map((score) => (
+          <button
+            key={score}
+            type="button"
+            onClick={() => onChange(score)}
+            className={`flex-1 py-3 px-4 rounded-lg font-bold text-lg transition-all duration-200 ${
+              value === score
+                ? score >= 3
+                  ? 'bg-green-600 text-white shadow-lg scale-105'
+                  : 'bg-red-600 text-white shadow-lg scale-105'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-102'
+            }`}
+          >
+            {score}
+          </button>
+        ))}
+      </div>
+      
+      {/* Description du critère */}
+      <div className={`p-3 rounded-lg ${
+        value !== null && value >= 3 ? 'bg-green-50' : 'bg-blue-50'
+      }`}>
+        <p className={`text-xs font-medium ${
+          value !== null && value >= 3 ? 'text-green-700' : 'text-blue-700'
+        }`}>
+          {description}
+        </p>
+      </div>
+      
+      {/* Score sélectionné */}
+      {value !== null && (
+        <div className={`text-center p-2 rounded-lg ${
+          value >= 3 ? 'bg-green-100' : 'bg-red-100'
+        }`}>
+          <span className={`font-bold ${
+            value >= 3 ? 'text-green-700' : 'text-red-700'
+          }`}>
+            Score: {value}/5 {value >= 3 ? '✅' : '❌'}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function JuryScoreForm({ 
+  candidate, 
+  juryMember, 
+  phase1Complete,
+  canDoPhase2 
+}: JuryScoreFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [activePhase, setActivePhase] = useState<1 | 2>(1)
+  
+  // PHASE 1 : Face-à-Face (utilise des nombres maintenant)
   const [phase1Scores, setPhase1Scores] = useState({
-    presentation_visuelle: '',
-    verbal_communication: '',
-    voice_quality: '',
-    comments1: '',
+    presentation_visuelle: null as number | null,
+    verbal_communication: null as number | null,
+    voice_quality: null as number | null,
+    comments: '',
   })
+  
+  // PHASE 2 : Simulation
   const [phase2Scores, setPhase2Scores] = useState({
-    phase2: '',
-    comments2: '',
+    sens_negociation: null as number | null,
+    capacite_persuasion: null as number | null,
+    sens_combativite: null as number | null,
+    comments: '',
   })
 
+  // Chargement des scores existants
   useEffect(() => {
     const loadExistingScores = async () => {
       try {
         const response = await fetch(`/api/jury/scores?candidateId=${candidate.id}`)
         if (response.ok) {
           const scores = await response.json()
-          const phase1Score = scores.find((s: any) => s.phase === 1)
-          const phase2Score = scores.find((s: any) => s.phase === 2)
           
+          const phase1Score = scores.find((s: any) => s.phase === 1)
           if (phase1Score) {
             setPhase1Scores({
-              presentation_visuelle: phase1Score.presentation_visuelle?.toString() || '',
-              verbal_communication: phase1Score.verbal_communication?.toString() || '',
-              voice_quality: phase1Score.voice_quality?.toString() || '',
-              comments1: phase1Score.comments || '',
+              presentation_visuelle: phase1Score.presentationVisuelle || null,
+              verbal_communication: phase1Score.verbalCommunication || null,
+              voice_quality: phase1Score.voiceQuality || null,
+              comments: phase1Score.comments || '',
             })
           }
           
+          const phase2Score = scores.find((s: any) => s.phase === 2)
           if (phase2Score) {
             setPhase2Scores({
-              phase2: phase2Score.score?.toString() || '',
-              comments2: phase2Score.comments || '',
+              sens_negociation: phase2Score.simulationSensNegociation || null,
+              capacite_persuasion: phase2Score.simulationCapacitePersuasion || null,
+              sens_combativite: phase2Score.simulationSensCombativite || null,
+              comments: phase2Score.comments || '',
             })
           }
         }
@@ -72,103 +148,182 @@ export function JuryScoreForm({ candidate, juryMember, existingScores }: JurySco
     loadExistingScores()
   }, [candidate.id])
 
-  const calculatePhase1Average = () => {
-    const presentation = parseFloat(phase1Scores.presentation_visuelle) || 0
-    const verbal = parseFloat(phase1Scores.verbal_communication) || 0
-    const voice = parseFloat(phase1Scores.voice_quality) || 0
+  const isAgences = candidate.metier === 'AGENCES'
+  const needsSimulation = candidate.metier === 'AGENCES' || candidate.metier === 'TELEVENTE'
+
+  // Validation PHASE 1
+  const validatePhase1 = () => {
+    if (phase1Scores.verbal_communication === null || phase1Scores.voice_quality === null) {
+      return false
+    }
     
-    if (presentation === 0 && verbal === 0 && voice === 0) return 0
+    if (isAgences) {
+      if (phase1Scores.presentation_visuelle === null) return false
+      return phase1Scores.presentation_visuelle >= 3 && 
+             phase1Scores.verbal_communication >= 3 && 
+             phase1Scores.voice_quality >= 3
+    }
     
-    return (presentation + verbal + voice) / 3
+    return phase1Scores.verbal_communication >= 3 && phase1Scores.voice_quality >= 3
   }
 
-  const handleSubmit = async (e: React.FormEvent, phase: number) => {
+  // Validation PHASE 2
+  const validatePhase2 = () => {
+    if (phase2Scores.sens_negociation === null || 
+        phase2Scores.capacite_persuasion === null || 
+        phase2Scores.sens_combativite === null) {
+      return false
+    }
+    
+    return phase2Scores.sens_negociation >= 3 && 
+           phase2Scores.capacite_persuasion >= 3 && 
+           phase2Scores.sens_combativite >= 3
+  }
+
+  // Vérifier si tous les champs Phase 1 sont remplis
+  const isPhase1Complete = () => {
+    if (isAgences) {
+      return phase1Scores.presentation_visuelle !== null &&
+             phase1Scores.verbal_communication !== null &&
+             phase1Scores.voice_quality !== null
+    }
+    return phase1Scores.verbal_communication !== null &&
+           phase1Scores.voice_quality !== null
+  }
+
+  // Vérifier si tous les champs Phase 2 sont remplis
+  const isPhase2Complete = () => {
+    return phase2Scores.sens_negociation !== null &&
+           phase2Scores.capacite_persuasion !== null &&
+           phase2Scores.sens_combativite !== null
+  }
+
+  const handleSubmitPhase1 = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    if (!isPhase1Complete()) {
+      alert('Veuillez noter tous les critères')
+      return
+    }
+    
+    // Vérification session active
     try {
       const sessionCheck = await fetch(`/api/jury/check-session/${candidate.id}`)
       const sessionData = await sessionCheck.json()
       
       if (!sessionData.canEvaluate) {
-        alert(`La session de recrutement est ${sessionData.sessionStatus?.toLowerCase()}. Vous ne pouvez plus noter ce candidat.`)
+        alert(`La session est ${sessionData.sessionStatus}. Vous ne pouvez plus évaluer.`)
         return
       }
     } catch (error) {
       console.error('Erreur vérification session:', error)
-      alert('Erreur de vérification de la session. Veuillez réessayer.')
+      alert('Erreur de vérification de la session.')
       return
     }
     
     setLoading(true)
 
-    let scoreNumber: number
-    let comments: string
-
-    if (phase === 1) {
-      const presentation = parseFloat(phase1Scores.presentation_visuelle)
-      const verbal = parseFloat(phase1Scores.verbal_communication)
-      const voice = parseFloat(phase1Scores.voice_quality)
-      
-      if (isNaN(presentation) || presentation < 0 || presentation > 5 ||
-          isNaN(verbal) || verbal < 0 || verbal > 5 ||
-          isNaN(voice) || voice < 0 || voice > 5) {
-        alert('Tous les scores doivent être des nombres entre 0 et 5')
-        setLoading(false)
-        return
-      }
-      
-      scoreNumber = calculatePhase1Average()
-      comments = phase1Scores.comments1
-    } else {
-      scoreNumber = parseFloat(phase2Scores.phase2)
-      if (isNaN(scoreNumber) || scoreNumber < 0 || scoreNumber > 5) {
-        alert('Le score doit être un nombre entre 0 et 5')
-        setLoading(false)
-        return
-      }
-      comments = phase2Scores.comments2
-    }
+    const decision = validatePhase1() ? 'FAVORABLE' : 'DEFAVORABLE'
 
     const scoreData = {
       candidate_id: candidate.id,
-      phase,
-      score: scoreNumber,
-      comments,
-      ...(phase === 1 && {
-        presentation_visuelle: parseFloat(phase1Scores.presentation_visuelle),
-        verbal_communication: parseFloat(phase1Scores.verbal_communication),
-        voice_quality: parseFloat(phase1Scores.voice_quality)
-      })
+      phase: 1,
+      verbal_communication: phase1Scores.verbal_communication!,
+      voice_quality: phase1Scores.voice_quality!,
+      ...(isAgences && { 
+        presentation_visuelle: phase1Scores.presentation_visuelle!
+      }),
+      decision: decision,
+      comments: phase1Scores.comments || null
     }
+
+    console.log('📤 Envoi Phase 1:', scoreData)
 
     try {
       const response = await fetch('/api/jury/scores', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scoreData),
       })
 
       if (response.ok) {
+        const result = await response.json()
+        console.log('✅ Phase 1 sauvegardée:', result)
+        
+        alert(`Phase 1 sauvegardée avec succès!\nDécision: ${decision}`)
         router.refresh()
-        alert(`Phase ${phase} sauvegardée avec succès!`)
+        
+        if (needsSimulation && decision === 'FAVORABLE') {
+          const goToPhase2 = confirm('Phase 1 validée ! Voulez-vous passer à la Phase 2 (Simulation) ?')
+          if (goToPhase2) {
+            setActivePhase(2)
+          }
+        }
       } else {
         const error = await response.json()
+        console.error('❌ Erreur:', error)
         alert(`Erreur: ${error.error}`)
       }
     } catch (error) {
-      console.error('Error saving score:', error)
+      console.error('❌ Erreur réseau:', error)
       alert('Erreur lors de la sauvegarde')
     } finally {
       setLoading(false)
     }
   }
 
-  const phase1Average = calculatePhase1Average()
+  const handleSubmitPhase2 = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!isPhase2Complete()) {
+      alert('Veuillez noter tous les critères')
+      return
+    }
+    
+    setLoading(true)
+
+    const decision = validatePhase2() ? 'FAVORABLE' : 'DEFAVORABLE'
+
+    const scoreData = {
+      candidate_id: candidate.id,
+      phase: 2,
+      simulation_sens_negociation: phase2Scores.sens_negociation!,
+      simulation_capacite_persuasion: phase2Scores.capacite_persuasion!,
+      simulation_sens_combativite: phase2Scores.sens_combativite!,
+      decision: decision,
+      comments: phase2Scores.comments || null
+    }
+
+    console.log('📤 Envoi Phase 2:', scoreData)
+
+    try {
+      const response = await fetch('/api/jury/scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(scoreData),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('✅ Phase 2 sauvegardée:', result)
+        alert(`Phase 2 sauvegardée avec succès!\nDécision: ${decision}`)
+        router.refresh()
+        router.push('/jury/evaluations')
+      } else {
+        const error = await response.json()
+        alert(`Erreur: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('❌ Erreur réseau:', error)
+      alert('Erreur lors de la sauvegarde')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="space-y-8">
+      {/* En-tête */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
         <div className="flex items-center justify-between">
           <div>
@@ -182,210 +337,241 @@ export function JuryScoreForm({ candidate, juryMember, existingScores }: JurySco
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-            <span className="text-blue-700 font-bold text-sm">1</span>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900">Phase 1 - Entretien Initial</h2>
+      {/* Navigation Phase 1 / Phase 2 */}
+      {needsSimulation && (
+        <div className="flex gap-4 bg-white p-2 rounded-xl border border-gray-200">
+          <button
+            onClick={() => setActivePhase(1)}
+            className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-all ${
+              activePhase === 1
+                ? 'bg-blue-600 text-white shadow-lg'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Phase 1 - Face à Face
+            {phase1Complete && <span className="ml-2">✅</span>}
+          </button>
+          
+          <button
+            onClick={() => setActivePhase(2)}
+            disabled={!canDoPhase2}
+            className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-all ${
+              activePhase === 2
+                ? 'bg-green-600 text-white shadow-lg'
+                : canDoPhase2
+                ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            Phase 2 - Simulation 🎭
+            {!canDoPhase2 && <span className="ml-2 text-xs">(Validez Phase 1 d'abord)</span>}
+          </button>
         </div>
-        
-        <form onSubmit={(e) => handleSubmit(e, 1)} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">
-                Présentation Visuelle (/5)
-              </label>
-              <input
-                type="number"
-                min="0"
-                max="5"
-                step="0.1"
+      )}
+
+      {/* PHASE 1 : FACE-À-FACE */}
+      {activePhase === 1 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+              <span className="text-blue-700 font-bold text-sm">1</span>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900">Phase 1 - Face à Face</h2>
+          </div>
+          
+          <form onSubmit={handleSubmitPhase1} className="space-y-6">
+            {isAgences && (
+              <ScoreButtons
                 value={phase1Scores.presentation_visuelle}
-                onChange={(e) => setPhase1Scores(prev => ({ 
+                onChange={(score) => setPhase1Scores(prev => ({ 
                   ...prev, 
-                  presentation_visuelle: e.target.value 
+                  presentation_visuelle: score 
                 }))}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                required
-                placeholder="0-5"
+                label="Présentation Visuelle (/5)"
+                description="Tenue, posture, contact visuel"
               />
-              <div className="bg-blue-50 p-3 rounded-lg">
-                <p className="text-xs text-blue-700 font-medium">Tenue, posture, contact visuel</p>
-              </div>
-            </div>
+            )}
 
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">
-                Communication Verbale (/5)
-              </label>
-              <input
-                type="number"
-                min="0"
-                max="5"
-                step="0.1"
-                value={phase1Scores.verbal_communication}
-                onChange={(e) => setPhase1Scores(prev => ({ 
-                  ...prev, 
-                  verbal_communication: e.target.value 
-                }))}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                required
-                placeholder="0-5"
-              />
-              <div className="bg-blue-50 p-3 rounded-lg">
-                <p className="text-xs text-blue-700 font-medium">Clarté, structure, expression</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">
-                Qualité de la Voix (/5)
-              </label>
-              <input
-                type="number"
-                min="0"
-                max="5"
-                step="0.1"
-                value={phase1Scores.voice_quality}
-                onChange={(e) => setPhase1Scores(prev => ({ 
-                  ...prev, 
-                  voice_quality: e.target.value 
-                }))}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                required
-                placeholder="0-5"
-              />
-              <div className="bg-blue-50 p-3 rounded-lg">
-                <p className="text-xs text-blue-700 font-medium">Ton, débit, articulation</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-r from-blue-100 to-indigo-100 p-4 rounded-xl border border-blue-200">
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="font-semibold text-blue-900">Moyenne calculée Phase 1</span>
-                <p className="text-sm text-blue-700">Moyenne des 3 critères</p>
-              </div>
-              <div className="text-right">
-                <span className="text-2xl font-bold text-blue-700">
-                  {phase1Average.toFixed(2)}
-                </span>
-                <span className="text-blue-600 font-medium">/5</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-gray-700">
-              Commentaires (optionnel)
-            </label>
-            <textarea
-              value={phase1Scores.comments1}
-              onChange={(e) => setPhase1Scores(prev => ({ 
+            <ScoreButtons
+              value={phase1Scores.verbal_communication}
+              onChange={(score) => setPhase1Scores(prev => ({ 
                 ...prev, 
-                comments1: e.target.value 
+                verbal_communication: score 
               }))}
-              rows={4}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
-              placeholder="Observations détaillées sur la présentation, communication, qualité vocale..."
+              label="Communication Verbale (/5)"
+              description="Clarté, structure, expression"
             />
-          </div>
 
-          <button
-            type="submit"
-            disabled={loading || !phase1Scores.presentation_visuelle || !phase1Scores.verbal_communication || !phase1Scores.voice_quality}
-            className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 font-semibold transition-colors duration-200 flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Sauvegarde en cours...
-              </>
-            ) : (
-              <>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Sauvegarder l'Évaluation Phase 1
-              </>
+            <ScoreButtons
+              value={phase1Scores.voice_quality}
+              onChange={(score) => setPhase1Scores(prev => ({ 
+                ...prev, 
+                voice_quality: score 
+              }))}
+              label="Qualité de la Voix (/5)"
+              description="Ton, débit, articulation"
+            />
+
+            {/* Indicateur FAVORABLE/DEFAVORABLE */}
+            {isPhase1Complete() && (
+              <div className={`p-4 rounded-xl border-2 ${
+                validatePhase1() 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-gray-900">Décision automatique:</span>
+                  <span className={`text-xl font-bold ${
+                    validatePhase1() ? 'text-green-700' : 'text-red-700'
+                  }`}>
+                    {validatePhase1() ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  Critère: Toutes les notes ≥ 3/5
+                </p>
+              </div>
             )}
-          </button>
-        </form>
-      </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-            <span className="text-green-700 font-bold text-sm">2</span>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900">Phase 2 - Évaluation Technique</h2>
-        </div>
-
-        <form onSubmit={(e) => handleSubmit(e, 2)} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-3">
               <label className="block text-sm font-medium text-gray-700">
-                Note Globale sur 5 points
+                Commentaires (optionnel)
               </label>
-              <input
-                type="number"
-                min="0"
-                max="5"
-                step="0.1"
-                value={phase2Scores.phase2}
-                onChange={(e) => setPhase2Scores(prev => ({ ...prev, phase2: e.target.value }))}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                required
-                placeholder="0-5"
+              <textarea
+                value={phase1Scores.comments}
+                onChange={(e) => setPhase1Scores(prev => ({ 
+                  ...prev, 
+                  comments: e.target.value 
+                }))}
+                rows={4}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
+                placeholder="Observations détaillées..."
               />
-              <p className="text-sm text-gray-600">
-                Utilisez des demi-points si nécessaire (ex: 3.5)
-              </p>
             </div>
 
-            <div className="flex items-center justify-center">
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <p className="text-green-700 font-medium text-sm">Note actuelle: {phase2Scores.phase2 || '0'}/5</p>
-              </div>
+            <button
+              type="submit"
+              disabled={loading || !isPhase1Complete()}
+              className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Sauvegarde en cours...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Sauvegarder Phase 1
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* PHASE 2 : SIMULATION */}
+      {activePhase === 2 && canDoPhase2 && (
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+              <span className="text-green-700 font-bold text-sm">2</span>
             </div>
+            <h2 className="text-xl font-semibold text-gray-900">Phase 2 - Simulation de Vente 🎭</h2>
           </div>
-
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-gray-700">
-              Commentaires (optionnel)
-            </label>
-            <textarea
-              value={phase2Scores.comments2}
-              onChange={(e) => setPhase2Scores(prev => ({ ...prev, comments2: e.target.value }))}
-              rows={4}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors resize-none"
-              placeholder="Observations sur les connaissances techniques, résolution de cas, compétences métier..."
+          
+          <form onSubmit={handleSubmitPhase2} className="space-y-6">
+            <ScoreButtons
+              value={phase2Scores.sens_negociation}
+              onChange={(score) => setPhase2Scores(prev => ({ 
+                ...prev, 
+                sens_negociation: score 
+              }))}
+              label="Sens de la Négociation (/5)"
+              description="Argumentation, adaptabilité"
             />
-          </div>
 
-          <button
-            type="submit"
-            disabled={loading || phase2Scores.phase2 === ''}
-            className="w-full bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 font-semibold transition-colors duration-200 flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Sauvegarde en cours...
-              </>
-            ) : (
-              <>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Sauvegarder l'Évaluation Phase 2
-              </>
+            <ScoreButtons
+              value={phase2Scores.capacite_persuasion}
+              onChange={(score) => setPhase2Scores(prev => ({ 
+                ...prev, 
+                capacite_persuasion: score 
+              }))}
+              label="Capacité de Persuasion (/5)"
+              description="Conviction, impact"
+            />
+
+            <ScoreButtons
+              value={phase2Scores.sens_combativite}
+              onChange={(score) => setPhase2Scores(prev => ({ 
+                ...prev, 
+                sens_combativite: score 
+              }))}
+              label="Sens de la Combativité (/5)"
+              description="Persévérance, résilience"
+            />
+
+            {/* Indicateur FAVORABLE/DEFAVORABLE */}
+            {isPhase2Complete() && (
+              <div className={`p-4 rounded-xl border-2 ${
+                validatePhase2() 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-gray-900">Décision automatique:</span>
+                  <span className={`text-xl font-bold ${
+                    validatePhase2() ? 'text-green-700' : 'text-red-700'
+                  }`}>
+                    {validatePhase2() ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  Critère: Toutes les notes ≥ 3/5
+                </p>
+              </div>
             )}
-          </button>
-        </form>
-      </div>
+
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700">
+                Commentaires (optionnel)
+              </label>
+              <textarea
+                value={phase2Scores.comments}
+                onChange={(e) => setPhase2Scores(prev => ({ 
+                  ...prev, 
+                  comments: e.target.value 
+                }))}
+                rows={4}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
+                placeholder="Observations sur la simulation..."
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !isPhase2Complete()}
+              className="w-full bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Sauvegarde en cours...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Sauvegarder Phase 2
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

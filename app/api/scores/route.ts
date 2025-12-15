@@ -1,4 +1,3 @@
-//api/scores/route.ts
 // app/api/scores/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
@@ -6,7 +5,7 @@ import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
 import { Decimal } from '@prisma/client/runtime/library'
 import { calculateDecisions } from '@/lib/auto-decisions'
-import { Disponibilite } from '@prisma/client'
+import { Disponibilite, Statut } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
   try {
@@ -101,11 +100,17 @@ export async function POST(request: NextRequest) {
       return isNaN(num) ? null : num
     }
 
-    // Calculer les décisions automatiques
-    const faceToFaceScores = {
+    // ✅ Préparer les objets de scores dans le bon ordre
+    const juryAverages = {
       voiceQuality: parseFloat(scoreData.voice_quality) || 0,
       verbalCommunication: parseFloat(scoreData.verbal_communication) || 0,
       presentationVisuelle: parseFloat(scoreData.presentation_visuelle) || 0
+    }
+
+    const simulationAverages = {
+      sensNegociation: parseFloat(scoreData.simulation_sens_negociation) || 0,
+      capacitePersuasion: parseFloat(scoreData.simulation_capacite_persuasion) || 0,
+      sensCombativite: parseFloat(scoreData.simulation_sens_combativite) || 0
     }
 
     const technicalScores = {
@@ -113,19 +118,19 @@ export async function POST(request: NextRequest) {
       typingAccuracy: parseFloat(scoreData.typing_accuracy) || 0,
       excelTest: parseFloat(scoreData.excel_test) || 0,
       dictation: parseFloat(scoreData.dictation) || 0,
-      simulationSensNegociation: parseFloat(scoreData.simulation_sens_negociation) || 0,
-      simulationCapacitePersuasion: parseFloat(scoreData.simulation_capacite_persuasion) || 0,
-      simulationSensCombativite: parseFloat(scoreData.simulation_sens_combativite) || 0,
       psychoRaisonnementLogique: parseFloat(scoreData.psycho_raisonnement_logique) || 0,
       psychoAttentionConcentration: parseFloat(scoreData.psycho_attention_concentration) || 0,
       analysisExercise: parseFloat(scoreData.analysis_exercise) || 0
     }
 
+    // ✅ Calculer les décisions avec le BON ordre des paramètres
     const decisions = calculateDecisions(
-      candidate.metier,
-      candidate.availability as Disponibilite,
-      faceToFaceScores,
-      technicalScores
+      candidate.metier,                           // 1. metier
+      candidate.availability as Disponibilite,    // 2. availability
+      (scoreData.statut as Statut) || 'ABSENT',  // 3. statut
+      juryAverages,                               // 4. juryAverages
+      simulationAverages,                         // 5. simulationAverages
+      technicalScores                             // 6. technicalScores
     )
 
     // Créer ou mettre à jour le score

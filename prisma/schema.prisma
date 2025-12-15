@@ -7,6 +7,274 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String      @id @default(cuid())
+  name          String
+  email         String      @unique
+  emailVerified Boolean     @default(false) @map("email_verified")
+  image         String?
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  role          UserRole    @default(JURY)
+  isActive      Boolean     @default(true) @map("is_active")
+  lastLogin     DateTime?   @map("last_login")
+  accounts      Account[]
+  juryMember    JuryMember?
+  sessions      Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  token     String   @unique
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  idToken               String?   @map("id_token")
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  scope                 String?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([identifier, value])
+  @@map("verifications")
+}
+
+model RecruitmentSession {
+  id            String         @id @default(uuid())
+  metier        Metier
+  date          DateTime       @db.Date
+  jour          String
+  status        SessionStatus  @default(PLANIFIED)
+  description   String?
+  location      String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  candidates    Candidate[]
+  exportLogs    ExportLog[]
+  juryPresences JuryPresence[]
+
+  @@index([metier])
+  @@index([date])
+  @@index([status])
+  @@index([createdAt])
+  @@map("recruitment_sessions")
+}
+
+model Candidate {
+  id               Int                 @id @default(autoincrement())
+  nom              String
+  prenom           String
+  phone            String
+  birthDate        DateTime            @map("birth_date") @db.Date
+  age              Int
+  diploma          String
+  niveauEtudes     NiveauEtudes        @map("niveau_etudes")
+  institution      String
+  email            String?
+  location         String
+  smsSentDate      DateTime            @map("sms_sent_date") @db.Date
+  availability     Disponibilite
+  interviewDate    DateTime            @map("interview_date") @db.Date
+  metier           Metier
+  sessionId        String?             @map("session_id")
+  notes            String?
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  session          RecruitmentSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  faceToFaceScores FaceToFaceScore[]
+  scores           Score?
+
+  @@index([sessionId])
+  @@index([metier])
+  @@index([createdAt])
+  @@index([nom])
+  @@index([prenom])
+  @@map("candidates")
+}
+
+model JuryMember {
+  id               Int               @id @default(autoincrement())
+  userId           String            @unique @map("user_id")
+  fullName         String            @map("full_name")
+  roleType         JuryRoleType      @map("role_type")
+  specialite       Metier?
+  department       String?
+  isActive         Boolean           @default(true) @map("is_active")
+  phone            String?
+  notes            String?
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  faceToFaceScores FaceToFaceScore[]
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  juryPresences    JuryPresence[]
+
+  @@index([roleType])
+  @@index([specialite])
+  @@index([isActive])
+  @@index([createdAt])
+  @@map("jury_members")
+}
+
+model JuryPresence {
+  id            Int                @id @default(autoincrement())
+  juryMemberId  Int                @map("jury_member_id")
+  sessionId     String             @map("session_id")
+  wasPresent    Boolean            @default(true) @map("was_present")
+  absenceReason String?            @map("absence_reason")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  juryMember    JuryMember         @relation(fields: [juryMemberId], references: [id], onDelete: Cascade)
+  session       RecruitmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([juryMemberId, sessionId])
+  @@index([juryMemberId])
+  @@index([sessionId])
+  @@index([wasPresent])
+  @@map("jury_presences")
+}
+
+model Score {
+  id                           Int            @id @default(autoincrement())
+  candidateId                  Int            @unique @map("candidate_id")
+  
+  // ⭐ PHASE 1: FACE-À-FACE (moyennes calculées automatiquement)
+  voiceQuality                 Decimal?       @map("voice_quality") @db.Decimal(4, 2)
+  verbalCommunication          Decimal?       @map("verbal_communication") @db.Decimal(4, 2)
+  presentationVisuelle         Decimal?       @map("presentation_visuelle") @db.Decimal(4, 2)
+  phase1FfDecision             FFDecision?    @map("phase1_ff_decision")
+  phase1Decision               Decision?      @map("phase1_decision")
+  
+  // ⭐ PHASE 2: SIMULATION (AGENCES + TÉLÉVENTE) - moyennes calculées
+  simulationSensNegociation    Decimal?       @map("simulation_sens_negociation") @db.Decimal(4, 2)
+  simulationCapacitePersuasion Decimal?       @map("simulation_capacite_persuasion") @db.Decimal(4, 2)
+  simulationSensCombativite    Decimal?       @map("simulation_sens_combativite") @db.Decimal(4, 2)
+  salesSimulation              Decimal?       @map("sales_simulation") @db.Decimal(4, 2)
+  phase2Date                   DateTime?      @map("phase2_date") @db.Date
+  decisionTest                 FFDecision?    @map("decision_test")
+  
+  // TESTS PSYCHOTECHNIQUES (BO_RECLAM)
+  psychoRaisonnementLogique    Decimal?       @map("psycho_raisonnement_logique") @db.Decimal(3, 2)
+  psychoAttentionConcentration Decimal?       @map("psycho_attention_concentration") @db.Decimal(3, 2)
+  psychotechnicalTest          Decimal?       @map("psychotechnical_test") @db.Decimal(4, 2)
+  
+  // TESTS TECHNIQUES (WFM)
+  typingSpeed                  Int?           @map("typing_speed")
+  typingAccuracy               Decimal?       @map("typing_accuracy") @db.Decimal(5, 2)
+  excelTest                    Decimal?       @map("excel_test") @db.Decimal(4, 2)
+  dictation                    Decimal?       @map("dictation") @db.Decimal(4, 2)
+  analysisExercise             Decimal?       @map("analysis_exercise") @db.Decimal(4, 2)
+  
+  // DÉCISION FINALE
+  finalDecision                FinalDecision? @map("final_decision")
+  statut                       Statut?        @default(ABSENT)
+  statutCommentaire            String?        @map("statut_commentaire")
+  
+  // Métadonnées
+  faceToFacePhase1Average      Decimal?       @map("face_to_face_phase1_avg") @db.Decimal(3, 2)
+  faceToFacePhase2Average      Decimal?       @map("face_to_face_phase2_avg") @db.Decimal(3, 2)
+  evaluatedBy                  String?        @map("evaluated_by")
+  comments                     String?
+  createdAt                    DateTime       @default(now()) @map("created_at")
+  updatedAt                    DateTime       @updatedAt @map("updated_at")
+  
+  candidate                    Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@index([finalDecision])
+  @@index([createdAt])
+  @@map("scores")
+}
+
+model FaceToFaceScore {
+  id                   Int        @id @default(autoincrement())
+  candidateId          Int        @map("candidate_id")
+  juryMemberId         Int        @map("jury_member_id")
+  phase                Int        // 1 = Face-à-Face, 2 = Simulation
+  
+  // ⭐ PHASE 1: FACE-À-FACE (notes individuelles du jury)
+  presentationVisuelle Decimal?   @map("presentation_visuelle") @db.Decimal(3, 2)
+  verbalCommunication  Decimal?   @map("verbal_communication") @db.Decimal(3, 2)
+  voiceQuality         Decimal?   @map("voice_quality") @db.Decimal(3, 2)
+  
+  // ⭐ PHASE 2: SIMULATION (notes individuelles du jury)
+  simulationSensNegociation    Decimal? @map("simulation_sens_negociation") @db.Decimal(3, 2)
+  simulationCapacitePersuasion Decimal? @map("simulation_capacite_persuasion") @db.Decimal(3, 2)
+  simulationSensCombativite    Decimal? @map("simulation_sens_combativite") @db.Decimal(3, 2)
+  
+  // ⭐ DÉCISION DU JURY (FAVORABLE/DEFAVORABLE)
+  decision             FFDecision?
+  
+  score                Decimal?   @db.Decimal(3, 2)
+  comments             String?
+  evaluatedAt          DateTime   @default(now()) @map("evaluated_at")
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @updatedAt @map("updated_at")
+  
+  candidate            Candidate  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  juryMember           JuryMember @relation(fields: [juryMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, juryMemberId, phase])
+  @@index([candidateId])
+  @@index([juryMemberId])
+  @@index([phase])
+  @@index([evaluatedAt])
+  @@map("face_to_face_scores")
+}
+
+model ExportLog {
+  id          Int                 @id @default(autoincrement())
+  exportedBy  String              @map("exported_by")
+  fileName    String              @map("file_name")
+  sessionId   String?             @map("session_id")
+  metier      Metier?
+  recordCount Int                 @map("record_count")
+  exportType  String              @map("export_type")
+  filters     String?
+  exportedAt  DateTime            @default(now()) @map("exported_at")
+  session     RecruitmentSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([exportedBy])
+  @@index([sessionId])
+  @@index([exportedAt])
+  @@index([exportType])
+  @@map("export_logs")
+}
+
 enum UserRole {
   WFM
   JURY
@@ -17,6 +285,7 @@ enum JuryRoleType {
   EPC
   REPRESENTANT_METIER
   WFM_JURY
+  FORMATEUR
 }
 
 enum Metier {
@@ -46,7 +315,6 @@ enum FinalDecision {
   NON_RECRUTE
 }
 
-// MODIFICATION: CallStatus renommé en Statut avec seulement ABSENT et PRESENT
 enum Statut {
   ABSENT
   PRESENT
@@ -59,287 +327,14 @@ enum SessionStatus {
   CANCELLED
 }
 
-// AJOUT: Enum pour le niveau d'études
 enum NiveauEtudes {
   BAC_PLUS_2
   BAC_PLUS_3
   BAC_PLUS_4
   BAC_PLUS_5
-
 }
 
-// AJOUT: Enum pour la disponibilité
 enum Disponibilite {
   OUI
   NON
-}
-
-model User {
-  id            String      @id @default(cuid())
-  name          String
-  email         String      @unique
-  emailVerified Boolean     @default(false) @map("email_verified")
-  image         String?
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  role          UserRole    @default(JURY)
-  isActive      Boolean     @default(true) @map("is_active")
-  lastLogin     DateTime?   @map("last_login")
-  
-  accounts      Account[]
-  sessions      Session[]
-  juryMember    JuryMember?
-
-  @@map("users")
-}
-
-model Session {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  expiresAt DateTime @map("expires_at")
-  token     String   @unique
-  ipAddress String?  @map("ip_address")
-  userAgent String?  @map("user_agent")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-  @@index([userId])
-  @@index([token])
-}
-
-model Account {
-  id                    String    @id @default(cuid())
-  accountId             String    @map("account_id")
-  providerId            String    @map("provider_id")
-  userId                String    @map("user_id")
-  accessToken           String?   @map("access_token") @db.Text
-  refreshToken          String?   @map("refresh_token") @db.Text
-  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
-  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
-  idToken               String?   @map("id_token") @db.Text
-  password              String?   @db.Text
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
-  scope                 String?   @db.Text
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([providerId, accountId])
-  @@map("accounts")
-  @@index([userId])
-}
-
-model Verification {
-  id         String   @id @default(cuid())
-  identifier String
-  value      String
-  expiresAt  DateTime @map("expires_at")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  @@unique([identifier, value])
-  @@map("verifications")
-}
-
-model RecruitmentSession {
-  id            String         @id @default(uuid())
-  metier        Metier
-  date          DateTime       @db.Date
-  jour          String
-  status        SessionStatus  @default(PLANIFIED)
-  description   String?
-  location      String?
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  
-  candidates    Candidate[]
-  juryPresences JuryPresence[]
-  exportLogs    ExportLog[]
-
-  @@map("recruitment_sessions")
-  @@index([metier])
-  @@index([date])
-  @@index([status])
-  @@index([createdAt])
-}
-
-model Candidate {
-  id               Int                 @id @default(autoincrement())
-  // MODIFICATION: fullName séparé en nom et prenom
-  nom              String              // Stocké en MAJUSCULES
-  prenom           String              // Première lettre en majuscule, reste en minuscule
-  phone            String
-  birthDate        DateTime            @map("birth_date") @db.Date
-  age              Int
-  diploma          String
-  // AJOUT: niveau d'études
-  niveauEtudes     NiveauEtudes        @map("niveau_etudes")
-  institution      String
-  // MODIFICATION: email n'est plus obligatoire et plus unique
-  email            String?
-  location         String
-  // MODIFICATION: smsSentDate et interviewDate deviennent obligatoires
-  smsSentDate      DateTime            @map("sms_sent_date") @db.Date
-  // MODIFICATION: availability devient un enum Disponibilite
-  availability     Disponibilite
-  interviewDate    DateTime            @map("interview_date") @db.Date
-  metier           Metier
-  sessionId        String?             @map("session_id")
-  notes            String?
-  createdAt        DateTime            @default(now()) @map("created_at")
-  updatedAt        DateTime            @updatedAt @map("updated_at")
-  
-  session          RecruitmentSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  scores           Score?
-  faceToFaceScores FaceToFaceScore[]
-
-  @@map("candidates")
-  @@index([sessionId])
-  @@index([metier])
-  @@index([createdAt])
-  @@index([nom])
-  @@index([prenom])
-}
-
-model JuryMember {
-  id               Int               @id @default(autoincrement())
-  userId           String            @unique @map("user_id")
-  fullName         String            @map("full_name")
-  roleType         JuryRoleType      @map("role_type")
-  specialite       Metier?
-  department       String?
-  isActive         Boolean           @default(true) @map("is_active")
-  phone            String?
-  notes            String?
-  createdAt        DateTime          @default(now()) @map("created_at")
-  updatedAt        DateTime          @updatedAt @map("updated_at")
-  
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  faceToFaceScores FaceToFaceScore[]
-  juryPresences    JuryPresence[]
-
-  @@map("jury_members")
-  @@index([roleType])
-  @@index([specialite])
-  @@index([isActive])
-  @@index([createdAt])
-}
-
-model JuryPresence {
-  id            Int                @id @default(autoincrement())
-  juryMemberId  Int                @map("jury_member_id")
-  sessionId     String             @map("session_id")
-  wasPresent    Boolean            @default(true) @map("was_present")
-  absenceReason String?            @map("absence_reason")
-  createdAt     DateTime           @default(now()) @map("created_at")
-  updatedAt     DateTime           @updatedAt @map("updated_at")
-  
-  juryMember    JuryMember         @relation(fields: [juryMemberId], references: [id], onDelete: Cascade)
-  session       RecruitmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  @@unique([juryMemberId, sessionId])
-  @@map("jury_presences")
-  @@index([juryMemberId])
-  @@index([sessionId])
-  @@index([wasPresent])
-}
-
-model Score {
-  id                      Int            @id @default(autoincrement())
-  candidateId             Int            @unique @map("candidate_id")
-  voiceQuality            Decimal?       @map("voice_quality") @db.Decimal(4, 2)
-  verbalCommunication     Decimal?       @map("verbal_communication") @db.Decimal(4, 2)
-  presentationVisuelle    Decimal?       @map("presentation_visuelle") @db.Decimal(4, 2)
-  phase1FfDecision        FFDecision?    @map("phase1_ff_decision")
-  
-  // AJOUT: Sous-critères test psychotechnique
-  psychoRaisonnementLogique    Decimal?    @map("psycho_raisonnement_logique") @db.Decimal(3, 2)
-  psychoAttentionConcentration Decimal?    @map("psycho_attention_concentration") @db.Decimal(3, 2)
-  psychotechnicalTest          Decimal?    @map("psychotechnical_test") @db.Decimal(4, 2)
-  
-  phase1Decision          Decision?      @map("phase1_decision")
-  typingSpeed             Int?           @map("typing_speed")
-  typingAccuracy          Decimal?       @map("typing_accuracy") @db.Decimal(5, 2)
-  excelTest               Decimal?       @map("excel_test") @db.Decimal(4, 2)
-  dictation               Decimal?       @map("dictation") @db.Decimal(4, 2)
-  
-  // AJOUT: Sous-critères simulation vente
-  simulationSensNegociation    Decimal?    @map("simulation_sens_negociation") @db.Decimal(3, 2)
-  simulationCapacitePersuasion Decimal?    @map("simulation_capacite_persuasion") @db.Decimal(3, 2)
-  simulationSensCombativite    Decimal?    @map("simulation_sens_combativite") @db.Decimal(3, 2)
-  salesSimulation              Decimal?    @map("sales_simulation") @db.Decimal(4, 2)
-  
-  analysisExercise        Decimal?       @map("analysis_exercise") @db.Decimal(4, 2)
-  phase2Date              DateTime?      @map("phase2_date") @db.Date
-  
-  // MODIFICATION: phase2FfDecision renommé en decisionTest
-  decisionTest            FFDecision?    @map("decision_test")
-  finalDecision           FinalDecision? @map("final_decision")
-  
-  // MODIFICATION: callStatus devient statut avec enum Statut
-  statut                  Statut?        @default(ABSENT)
-  // AJOUT: commentaire pour justification du statut
-  statutCommentaire       String?        @map("statut_commentaire")
- 
-  faceToFacePhase1Average Decimal?       @map("face_to_face_phase1_avg") @db.Decimal(3, 2)
-  faceToFacePhase2Average Decimal?       @map("face_to_face_phase2_avg") @db.Decimal(3, 2)
-  evaluatedBy             String?        @map("evaluated_by")
-  comments                String?
-  createdAt               DateTime       @default(now()) @map("created_at")
-  updatedAt               DateTime       @updatedAt @map("updated_at")
-  
-  candidate               Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-
-  @@map("scores")
-  @@index([candidateId])
-  @@index([finalDecision])
-  @@index([createdAt])
-}
-
-model FaceToFaceScore {
-  id                   Int        @id @default(autoincrement())
-  candidateId          Int        @map("candidate_id")
-  juryMemberId         Int        @map("jury_member_id")
-  phase                Int
-  score                Decimal    @db.Decimal(3, 2)
-  presentationVisuelle Decimal?   @map("presentation_visuelle") @db.Decimal(3, 2)
-  verbalCommunication  Decimal?   @map("verbal_communication") @db.Decimal(3, 2)
-  voiceQuality         Decimal?   @map("voice_quality") @db.Decimal(3, 2)
-  comments             String?
-  evaluatedAt          DateTime   @default(now()) @map("evaluated_at")
-  createdAt            DateTime   @default(now()) @map("created_at")
-  updatedAt            DateTime   @updatedAt @map("updated_at")
-  
-  candidate            Candidate  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  juryMember           JuryMember @relation(fields: [juryMemberId], references: [id], onDelete: Cascade)
-
-  @@unique([candidateId, juryMemberId, phase])
-  @@map("face_to_face_scores")
-  @@index([candidateId])
-  @@index([juryMemberId])
-  @@index([phase])
-  @@index([evaluatedAt])
-}
-
-model ExportLog {
-  id          Int                 @id @default(autoincrement())
-  exportedBy  String              @map("exported_by")
-  fileName    String              @map("file_name")
-  sessionId   String?             @map("session_id")
-  metier      Metier?
-  recordCount Int                 @map("record_count")
-  exportType  String              @map("export_type")
-  filters     String?
-  exportedAt  DateTime            @default(now()) @map("exported_at")
-  
-  session     RecruitmentSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  @@map("export_logs")
-  @@index([exportedBy])
-  @@index([sessionId])
-  @@index([exportedAt])
-  @@index([exportType])
 }

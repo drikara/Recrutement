@@ -73,32 +73,55 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL('/unauthorized', request.url))
     }
 
-    // ⭐ CORRECTION : Protection des API routes
+    // ⭐ PROTECTION DES API ROUTES - ORDRE IMPORTANT !
     if (pathname.startsWith('/api/')) {
-      // API /api/jury/scores : accessible aux JURY uniquement (soumission évaluations)
-      if (pathname.startsWith('/api/jury/scores') && userRole !== 'JURY') {
-        console.log(`🚫 API /api/jury/scores access denied for role: ${userRole}`)
-        return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
+      // 1️⃣ Routes JURY (vérifier EN PREMIER les routes spécifiques)
+      if (pathname.startsWith('/api/jury/scores') || pathname.startsWith('/api/jury/check-session')) {
+        if (userRole !== 'JURY') {
+          console.log(`🚫 API ${pathname} access denied for role: ${userRole}`)
+          return NextResponse.json({ error: 'Accès réservé aux membres du jury' }, { status: 403 })
+        }
+        console.log(`✅ API ${pathname} authorized for JURY`)
+        return NextResponse.next()
       }
       
-      // API /api/jury (gestion membres) : réservée aux WFM
-      // IMPORTANT: Cette vérification DOIT venir APRÈS /api/jury/scores
-      if (pathname.startsWith('/api/jury') && !pathname.startsWith('/api/jury/scores') && userRole !== 'WFM') {
-        console.log(`🚫 API /api/jury access denied for role: ${userRole}`)
-        return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
+      // 2️⃣ Routes WFM - Gestion des jurys (après avoir vérifié /jury/scores)
+      if (pathname.startsWith('/api/jury') && userRole !== 'WFM') {
+        console.log(`🚫 API /api/jury (gestion) access denied for role: ${userRole}`)
+        return NextResponse.json({ error: 'Accès réservé aux WFM' }, { status: 403 })
       }
       
-      // API /api/sessions : réservée aux WFM
+      // 3️⃣ Routes WFM - Sessions
       if (pathname.startsWith('/api/sessions') && userRole !== 'WFM') {
         console.log(`🚫 API /api/sessions access denied for role: ${userRole}`)
-        return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
+        return NextResponse.json({ error: 'Accès réservé aux WFM' }, { status: 403 })
       }
       
-      // API /api/evaluations : accessible aux JURY uniquement
-      if (pathname.startsWith('/api/evaluations') && userRole !== 'JURY') {
-        console.log(`🚫 API /api/evaluations access denied for role: ${userRole}`)
-        return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
+      // 4️⃣ Routes WFM - Candidats
+      if (pathname.startsWith('/api/candidates') && userRole !== 'WFM') {
+        console.log(`🚫 API /api/candidates access denied for role: ${userRole}`)
+        return NextResponse.json({ error: 'Accès réservé aux WFM' }, { status: 403 })
       }
+      
+      // 5️⃣ Routes WFM - Scores (modification)
+      if (pathname.startsWith('/api/scores') && userRole !== 'WFM') {
+        console.log(`🚫 API /api/scores access denied for role: ${userRole}`)
+        return NextResponse.json({ error: 'Accès réservé aux WFM' }, { status: 403 })
+      }
+      
+      // 6️⃣ Routes WFM - Export
+      if (pathname.startsWith('/api/export') && userRole !== 'WFM') {
+        console.log(`🚫 API /api/export access denied for role: ${userRole}`)
+        return NextResponse.json({ error: 'Accès réservé aux WFM' }, { status: 403 })
+      }
+      
+      // 7️⃣ Routes WFM - Consolidation
+      if (pathname.startsWith('/api/consolidation') && userRole !== 'WFM') {
+        console.log(`🚫 API /api/consolidation access denied for role: ${userRole}`)
+        return NextResponse.json({ error: 'Accès réservé aux WFM' }, { status: 403 })
+      }
+      
+      console.log(`✅ API ${pathname} authorized`)
     }
 
     return NextResponse.next()

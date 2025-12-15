@@ -1,4 +1,3 @@
-// app/jury/evaluations/page.tsx
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
@@ -54,15 +53,16 @@ export default async function JuryEvaluationsPage() {
     redirect("/jury/dashboard")
   }
 
-  // Récupérer tous les candidats avec leurs scores pour ce jury - SEULEMENT sessions actives
+  // ⭐⭐ MODIFICATION CRITIQUE : Filtrer les candidats "NON disponibles" au niveau SQL
   const allCandidates = await prisma.candidate.findMany({
     where: {
-      // FILTRE CRITIQUE : Seulement les candidats des sessions actives
+      // Seulement les candidats des sessions actives ET disponibles
       session: {
         status: {
           in: ["PLANIFIED", "IN_PROGRESS"]
         }
-      }
+      },
+      availability: 'OUI' // ⭐⭐ FILTRE IMPORTANT : seulement les candidats disponibles
     },
     include: {
       session: {
@@ -71,13 +71,12 @@ export default async function JuryEvaluationsPage() {
           date: true,
           jour: true,
           location: true,
-          status: true // ← IMPORTANT : Ajouter le statut
+          status: true
         }
       },
       scores: {
         select: {
-          finalDecision: true,
-          callStatus: true
+          finalDecision: true
         }
       },
       faceToFaceScores: {
@@ -96,13 +95,15 @@ export default async function JuryEvaluationsPage() {
     }
   })
 
-  // FILTRER POUR LES REPRÉSENTANTS MÉTIER
+  console.log(`📊 Jurys - Candidats disponibles: ${allCandidates.length} (filtrés availability='OUI')`)
+
+  // Filtrer pour les représentants métier
   const candidates = filterCandidatesForJury(allCandidates, juryMember)
 
-  // Définir les types pour résoudre les erreurs TypeScript
+  // Définir les types
   interface CandidateScore {
     phase: number
-    score: any // Decimal de Prisma
+    score: any
     evaluatedAt: Date
   }
 
@@ -125,13 +126,12 @@ export default async function JuryEvaluationsPage() {
     evaluationStatus: 'not_evaluated' | 'phase1_only' | 'both_phases'
   }
 
-  // Formater les données pour le composant avec conversion Decimal → Number
+  // Formater les données
   const formattedCandidates: FormattedCandidate[] = candidates.map((candidate: any) => {
     const myScores: CandidateScore[] = candidate.faceToFaceScores
     const phase1Score = myScores.find((score: CandidateScore) => score.phase === 1)
     const phase2Score = myScores.find((score: CandidateScore) => score.phase === 2)
 
-    // Conversion correcte de Decimal en number avec gestion des valeurs nulles
     const myScore = phase1Score || phase2Score ? {
       score: phase1Score?.score ? Number(phase1Score.score) : 
              phase2Score?.score ? Number(phase2Score.score) : 0,
@@ -139,9 +139,11 @@ export default async function JuryEvaluationsPage() {
       evaluatedAt: phase1Score?.evaluatedAt || phase2Score?.evaluatedAt || new Date()
     } : null
 
+    const fullName = `${candidate.prenom} ${candidate.nom}`
+
     return {
       id: candidate.id,
-      fullName: candidate.fullName,
+      fullName: fullName,
       metier: candidate.metier,
       age: candidate.age,
       diploma: candidate.diploma,
@@ -157,7 +159,7 @@ export default async function JuryEvaluationsPage() {
     }
   })
 
-  // Calcul des statistiques avec types explicites
+  // Statistiques
   const totalCandidates = formattedCandidates.length
   const evaluatedCount = formattedCandidates.filter((c: FormattedCandidate) => c.myScore).length
   const pendingCount = formattedCandidates.filter((c: FormattedCandidate) => !c.myScore).length
@@ -208,7 +210,7 @@ export default async function JuryEvaluationsPage() {
                 </div>
                 <p className="text-gray-600 mt-2 text-lg">{juryMember.fullName}</p>
                 <p className="text-gray-500 text-sm">
-                  {totalCandidates} candidat(s) accessible(s) dans les sessions actives
+                  {totalCandidates} candidat(s) disponible(s) à évaluer
                 </p>
               </div>
             </div>
@@ -222,7 +224,7 @@ export default async function JuryEvaluationsPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-2">Total Candidats</p>
                 <p className="text-3xl font-bold text-gray-800">{totalCandidates}</p>
-                <p className="text-xs text-gray-500 mt-1">Accessibles pour évaluation</p>
+                <p className="text-xs text-gray-500 mt-1">Candidats disponibles</p>
               </div>
               <div className="bg-blue-500/20 text-blue-600 p-4 rounded-2xl">
                 <Users className="w-6 h-6" />
@@ -270,7 +272,7 @@ export default async function JuryEvaluationsPage() {
           </div>
         </div>
 
-        {/* En-tête de la liste avec filtres */}
+        {/* En-tête de la liste */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
@@ -280,7 +282,10 @@ export default async function JuryEvaluationsPage() {
               <div>
                 <h2 className="text-xl font-semibold text-gray-800">Liste des Candidats</h2>
                 <p className="text-gray-600 text-sm">
-                  {formattedCandidates.length} candidat(s) à évaluer dans les sessions actives
+                  {formattedCandidates.length} candidat(s) disponible(s) à évaluer
+                </p>
+                <p className="text-gray-500 text-xs">
+                  Seuls les candidats avec disponibilité "OUI" sont affichés
                 </p>
               </div>
             </div>
@@ -310,7 +315,6 @@ export default async function JuryEvaluationsPage() {
         </div>
       </main>
 
-      {/* Footer avec copyright */}
       <footer className="border-t mt-8 py-4">
         <div className="container mx-auto px-6 text-center text-muted-foreground text-sm">
           © {new Date().getFullYear()} Orange Côte d'Ivoire. Developed by okd_dev. All rights reserved.

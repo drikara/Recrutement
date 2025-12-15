@@ -374,7 +374,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Link href={`/wfm/scores/${candidate.id}`}>
+                    {/* <Link href={`/wfm/scores/${candidate.id}`}>
                       <Button 
                         variant="outline" 
                         size="sm" 
@@ -385,7 +385,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                         </svg>
                         Notes
                       </Button>
-                    </Link>
+                    </Link> */}
                     <Link href={`/wfm/candidates/${candidate.id}/edit`}>
                       <Button 
                         variant="outline" 
@@ -651,15 +651,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                   </div>
                 )}
 
-                {/* Commentaires */}
-                {scores?.comments && (
-                  <div className="rounded-2xl p-5 border-2 bg-gradient-to-br from-blue-50 to-white border-blue-200">
-                    <h4 className="font-semibold mb-3 text-blue-700">Commentaires</h4>
-                    <p className="text-sm leading-relaxed bg-white px-4 py-3 rounded-xl border">
-                      {scores.comments}
-                    </p>
-                  </div>
-                )}
+            
               </div>
             )
           })

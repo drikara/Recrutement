@@ -33,7 +33,8 @@ export default async function DeleteConfirmationPage({
         include: {
           candidate: {
             select: {
-              fullName: true,
+              nom: true,
+              prenom : true,
             },
           },
         },

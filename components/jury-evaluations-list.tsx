@@ -1,4 +1,3 @@
-//components/jury-evaluations-list.tsx
 'use client'
 
 import { useState } from 'react'
@@ -51,7 +50,14 @@ export function JuryEvaluationsList({ candidates, juryMemberId }: JuryEvaluation
   const [filter, setFilter] = useState<'all' | 'evaluated' | 'pending'>('all')
   const [search, setSearch] = useState('')
 
+  // ⭐⭐ FILTRAGE SUPPLEMENTAIRE : S'assurer qu'aucun candidat "NON" ne passe
   const filteredCandidates = candidates.filter(candidate => {
+    // 1. FILTRE DISPONIBILITÉ : Exclure les candidats non disponibles
+    if (candidate.availability === 'NON') {
+      console.warn(`⚠️ Candidat ${candidate.id} non disponible filtré dans le composant`)
+      return false
+    }
+    
     const matchesSearch = candidate.fullName.toLowerCase().includes(search.toLowerCase()) ||
                          candidate.metier.toLowerCase().includes(search.toLowerCase())
     const matchesFilter = filter === 'all' ? true : 
@@ -103,6 +109,14 @@ export function JuryEvaluationsList({ candidates, juryMemberId }: JuryEvaluation
 
   return (
     <div className="space-y-6">
+      {/* Message d'information */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-blue-700 text-sm">
+          ℹ️ Seuls les candidats disponibles (disponibilité: OUI) sont affichés.
+          Les candidats non disponibles ne peuvent pas être évalués par les jurys.
+        </p>
+      </div>
+
       {/* En-tête principal */}
       <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 border-2 border-orange-200 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -115,7 +129,7 @@ export function JuryEvaluationsList({ candidates, juryMemberId }: JuryEvaluation
                 Évaluations des Candidats
               </h1>
               <p className="text-orange-700">
-                {filteredCandidates.length} candidat(s) sur {candidates.length}
+                {filteredCandidates.length} candidat(s) disponible(s) sur {candidates.length}
               </p>
             </div>
           </div>
@@ -148,7 +162,7 @@ export function JuryEvaluationsList({ candidates, juryMemberId }: JuryEvaluation
             <User className="w-4 h-4" />
             <span>Tous les candidats</span>
             <span className="bg-white/20 px-2 py-1 rounded-full text-xs font-bold min-w-6">
-              {candidates.length}
+              {filteredCandidates.length}
             </span>
           </button>
           
@@ -163,7 +177,7 @@ export function JuryEvaluationsList({ candidates, juryMemberId }: JuryEvaluation
             <CheckCircle2 className="w-4 h-4" />
             <span>Évalués</span>
             <span className="bg-white/20 px-2 py-1 rounded-full text-xs font-bold min-w-6">
-              {candidates.filter(c => c.myScore).length}
+              {filteredCandidates.filter(c => c.myScore).length}
             </span>
           </button>
           
@@ -178,7 +192,7 @@ export function JuryEvaluationsList({ candidates, juryMemberId }: JuryEvaluation
             <Clock className="w-4 h-4" />
             <span>En attente</span>
             <span className="bg-white/20 px-2 py-1 rounded-full text-xs font-bold min-w-6">
-              {candidates.filter(c => !c.myScore).length}
+              {filteredCandidates.filter(c => !c.myScore).length}
             </span>
           </button>
         </div>
@@ -191,11 +205,14 @@ export function JuryEvaluationsList({ candidates, juryMemberId }: JuryEvaluation
             <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <User className="w-10 h-10 text-orange-400" />
             </div>
-            <h3 className="text-orange-600 text-xl font-semibold mb-2">Aucun candidat correspondant</h3>
+            <h3 className="text-orange-600 text-xl font-semibold mb-2">Aucun candidat disponible</h3>
             <p className="text-orange-500">
               {search ? 'Aucun candidat ne correspond à votre recherche' : 
                filter === 'all' ? "Aucun candidat n'est disponible pour évaluation" :
                `Aucun candidat ${filter === 'evaluated' ? 'évalué' : 'en attente'}`}
+            </p>
+            <p className="text-gray-500 text-sm mt-2">
+              Note: Les candidats non disponibles ne sont pas affichés ici.
             </p>
           </div>
         ) : (

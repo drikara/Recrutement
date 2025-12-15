@@ -33,7 +33,7 @@ import {
 interface Session {
   id: string
   metier: Metier
-  date: Date
+  date: string  // CORRIGÉ: string au lieu de Date
   jour: string
   status: SessionStatus
   description?: string | null
@@ -123,7 +123,6 @@ export function CandidateEditForm({ candidate, sessions }: CandidateEditFormProp
     try {
       const age = calculateAge(formData.birth_date)
       
-      // Formater nom et prénom selon les règles
       const nomFormatted = formData.nom.toUpperCase().trim()
       const prenomFormatted = formData.prenom.trim().charAt(0).toUpperCase() + 
                              formData.prenom.trim().slice(1).toLowerCase()

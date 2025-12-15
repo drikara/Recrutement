@@ -34,25 +34,23 @@ export function validateFaceToFace(
   presentationVisuelle?: number
 ): FaceToFaceValidation {
   const config = getMetierConfig(metier)
-  const criteria = config.faceToFaceCriteria
+  const criteria = config.criteria.faceToFace
   const errors: string[] = []
 
   // Validation Qualité de la voix (obligatoire pour tous)
-  if (!voiceQuality || voiceQuality < criteria.minVoiceQuality) {
-    errors.push(`Qualité de la voix doit être >= ${criteria.minVoiceQuality}/5`)
+  if (criteria.voiceQuality && (!voiceQuality || voiceQuality < 3)) {
+    errors.push(`Qualité de la voix doit être >= 3/5`)
   }
 
   // Validation Communication verbale (obligatoire pour tous)
-  if (!verbalCommunication || verbalCommunication < criteria.minVerbalCommunication) {
-    errors.push(`Communication verbale doit être >= ${criteria.minVerbalCommunication}/5`)
+  if (criteria.verbalCommunication && (!verbalCommunication || verbalCommunication < 3)) {
+    errors.push(`Communication verbale doit être >= 3/5`)
   }
 
   // Validation Présentation visuelle (UNIQUEMENT pour AGENCES)
-  if (metier === Metier.AGENCES) {
-    if (criteria.presentationVisuelle && criteria.minPresentationVisuelle) {
-      if (!presentationVisuelle || presentationVisuelle < criteria.minPresentationVisuelle) {
-        errors.push(`Présentation visuelle doit être >= ${criteria.minPresentationVisuelle}/5`)
-      }
+  if (metier === Metier.AGENCES && criteria.presentationVisuelle) {
+    if (!presentationVisuelle || presentationVisuelle < 3) {
+      errors.push(`Présentation visuelle doit être >= 3/5`)
     }
   }
 
@@ -207,8 +205,8 @@ export function determineFinalDecision(
   metier: Metier,
   availability: 'OUI' | 'NON',
   faceToFaceValidation: FaceToFaceValidation,
-  simulationValidation: SimulationValidation,
-  psychoValidation: PsychoValidation
+  simulationValidation?: SimulationValidation,
+  psychoValidation?: PsychoValidation
 ): FinalDecision {
   // Règle 1: Si disponibilité = NON → NON_RECRUTE
   if (availability === 'NON') {
@@ -221,13 +219,17 @@ export function determineFinalDecision(
   }
 
   // Règle 3: Pour AGENCES et TELEVENTE, valider simulation
-  if ((metier === Metier.AGENCES || metier === Metier.TELEVENTE) && !simulationValidation.isValid) {
-    return FinalDecision.NON_RECRUTE
+  if ((metier === Metier.AGENCES || metier === Metier.TELEVENTE)) {
+    if (!simulationValidation || !simulationValidation.isValid) {
+      return FinalDecision.NON_RECRUTE
+    }
   }
 
   // Règle 4: Pour BO_RECLAM, valider test psycho
-  if (metier === Metier.BO_RECLAM && !psychoValidation.isValid) {
-    return FinalDecision.NON_RECRUTE
+  if (metier === Metier.BO_RECLAM) {
+    if (!psychoValidation || !psychoValidation.isValid) {
+      return FinalDecision.NON_RECRUTE
+    }
   }
 
   // Si toutes les conditions sont remplies → RECRUTE

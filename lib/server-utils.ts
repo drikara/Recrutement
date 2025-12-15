@@ -26,12 +26,12 @@ function convertDecimal(value: any): number | null {
 }
 
 /**
- * Convertit récursivement tous les Decimal en number dans un objet
+ * Convertit récursivement tous les Decimal et Date en types sérialisables
  */
-function convertDecimalsInObject(obj: any): any {
+function convertPrismaTypes(obj: any): any {
   if (obj === null || obj === undefined) return obj
   
-  // Si c'est un Decimal, le convertir
+  // Si c'est un Decimal, le convertir en number
   if (obj instanceof Decimal) {
     return obj.toNumber()
   }
@@ -43,15 +43,15 @@ function convertDecimalsInObject(obj: any): any {
   
   // Si c'est un tableau, traiter chaque élément
   if (Array.isArray(obj)) {
-    return obj.map(item => convertDecimalsInObject(item))
+    return obj.map(item => convertPrismaTypes(item))
   }
   
   // Si c'est un objet, traiter chaque propriété
-  if (typeof obj === 'object') {
+  if (typeof obj === 'object' && obj.constructor === Object) {
     const converted: any = {}
     for (const key in obj) {
       if (obj.hasOwnProperty(key)) {
-        converted[key] = convertDecimalsInObject(obj[key])
+        converted[key] = convertPrismaTypes(obj[key])
       }
     }
     return converted
@@ -64,23 +64,28 @@ function convertDecimalsInObject(obj: any): any {
 /**
  * Transforme les données Prisma pour les rendre compatibles avec les composants Client
  */
-export function transformPrismaData(data: any): any {
-  return convertDecimalsInObject(data)
+export function transformPrismaData<T>(data: T): Serialized<T> {
+  return convertPrismaTypes(data)
 }
 
 /**
  * Transforme un tableau de données Prisma
  */
-export function transformPrismaDataArray(data: any[]): any[] {
+export function transformPrismaDataArray<T>(data: T[]): Array<Serialized<T>> {
   if (!Array.isArray(data)) return []
-  return data.map(item => convertDecimalsInObject(item))
+  return data.map(item => convertPrismaTypes(item))
 }
 
 /**
  * Sérialise les données pour les passer aux composants Client
+ * Cette fonction utilise JSON.parse(JSON.stringify()) pour garantir
+ * une sérialisation complète compatible avec Next.js
  */
-export function serializeForClient<T>(data: T): T {
-  return JSON.parse(JSON.stringify(convertDecimalsInObject(data)))
+export function serializeForClient<T>(data: T): Serialized<T> {
+  // D'abord convertir les types Prisma
+  const converted = convertPrismaTypes(data)
+  // Puis sérialiser via JSON pour éliminer tout objet non sérialisable
+  return JSON.parse(JSON.stringify(converted))
 }
 
 /**
@@ -133,4 +138,43 @@ export function calculateAge(birthDate: Date | string): number {
   }
   
   return age
+}
+
+/**
+ * Convertit une date ISO string en format YYYY-MM-DD pour les inputs
+ */
+export function formatDateForInput(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  return d.toISOString().split('T')[0]
+}
+
+/**
+ * Vérifie si une valeur est un objet Date valide
+ */
+export function isValidDate(date: any): boolean {
+  return date instanceof Date && !isNaN(date.getTime())
+}
+
+/**
+ * Convertit un objet Prisma complet en objet JSON sérialisable
+ * Gère les cas spéciaux comme BigInt, Symbol, etc.
+ */
+export function toJSON(obj: any): any {
+  return JSON.parse(
+    JSON.stringify(obj, (key, value) => {
+      // Gérer BigInt
+      if (typeof value === 'bigint') {
+        return value.toString()
+      }
+      // Gérer Decimal
+      if (value instanceof Decimal) {
+        return value.toNumber()
+      }
+      // Gérer Date
+      if (value instanceof Date) {
+        return value.toISOString()
+      }
+      return value
+    })
+  )
 }

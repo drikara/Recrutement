@@ -1,20 +1,32 @@
-// app/wfm/scores/page.tsx
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
-import { sql } from "@/lib/db"
+import { prisma } from "@/lib/prisma"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { ScoresList } from "@/components/scores-list"
 
-// CORRECTION : Définir le type pour les résultats SQL
-type CandidateFromDB = {
+// Type pour les candidats - aligné avec ScoresList
+type CandidateWithScore = {
   id: number
   full_name: string
   metier: string
-  email: string
-  final_decision?: string
-  created_at: string
-  phone?: string
+  email: string | null
+  final_decision?: string  // ✅ Changé de string | null à string | undefined
+  created_at: Date
+  phone: string
+  scores: {
+    voice_quality?: number | null
+    verbal_communication?: number | null
+    psychotechnical_test?: number | null
+    typing_speed?: number | null
+    typing_accuracy?: number | null
+    excel_test?: number | null
+    dictation?: number | null
+    sales_simulation?: number | null
+    analysis_exercise?: number | null
+    phase1_decision?: string | null
+    phase2_ff_decision?: string | null
+  } | null
 }
 
 export default async function ScoresPage() {
@@ -26,36 +38,63 @@ export default async function ScoresPage() {
     redirect("/auth/login")
   }
 
-  // CORRECTION : Préparer les données user avec le bon type
   const userData = {
     name: session.user.name,
     email: session.user.email,
     role: (session.user as any).role || undefined
   }
 
-  // CORRECTION : Typage explicite des résultats SQL
-  const candidatesResult = await sql<CandidateFromDB[]>`
-    SELECT c.*, s.final_decision
-    FROM candidates c
-    LEFT JOIN scores s ON c.id = s.candidate_id
-    ORDER BY c.created_at DESC
-  `
+  // Récupération des candidats avec leurs scores
+  const candidatesData = await prisma.candidate.findMany({
+    include: {
+      scores: {
+        select: {
+          voiceQuality: true,
+          verbalCommunication: true,
+          psychotechnicalTest: true,
+          typingSpeed: true,
+          typingAccuracy: true,
+          excelTest: true,
+          dictation: true,
+          salesSimulation: true,
+          analysisExercise: true,
+          phase1Decision: true,
+          phase1FfDecision: true,  // ✅ Nom correct selon le schema
+          finalDecision: true
+        }
+      }
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  })
 
-  // CORRECTION : Convertir les résultats SQL en type Candidate attendu
-  const candidates = candidatesResult.map(candidate => ({
+  // Transformation des données pour le type attendu par ScoresList
+  const candidates: CandidateWithScore[] = candidatesData.map(candidate => ({
     id: candidate.id,
-    full_name: candidate.full_name,
+    full_name: `${candidate.nom} ${candidate.prenom}`,
     metier: candidate.metier,
     email: candidate.email,
-    final_decision: candidate.final_decision,
-    created_at: candidate.created_at,
+    final_decision: candidate.scores?.finalDecision || undefined,
+    created_at: candidate.createdAt,
     phone: candidate.phone,
-    scores: null // Initialiser scores à null car non chargé dans cette requête
+    scores: candidate.scores ? {
+      voice_quality: candidate.scores.voiceQuality ? Number(candidate.scores.voiceQuality) : null,
+      verbal_communication: candidate.scores.verbalCommunication ? Number(candidate.scores.verbalCommunication) : null,
+      psychotechnical_test: candidate.scores.psychotechnicalTest ? Number(candidate.scores.psychotechnicalTest) : null,
+      typing_speed: candidate.scores.typingSpeed,
+      typing_accuracy: candidate.scores.typingAccuracy ? Number(candidate.scores.typingAccuracy) : null,
+      excel_test: candidate.scores.excelTest ? Number(candidate.scores.excelTest) : null,
+      dictation: candidate.scores.dictation ? Number(candidate.scores.dictation) : null,
+      sales_simulation: candidate.scores.salesSimulation ? Number(candidate.scores.salesSimulation) : null,
+      analysis_exercise: candidate.scores.analysisExercise ? Number(candidate.scores.analysisExercise) : null,
+      phase1_decision: candidate.scores.phase1Decision,
+      phase2_ff_decision: candidate.scores.phase1FfDecision,  // ✅ Mapping correct
+    } : null
   }))
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* CORRECTION : Passer les données corrigées */}
       <DashboardHeader user={userData} role="WFM" />
       <main className="container mx-auto p-6 space-y-6">
         <div>

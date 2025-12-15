@@ -19,38 +19,27 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
   const [error, setError] = useState("")
 
   const [formData, setFormData] = useState({
-    // Nom et prénom séparés
     nom: "",
     prenom: "",
-    
-    // Coordonnées
     phone: "",
     birthDate: "",
-    email: "", // Optionnel
+    email: "",
     location: "",
-    
-    // Études
     diploma: "",
-    niveauEtudes: NiveauEtudes.BAC_PLUS_2,
+    niveauEtudes: "BAC_PLUS_2" as NiveauEtudes,
     institution: "",
-    
-    // Recrutement
-    metier: Metier.CALL_CENTER,
-    availability: Disponibilite.OUI,
+    metier: "CALL_CENTER" as Metier,
+    availability: "OUI" as Disponibilite,
     smsSentDate: "",
     interviewDate: "",
     
-    // Statut de présence (NOUVEAU)
-    statut: Statut.ABSENT,
     statutCommentaire: "",
-    
-    sessionId: "",
+    sessionId: "none",
     notes: ""
   })
 
   const [age, setAge] = useState<number | null>(null)
 
-  // Calculer l'âge automatiquement
   useEffect(() => {
     if (formData.birthDate) {
       const birthDate = new Date(formData.birthDate)
@@ -66,17 +55,19 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
     }
   }, [formData.birthDate])
 
-  // Formatage automatique des noms
   const handleNomChange = (value: string) => {
     setFormData(prev => ({ ...prev, nom: value.toUpperCase() }))
   }
 
   const handlePrenomChange = (value: string) => {
+    if (!value) {
+      setFormData(prev => ({ ...prev, prenom: "" }))
+      return
+    }
     const formatted = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
     setFormData(prev => ({ ...prev, prenom: formatted }))
   }
 
-  // Validation des champs obligatoires
   const validateForm = () => {
     const errors: string[] = []
 
@@ -87,17 +78,11 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
     if (!formData.diploma.trim()) errors.push("Le diplôme est obligatoire")
     if (!formData.institution.trim()) errors.push("L'institution est obligatoire")
     if (!formData.location.trim()) errors.push("La localisation est obligatoire")
-    
-    // Dates obligatoires
     if (!formData.smsSentDate) errors.push("La date d'envoi SMS est obligatoire")
     if (!formData.interviewDate) errors.push("La date d'entretien est obligatoire")
     
-    // Si absent, commentaire obligatoire
-    if (formData.statut === Statut.ABSENT && !formData.statutCommentaire.trim()) {
-      errors.push("Un commentaire est obligatoire pour justifier l'absence")
-    }
+ 
 
-    // Validation des dates
     if (formData.smsSentDate && formData.interviewDate) {
       const smsDate = new Date(formData.smsSentDate)
       const interviewDate = new Date(formData.interviewDate)
@@ -107,8 +92,8 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
       }
     }
 
-    if (age !== null && age < 18) {
-      errors.push("Le candidat doit avoir au moins 18 ans")
+    if (age !== null && age < 14) {
+      errors.push("Le candidat doit avoir au moins 14 ans")
     }
 
     return errors
@@ -128,16 +113,24 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
 
     try {
       const payload = {
-        ...formData,
+        nom: formData.nom,
+        prenom: formData.prenom,
+        phone: formData.phone,
         age: age || 0,
-        // Convertir les dates
+        diploma: formData.diploma,
+        niveauEtudes: formData.niveauEtudes,
+        institution: formData.institution,
+        location: formData.location,
+        metier: formData.metier,
+        availability: formData.availability,
+        
+        statutCommentaire: formData.statutCommentaire || null,
         birthDate: new Date(formData.birthDate).toISOString(),
         smsSentDate: new Date(formData.smsSentDate).toISOString(),
         interviewDate: new Date(formData.interviewDate).toISOString(),
-        // Session optionnelle
-        sessionId: formData.sessionId || null,
-        // Email optionnel
-        email: formData.email || null
+        sessionId: formData.sessionId === "none" ? null : formData.sessionId,
+        email: formData.email || null,
+        notes: formData.notes || null
       }
 
       const response = await fetch("/api/candidates", {
@@ -170,35 +163,30 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  // Options pour les selects
   const niveauEtudesOptions = [
-    { value: NiveauEtudes.BAC_PLUS_2, label: "BAC+2" },
-    { value: NiveauEtudes.BAC_PLUS_3, label: "BAC+3" },
-    { value: NiveauEtudes.BAC_PLUS_4, label: "BAC+4" },
-    { value: NiveauEtudes.BAC_PLUS_5, label: "BAC+5" }
+    { value: "BAC_PLUS_2", label: "BAC+2" },
+    { value: "BAC_PLUS_3", label: "BAC+3" },
+    { value: "BAC_PLUS_4", label: "BAC+4" },
+    { value: "BAC_PLUS_5", label: "BAC+5" }
   ]
 
   const disponibiliteOptions = [
-    { value: Disponibilite.OUI, label: "OUI" },
-    { value: Disponibilite.NON, label: "NON" }
+    { value: "OUI", label: "OUI" },
+    { value: "NON", label: "NON" }
   ]
 
   const metierOptions = [
-    { value: Metier.CALL_CENTER, label: "Call Center" },
-    { value: Metier.AGENCES, label: "Agences" },
-    { value: Metier.BO_RECLAM, label: "BO Réclam" },
-    { value: Metier.TELEVENTE, label: "Télévente" },
-    { value: Metier.RESEAUX_SOCIAUX, label: "Réseaux Sociaux" },
-    { value: Metier.SUPERVISION, label: "Supervision" },
-    { value: Metier.BOT_COGNITIVE_TRAINER, label: "Bot Cognitive Trainer" },
-    { value: Metier.SMC_FIXE, label: "SMC Fixe" },
-    { value: Metier.SMC_MOBILE, label: "SMC Mobile" }
+    { value: "CALL_CENTER", label: "Call Center" },
+    { value: "AGENCES", label: "Agences" },
+    { value: "BO_RECLAM", label: "BO Réclam" },
+    { value: "TELEVENTE", label: "Télévente" },
+    { value: "RESEAUX_SOCIAUX", label: "Réseaux Sociaux" },
+    { value: "SUPERVISION", label: "Supervision" },
+    { value: "BOT_COGNITIVE_TRAINER", label: "Bot Cognitive Trainer" },
+    { value: "SMC_FIXE", label: "SMC Fixe" },
+    { value: "SMC_MOBILE", label: "SMC Mobile" }
   ]
 
-  const statutOptions = [
-    { value: Statut.ABSENT, label: "ABSENT" },
-    { value: Statut.PRESENT, label: "PRÉSENT" }
-  ]
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -222,7 +210,6 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Nom */}
                 <div className="space-y-2">
                   <Label htmlFor="nom" className="text-gray-700 font-medium">
                     Nom *
@@ -235,13 +222,12 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
                     required
                   />
-                  <p className="text-xs text-gray-500">Sera automatiquement mis en MAJUSCULES</p>
+                 
                 </div>
 
-                {/* Prénom */}
                 <div className="space-y-2">
                   <Label htmlFor="prenom" className="text-gray-700 font-medium">
-                    Prénom *
+                    Prénoms *
                   </Label>
                   <Input
                     id="prenom"
@@ -251,10 +237,9 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
                     required
                   />
-                  <p className="text-xs text-gray-500">Première lettre automatiquement majuscule</p>
+                  
                 </div>
 
-                {/* Téléphone */}
                 <div className="space-y-2">
                   <Label htmlFor="phone" className="text-gray-700 font-medium">
                     Téléphone *
@@ -264,13 +249,12 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => handleChange("phone", e.target.value)}
-                    placeholder="06 12 34 56 78"
+                    placeholder="0707070707"
                     className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
                     required
                   />
                 </div>
 
-                {/* Date de naissance */}
                 <div className="space-y-2">
                   <Label htmlFor="birthDate" className="text-gray-700 font-medium">
                     Date de naissance *
@@ -290,10 +274,9 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                   />
                 </div>
 
-                {/* Email (optionnel) */}
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-gray-700 font-medium">
-                    Email (optionnel)
+                    Email 
                   </Label>
                   <Input
                     id="email"
@@ -303,19 +286,18 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     placeholder="email@exemple.com"
                     className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
                   />
-                  <p className="text-xs text-gray-500">Certains candidats n'ont pas d'email</p>
+                 
                 </div>
 
-                {/* Localisation */}
                 <div className="space-y-2">
                   <Label htmlFor="location" className="text-gray-700 font-medium">
-                    Localisation *
+                    Lieu d'habitation *
                   </Label>
                   <Input
                     id="location"
                     value={formData.location}
                     onChange={(e) => handleChange("location", e.target.value)}
-                    placeholder="Ville, Région"
+                    placeholder="Orange village"
                     className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
                     required
                   />
@@ -330,7 +312,6 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Diplôme */}
                 <div className="space-y-2">
                   <Label htmlFor="diploma" className="text-gray-700 font-medium">
                     Diplôme obtenu *
@@ -345,7 +326,6 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                   />
                 </div>
 
-                {/* Niveau d'études */}
                 <div className="space-y-2">
                   <Label htmlFor="niveauEtudes" className="text-gray-700 font-medium">
                     Niveau d'études *
@@ -367,10 +347,9 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                   </Select>
                 </div>
 
-                {/* Institution */}
                 <div className="space-y-2">
                   <Label htmlFor="institution" className="text-gray-700 font-medium">
-                    Institution *
+                    Établissement *
                   </Label>
                   <Input
                     id="institution"
@@ -391,7 +370,6 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Métier */}
                 <div className="space-y-2">
                   <Label htmlFor="metier" className="text-gray-700 font-medium">
                     Métier *
@@ -413,7 +391,6 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                   </Select>
                 </div>
 
-                {/* Disponibilité */}
                 <div className="space-y-2">
                   <Label htmlFor="availability" className="text-gray-700 font-medium">
                     Disponibilité *
@@ -433,14 +410,13 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                       ))}
                     </SelectContent>
                   </Select>
-                  {formData.availability === Disponibilite.NON && (
+                  {formData.availability === "NON" && (
                     <p className="text-xs text-red-600 font-medium">
                       ⚠️ Le candidat sera automatiquement non recruté
                     </p>
                   )}
                 </div>
 
-                {/* Date SMS */}
                 <div className="space-y-2">
                   <Label htmlFor="smsSentDate" className="text-gray-700 font-medium">
                     Date d'envoi SMS *
@@ -455,7 +431,6 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                   />
                 </div>
 
-                {/* Date entretien */}
                 <div className="space-y-2">
                   <Label htmlFor="interviewDate" className="text-gray-700 font-medium">
                     Date d'entretien *
@@ -471,10 +446,9 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                 </div>
               </div>
 
-              {/* Session optionnelle */}
               <div className="space-y-2">
                 <Label htmlFor="sessionId" className="text-gray-700 font-medium">
-                  Session de recrutement (optionnel)
+                  Session de recrutement 
                 </Label>
                 <Select
                   value={formData.sessionId}
@@ -484,7 +458,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     <SelectValue placeholder="Sélectionner une session" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Aucune session</SelectItem>
+                    <SelectItem value="none">Aucune session</SelectItem>
                     {sessions.map((session) => (
                       <SelectItem key={session.id} value={session.id}>
                         {session.metier} - {new Date(session.date).toLocaleDateString('fr-FR')}
@@ -495,75 +469,8 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
               </div>
             </div>
 
-            {/* Section Statut */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">
-                Statut de Présence
-              </h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Statut */}
-                <div className="space-y-2">
-                  <Label htmlFor="statut" className="text-gray-700 font-medium">
-                    Statut *
-                  </Label>
-                  <Select
-                    value={formData.statut}
-                    onValueChange={(value) => handleChange("statut", value)}
-                  >
-                    <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3">
-                      <SelectValue placeholder="Sélectionner un statut" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statutOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value} className="rounded-lg">
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+          
 
-                {/* Commentaire statut */}
-                <div className="space-y-2">
-                  <Label htmlFor="statutCommentaire" className="text-gray-700 font-medium">
-                    Commentaire {formData.statut === Statut.ABSENT && "*"}
-                  </Label>
-                  <Input
-                    id="statutCommentaire"
-                    value={formData.statutCommentaire}
-                    onChange={(e) => handleChange("statutCommentaire", e.target.value)}
-                    placeholder={formData.statut === Statut.ABSENT ? 
-                      "Justification obligatoire de l'absence" : 
-                      "Commentaire optionnel pour présence"}
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
-                    required={formData.statut === Statut.ABSENT}
-                  />
-                  {formData.statut === Statut.ABSENT && (
-                    <p className="text-xs text-red-600 font-medium">
-                      Commentaire obligatoire pour justifier l'absence
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes" className="text-gray-700 font-medium">
-                Notes additionnelles
-              </Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => handleChange("notes", e.target.value)}
-                placeholder="Remarques complémentaires..."
-                rows={3}
-                className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 resize-none"
-              />
-            </div>
-
-            {/* Messages d'erreur */}
             {error && (
               <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
                 <div className="flex items-center gap-3">
@@ -577,13 +484,12 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
               </div>
             )}
 
-            {/* Boutons */}
             <div className="flex gap-4 justify-end pt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => router.back()}
-                className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl px-6 py-3 font-semibold"
+                className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl px-6 py-3 font-semibold cursor-pointer"
               >
                 Annuler
               </Button>
@@ -594,7 +500,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
               >
                 {loading ? (
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin cursor-pointer" />
                     Création en cours...
                   </div>
                 ) : (

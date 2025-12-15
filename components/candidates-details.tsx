@@ -1,10 +1,10 @@
+// components/candidates-details.tsx
 "use client"
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, UserCheck, UserX } from "lucide-react"
-import { Statut, FinalDecision, NiveauEtudes } from "@prisma/client"
 
 interface CandidateDetailsProps {
   candidate: {
@@ -12,30 +12,31 @@ interface CandidateDetailsProps {
     nom: string
     prenom: string
     phone: string
-    email: string
+    email: string | null
     metier: string
     age: number
     location: string
     availability: string
-    interviewDate: Date | null
+    interviewDate: string | null
     diploma: string
-    niveauEtudes: NiveauEtudes
+    niveauEtudes: string
     institution: string
-    birthDate: Date
-    smsSentDate: Date | null
+    birthDate: string
+    smsSentDate: string | null
     session?: {
       id: string
       metier: string
-      date: Date
+      date: string
       jour: string
       status: string
     } | null
     scores?: {
-      statut?: Statut | null
+      id?: number
+      statut?: string | null
       statutCommentaire?: string | null
-      finalDecision?: FinalDecision | null
+      finalDecision?: string | null
       callAttempts?: number | null
-      lastCallDate?: Date | null
+      lastCallDate?: string | null
       callNotes?: string | null
       presentationVisuelle?: number | null
       verbalCommunication?: number | null
@@ -52,10 +53,11 @@ interface CandidateDetailsProps {
       simulationSensCombativite?: number | null
       psychoRaisonnementLogique?: number | null
       psychoAttentionConcentration?: number | null
-      phase2Date?: Date | null
+      phase2Date?: string | null
     } | null
     faceToFaceScores: Array<{
-      score: number | any
+      id?: number
+      score: number
       phase: number
       presentationVisuelle?: number | null
       verbalCommunication?: number | null
@@ -83,13 +85,43 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
     )
   }
 
-  const formatDate = (date: Date | string | null) => {
+  // Créer un objet scores sécurisé avec des valeurs par défaut
+  const scores = candidate.scores || {
+    statut: null,
+    statutCommentaire: null,
+    finalDecision: null,
+    callAttempts: null,
+    lastCallDate: null,
+    callNotes: null,
+    presentationVisuelle: null,
+    verbalCommunication: null,
+    voiceQuality: null,
+    psychotechnicalTest: null,
+    typingSpeed: null,
+    typingAccuracy: null,
+    excelTest: null,
+    dictation: null,
+    salesSimulation: null,
+    analysisExercise: null,
+    simulationSensNegociation: null,
+    simulationCapacitePersuasion: null,
+    simulationSensCombativite: null,
+    psychoRaisonnementLogique: null,
+    psychoAttentionConcentration: null,
+    phase2Date: null
+  }
+
+  const formatDate = (date: string | null) => {
     if (!date) return "Non défini"
-    return new Date(date).toLocaleDateString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    })
+    try {
+      return new Date(date).toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      })
+    } catch {
+      return "Date invalide"
+    }
   }
 
   const faceToFaceScores = candidate.faceToFaceScores || []
@@ -272,10 +304,10 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
             </div>
             <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
               <span className="font-semibold text-purple-700">Décision:</span>
-              <span className={`px-3 py-1.5 rounded-lg text-sm font-bold border-2 ${getDecisionColor(candidate.scores?.finalDecision || null)}`}>
-                {candidate.scores?.finalDecision === 'RECRUTE' 
+              <span className={`px-3 py-1.5 rounded-lg text-sm font-bold border-2 ${getDecisionColor(scores.finalDecision || null)}`}>
+                {scores.finalDecision === 'RECRUTE' 
                   ? '🎯 RECRUTÉ' 
-                  : candidate.scores?.finalDecision === 'NON_RECRUTE' 
+                  : scores.finalDecision === 'NON_RECRUTE' 
                   ? '🚫 NON RECRUTÉ' 
                   : '⏳ EN ATTENTE'}
               </span>
@@ -284,13 +316,13 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
             {/* Nouveau: Statut de présence */}
             <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
               <span className="font-semibold text-purple-700">Présence:</span>
-              <span className={`px-3 py-1.5 rounded-lg text-sm font-bold border-2 ${getStatutColor(candidate.scores?.statut || null)} flex items-center gap-2`}>
-                {candidate.scores?.statut === 'PRESENT' ? (
+              <span className={`px-3 py-1.5 rounded-lg text-sm font-bold border-2 ${getStatutColor(scores.statut || null)} flex items-center gap-2`}>
+                {scores.statut === 'PRESENT' ? (
                   <>
                     <UserCheck className="w-4 h-4" />
                     PRÉSENT
                   </>
-                ) : candidate.scores?.statut === 'ABSENT' ? (
+                ) : scores.statut === 'ABSENT' ? (
                   <>
                     <UserX className="w-4 h-4" />
                     ABSENT
@@ -302,10 +334,10 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
             </div>
             
             {/* Commentaire du statut si absent */}
-            {candidate.scores?.statut === 'ABSENT' && candidate.scores?.statutCommentaire && (
+            {scores.statut === 'ABSENT' && scores.statutCommentaire && (
               <div className="p-3 bg-red-50 rounded-xl border border-red-200">
                 <span className="font-semibold text-red-700">Justification absence:</span>
-                <p className="text-gray-700 mt-1 text-sm">{candidate.scores.statutCommentaire}</p>
+                <p className="text-gray-700 mt-1 text-sm">{scores.statutCommentaire}</p>
               </div>
             )}
           </CardContent>
@@ -413,109 +445,109 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
-            {candidate.scores?.typingSpeed !== null && candidate.scores?.typingSpeed !== undefined && (
+            {scores.typingSpeed != null && (
               <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
                 <span className="font-semibold text-purple-700">Rapidité de Saisie:</span>
-                <span className="text-gray-900 font-medium">{candidate.scores.typingSpeed} MPM</span>
+                <span className="text-gray-900 font-medium">{scores.typingSpeed} MPM</span>
               </div>
             )}
             
-            {candidate.scores?.typingAccuracy !== null && candidate.scores?.typingAccuracy !== undefined && (
+            {scores.typingAccuracy != null && (
               <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
                 <span className="font-semibold text-purple-700">Précision Saisie:</span>
-                <span className="text-gray-900 font-medium">{candidate.scores.typingAccuracy}%</span>
+                <span className="text-gray-900 font-medium">{scores.typingAccuracy}%</span>
               </div>
             )}
             
-            {candidate.scores?.excelTest !== null && candidate.scores?.excelTest !== undefined && (
+            {scores.excelTest != null && (
               <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
                 <span className="font-semibold text-purple-700">Test Excel:</span>
-                <span className="text-gray-900 font-medium">{candidate.scores.excelTest}/5</span>
+                <span className="text-gray-900 font-medium">{scores.excelTest}/5</span>
               </div>
             )}
             
-            {candidate.scores?.dictation !== null && candidate.scores?.dictation !== undefined && (
+            {scores.dictation != null && (
               <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
                 <span className="font-semibold text-purple-700">Dictée:</span>
-                <span className="text-gray-900 font-medium">{candidate.scores.dictation}/20</span>
+                <span className="text-gray-900 font-medium">{scores.dictation}/20</span>
               </div>
             )}
             
             {/* Simulation vente avec sous-critères */}
-            {(candidate.scores?.salesSimulation !== null || 
-              candidate.scores?.simulationSensNegociation !== null ||
-              candidate.scores?.simulationCapacitePersuasion !== null ||
-              candidate.scores?.simulationSensCombativite !== null) && (
+            {(scores.salesSimulation != null || 
+              scores.simulationSensNegociation != null ||
+              scores.simulationCapacitePersuasion != null ||
+              scores.simulationSensCombativite != null) && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
                   <span className="font-semibold text-purple-700">Simulation Vente:</span>
-                  {candidate.scores?.salesSimulation && (
-                    <span className="text-gray-900 font-medium">{candidate.scores.salesSimulation}/5</span>
+                  {scores.salesSimulation != null && (
+                    <span className="text-gray-900 font-medium">{scores.salesSimulation}/5</span>
                   )}
                 </div>
-                {candidate.scores?.simulationSensNegociation !== null && (
+                {scores.simulationSensNegociation != null && (
                   <div className="ml-4 pl-4 border-l-2 border-purple-200">
                     <span className="text-sm text-purple-600">Sens négociation: </span>
-                    <span className="text-gray-900 font-medium">{candidate.scores.simulationSensNegociation}/5</span>
+                    <span className="text-gray-900 font-medium">{scores.simulationSensNegociation}/5</span>
                   </div>
                 )}
-                {candidate.scores?.simulationCapacitePersuasion !== null && (
+                {scores.simulationCapacitePersuasion != null && (
                   <div className="ml-4 pl-4 border-l-2 border-purple-200">
                     <span className="text-sm text-purple-600">Capacité persuasion: </span>
-                    <span className="text-gray-900 font-medium">{candidate.scores.simulationCapacitePersuasion}/5</span>
+                    <span className="text-gray-900 font-medium">{scores.simulationCapacitePersuasion}/5</span>
                   </div>
                 )}
-                {candidate.scores?.simulationSensCombativite !== null && (
+                {scores.simulationSensCombativite != null && (
                   <div className="ml-4 pl-4 border-l-2 border-purple-200">
                     <span className="text-sm text-purple-600">Sens combativité: </span>
-                    <span className="text-gray-900 font-medium">{candidate.scores.simulationSensCombativite}/5</span>
+                    <span className="text-gray-900 font-medium">{scores.simulationSensCombativite}/5</span>
                   </div>
                 )}
               </div>
             )}
             
             {/* Test psychotechnique avec sous-critères */}
-            {(candidate.scores?.psychotechnicalTest !== null ||
-              candidate.scores?.psychoRaisonnementLogique !== null ||
-              candidate.scores?.psychoAttentionConcentration !== null) && (
+            {(scores.psychotechnicalTest != null ||
+              scores.psychoRaisonnementLogique != null ||
+              scores.psychoAttentionConcentration != null) && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
                   <span className="font-semibold text-purple-700">Test Psychotechnique:</span>
-                  {candidate.scores?.psychotechnicalTest && (
-                    <span className="text-gray-900 font-medium">{candidate.scores.psychotechnicalTest}/10</span>
+                  {scores.psychotechnicalTest != null && (
+                    <span className="text-gray-900 font-medium">{scores.psychotechnicalTest}/10</span>
                   )}
                 </div>
-                {candidate.scores?.psychoRaisonnementLogique !== null && (
+                {scores.psychoRaisonnementLogique != null && (
                   <div className="ml-4 pl-4 border-l-2 border-purple-200">
                     <span className="text-sm text-purple-600">Raisonnement logique: </span>
-                    <span className="text-gray-900 font-medium">{candidate.scores.psychoRaisonnementLogique}/5</span>
+                    <span className="text-gray-900 font-medium">{scores.psychoRaisonnementLogique}/5</span>
                   </div>
                 )}
-                {candidate.scores?.psychoAttentionConcentration !== null && (
+                {scores.psychoAttentionConcentration != null && (
                   <div className="ml-4 pl-4 border-l-2 border-purple-200">
                     <span className="text-sm text-purple-600">Attention concentration: </span>
-                    <span className="text-gray-900 font-medium">{candidate.scores.psychoAttentionConcentration}/5</span>
+                    <span className="text-gray-900 font-medium">{scores.psychoAttentionConcentration}/5</span>
                   </div>
                 )}
               </div>
             )}
             
-            {candidate.scores?.analysisExercise !== null && candidate.scores?.analysisExercise !== undefined && (
+            {scores.analysisExercise != null && (
               <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
                 <span className="font-semibold text-purple-700">Exercice d'Analyse:</span>
-                <span className="text-gray-900 font-medium">{candidate.scores.analysisExercise}/10</span>
+                <span className="text-gray-900 font-medium">{scores.analysisExercise}/10</span>
               </div>
             )}
             
-            {candidate.scores?.phase2Date && (
+            {scores.phase2Date && (
               <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
                 <span className="font-semibold text-purple-700">Date Phase 2:</span>
-                <span className="text-gray-900 font-medium">{formatDate(candidate.scores.phase2Date)}</span>
+                <span className="text-gray-900 font-medium">{formatDate(scores.phase2Date)}</span>
               </div>
             )}
             
-            {!candidate.scores?.typingSpeed && !candidate.scores?.excelTest && !candidate.scores?.dictation && 
-             !candidate.scores?.salesSimulation && !candidate.scores?.analysisExercise && !candidate.scores?.psychotechnicalTest && (
+            {!scores.typingSpeed && !scores.excelTest && !scores.dictation && 
+             !scores.salesSimulation && !scores.analysisExercise && !scores.psychotechnicalTest && (
               <div className="text-center py-6 bg-purple-50 rounded-xl border-2 border-dashed border-purple-200">
                 <svg className="w-8 h-8 text-purple-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -567,40 +599,7 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
         </Card>
       )}
 
-      {/* Actions */}
-      <div className="flex flex-wrap gap-4 justify-end pt-6 border-t border-gray-200">
-        <Link
-          href={`/wfm/candidates/${candidate.id}/edit`}
-          className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-          Modifier le candidat
-        </Link>
-        
-        <Link
-          href={`/wfm/candidates/${candidate.id}/consolidation`}
-          className="flex items-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 text-white px-6 py-3 rounded-xl hover:from-orange-700 hover:to-amber-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          Consolidation
-        </Link>
-        
-        <Link
-          href={`/wfm/candidates/${candidate.id}/call`}
-          className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-        >
-          {candidate.scores?.statut === 'PRESENT' ? (
-            <UserCheck className="w-4 h-4" />
-          ) : (
-            <UserX className="w-4 h-4" />
-          )}
-          Marquer présence/absence
-        </Link>
-      </div>
+    
     </div>
   )
 }

@@ -84,6 +84,26 @@ export default async function SessionDetailPage({ params }: PageProps) {
     })
   }
 
+  // ⭐ TRANSFORMATION : Ajouter fullName aux candidats
+  const sessionWithFullNames = {
+    ...recruitmentSession,
+    candidates: recruitmentSession.candidates.map(candidate => ({
+      ...candidate,
+      fullName: `${candidate.prenom} ${candidate.nom}`, // ✅ Construire fullName
+      email: candidate.email || '', // ✅ Gérer null
+      phone: candidate.phone,
+      scores: candidate.scores ? {
+        finalDecision: candidate.scores.finalDecision,
+        callStatus: candidate.scores.statut // ✅ Utiliser statut au lieu de callStatus
+      } : null,
+      faceToFaceScores: candidate.faceToFaceScores.map(ffs => ({
+        juryMember: ffs.juryMember,
+        phase: ffs.phase,
+        score: ffs.score
+      }))
+    }))
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <DashboardHeader 
@@ -107,7 +127,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
 
         {/* Composant de détails */}
         <SessionDetails 
-          session={recruitmentSession} 
+          session={sessionWithFullNames} 
           availableJuryMembers={availableJuryMembers}
         />
       </main>

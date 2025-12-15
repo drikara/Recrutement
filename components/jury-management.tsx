@@ -50,7 +50,7 @@ export function JuryManagement({ juryMembers, users }: JuryManagementProps) {
     notes: ''
   })
 
-  const roleTypes = ['DRH', 'EPC', 'REPRESENTANT_METIER', 'WFM_JURY']
+  const roleTypes = ['DRH', 'EPC', 'FORMATEUR','REPRESENTANT_METIER', 'WFM_JURY']
 
   const availableUsers = users.filter(user => 
     user.role === 'JURY' && 
@@ -119,7 +119,7 @@ export function JuryManagement({ juryMembers, users }: JuryManagementProps) {
         window.location.reload()
       }
     } catch (error) {
-      console.error('Error updating jury member:', error)
+      console.error("Erreur de mise à jour d'un membre du jury:", error)
     }
   }
 
@@ -245,14 +245,14 @@ export function JuryManagement({ juryMembers, users }: JuryManagementProps) {
               {/* Spécialité */}
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Spécialité (métier)
+                  Métiers (métier)
                 </label>
                 <select
                   value={formData.specialite}
                   onChange={(e) => setFormData(prev => ({ ...prev, specialite: e.target.value }))}
                   className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                 >
-                  <option value="">Aucune spécialité</option>
+                  <option value="">Aucun Métier</option>
                   {Object.values(Metier).map(metier => (
                     <option key={metier} value={metier}>{metier}</option>
                   ))}
@@ -348,7 +348,7 @@ export function JuryManagement({ juryMembers, users }: JuryManagementProps) {
                   Rôle
                 </th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-orange-800 uppercase tracking-wider">
-                  Spécialité
+                  Métier
                 </th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-orange-800 uppercase tracking-wider">
                   Statistiques

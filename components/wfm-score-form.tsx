@@ -1,1212 +1,1350 @@
-"use client"
+'use client'
 
-import type React from "react"
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Metier, Disponibilite, FFDecision, Decision, FinalDecision, Statut } from "@prisma/client"
-import { calculateAutoDecisions, shouldShowTest, getMetierConfig } from "../lib/metier-utils"
-import { 
-  validateFaceToFace, 
-  validateSimulation, 
-  validatePsycho,
-  validateAllMetierConditions,
-  determineFinalDecision 
-} from "../lib/validation-helpers"
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { getMetierConfig } from '@/lib/metier-config'
+import { checkSimulationUnlockStatus } from '@/lib/simulation-unlock'
+import { CheckCircle, XCircle, AlertTriangle, Users, Lock, Unlock, AlertCircle } from 'lucide-react'
 
-type WFMScoreFormProps = {
-  candidate: any
-  score: any
-  faceToFaceScores: any[]
+interface WFMScoreFormProps {
+  candidate: {
+    id: number
+    fullName: string
+    nom: string
+    prenom: string
+    metier: string
+    availability: string
+  }
+  existingScores: any
 }
 
-export function WFMScoreForm({ candidate, score, faceToFaceScores }: WFMScoreFormProps) {
+interface JuryScore {
+  id: number
+  phase: number
+  juryMember: {
+    fullName: string
+    roleType: string
+  }
+  presentationVisuelle: number | null
+  verbalCommunication: number | null
+  voiceQuality: number | null
+  simulationSensNegociation: number | null
+  simulationCapacitePersuasion: number | null
+  simulationSensCombativite: number | null
+  decision: 'FAVORABLE' | 'DEFAVORABLE' | null
+  evaluatedAt: Date
+}
+
+export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [autoCalculated, setAutoCalculated] = useState(false)
-  const [validationErrors, setValidationErrors] = useState<string[]>([])
-  const [juryAverages, setJuryAverages] = useState({
-    presentation_visuelle: 0,
-    verbal_communication: 0,
-    voice_quality: 0
+  const [juryScores, setJuryScores] = useState<JuryScore[]>([])
+  const [unlockStatus, setUnlockStatus] = useState<any>(null)
+  const [loadingUnlock, setLoadingUnlock] = useState(false)
+  
+  const [technicalScores, setTechnicalScores] = useState({
+    typing_speed: existingScores?.typingSpeed?.toString() || '',
+    typing_accuracy: existingScores?.typingAccuracy?.toString() || '',
+    excel_test: existingScores?.excelTest?.toString() || '',
+    dictation: existingScores?.dictation?.toString() || '',
+    psycho_raisonnement: existingScores?.psychoRaisonnementLogique?.toString() || '',
+    psycho_attention: existingScores?.psychoAttentionConcentration?.toString() || '',
+    analysis_exercise: existingScores?.analysisExercise?.toString() || '',
+    statut: existingScores?.statut || 'ABSENT',
+    statut_commentaire: existingScores?.statutCommentaire || '',
+    comments: existingScores?.comments || '',
   })
 
-  const [formData, setFormData] = useState({
-    presentation_visuelle: score?.presentation_visuelle?.toString() || "",
-    voice_quality: score?.voice_quality?.toString() || "",
-    verbal_communication: score?.verbal_communication?.toString() || "",
-    phase1_ff_decision: score?.phase1_ff_decision || "",
-    
-    // Test Psychotechnique - Sous-critères
-    psycho_raisonnement_logique: score?.psycho_raisonnement_logique?.toString() || "",
-    psycho_attention_concentration: score?.psycho_attention_concentration?.toString() || "",
-    psychotechnical_test: score?.psychotechnical_test?.toString() || "",
-    
-    phase1_decision: score?.phase1_decision || "",
-    typing_speed: score?.typing_speed?.toString() || "",
-    typing_accuracy: score?.typing_accuracy?.toString() || "",
-    excel_test: score?.excel_test?.toString() || "",
-    dictation: score?.dictation?.toString() || "",
-    
-    // Simulation Vente - Sous-critères
-    simulation_sens_negociation: score?.simulation_sens_negociation?.toString() || "",
-    simulation_capacite_persuasion: score?.simulation_capacite_persuasion?.toString() || "",
-    simulation_sens_combativite: score?.simulation_sens_combativite?.toString() || "",
-    sales_simulation: score?.sales_simulation?.toString() || "",
-    
-    analysis_exercise: score?.analysis_exercise?.toString() || "",
-    phase2_date: score?.phase2_date || "",
-    decision_test: score?.decision_test || "",
-    final_decision: score?.final_decision || "",
-    statut: score?.statut || "",
-    statutCommentaire: score?.statutCommentaire || "",
-    comments: score?.comments || "",
-  })
+  const config = getMetierConfig(candidate.metier as any)
+  const isAgences = candidate.metier === 'AGENCES'
+  const needsSimulation = candidate.metier === 'AGENCES' || candidate.metier === 'TELEVENTE'
 
-  const candidateAvailability = candidate?.availability || 'OUI'
-
-  // Calcul des moyennes des jurys
+  // Charger les scores des jurys et le statut de déblocage
   useEffect(() => {
-    const phase1FF = faceToFaceScores.filter((s) => s.phase === 1)
-    
-    if (phase1FF.length > 0) {
-      const presAvg = phase1FF.reduce((sum, s) => sum + (Number(s.presentation_visuelle) || 0), 0) / phase1FF.length
-      const verbalAvg = phase1FF.reduce((sum, s) => sum + (Number(s.verbal_communication) || 0), 0) / phase1FF.length
-      const voiceAvg = phase1FF.reduce((sum, s) => sum + (Number(s.voice_quality) || 0), 0) / phase1FF.length
-
-      setJuryAverages({
-        presentation_visuelle: presAvg,
-        verbal_communication: verbalAvg,
-        voice_quality: voiceAvg
-      })
-
-      // Pré-remplir avec les moyennes si pas déjà saisi
-      if (!formData.presentation_visuelle && presAvg > 0) {
-        setFormData(prev => ({ ...prev, presentation_visuelle: presAvg.toFixed(2) }))
-      }
-      if (!formData.verbal_communication && verbalAvg > 0) {
-        setFormData(prev => ({ ...prev, verbal_communication: verbalAvg.toFixed(2) }))
-      }
-      if (!formData.voice_quality && voiceAvg > 0) {
-        setFormData(prev => ({ ...prev, voice_quality: voiceAvg.toFixed(2) }))
-      }
-    }
-  }, [faceToFaceScores])
-
-  // Fonction pour valider toutes les conditions selon les règles du cahier des charges
-  const validateAllConditions = () => {
-    const errors: string[] = []
-    
-    // Règle 1: Si disponibilité = NON → NON_RECRUTE automatique
-    if (candidateAvailability === 'NON') {
-      setFormData(prev => ({
-        ...prev,
-        final_decision: 'NON_RECRUTE',
-        phase1_ff_decision: 'DEFAVORABLE',
-        phase1_decision: 'ELIMINE',
-        decision_test: 'DEFAVORABLE'
-      }))
-      errors.push('Candidat non disponible - Automatiquement non recruté')
-      setValidationErrors(errors)
-      setAutoCalculated(true)
-      return false
-    }
-
-    // Règle 2: Validation Face à Face selon métier
-    const voiceQuality = parseFloat(formData.voice_quality) || 0
-    const verbalCommunication = parseFloat(formData.verbal_communication) || 0
-    const presentationVisuelle = parseFloat(formData.presentation_visuelle) || 0
-
-    // Pour AGENCES : 3 critères
-    if (candidate.metier === 'AGENCES') {
-      if (voiceQuality < 3 || verbalCommunication < 3 || presentationVisuelle < 3) {
-        errors.push(`Face à Face: Pour AGENCES, tous les critères doivent être ≥ 3/5`)
-        errors.push(`- Qualité voix: ${voiceQuality}/5 (minimum: 3/5)`)
-        errors.push(`- Communication verbale: ${verbalCommunication}/5 (minimum: 3/5)`)
-        errors.push(`- Présentation visuelle: ${presentationVisuelle}/5 (minimum: 3/5)`)
-        
-        setFormData(prev => ({
-          ...prev,
-          phase1_ff_decision: 'DEFAVORABLE',
-          phase1_decision: 'ELIMINE',
-          decision_test: 'DEFAVORABLE',
-          final_decision: 'NON_RECRUTE'
-        }))
-        setValidationErrors(errors)
-        setAutoCalculated(true)
-        return false
-      }
-    } 
-    // Pour tous les autres métiers : 2 critères
-    else {
-      if (voiceQuality < 3 || verbalCommunication < 3) {
-        errors.push(`Face à Face: Qualité voix et communication verbale doivent être ≥ 3/5`)
-        errors.push(`- Qualité voix: ${voiceQuality}/5 (minimum: 3/5)`)
-        errors.push(`- Communication verbale: ${verbalCommunication}/5 (minimum: 3/5)`)
-        
-        setFormData(prev => ({
-          ...prev,
-          phase1_ff_decision: 'DEFAVORABLE',
-          phase1_decision: 'ELIMINE',
-          decision_test: 'DEFAVORABLE',
-          final_decision: 'NON_RECRUTE'
-        }))
-        setValidationErrors(errors)
-        setAutoCalculated(true)
-        return false
-      }
-    }
-
-    // Si Face à Face validé
-    setFormData(prev => ({
-      ...prev,
-      phase1_ff_decision: 'FAVORABLE',
-      phase1_decision: 'ADMIS'
-    }))
-
-    // Règle 3: Validation Simulation pour AGENCES et TELEVENTE
-    if (candidate.metier === 'AGENCES' || candidate.metier === 'TELEVENTE') {
-      const sensNegociation = parseFloat(formData.simulation_sens_negociation) || 0
-      const capacitePersuasion = parseFloat(formData.simulation_capacite_persuasion) || 0
-      const sensCombativite = parseFloat(formData.simulation_sens_combativite) || 0
-      
-      if (sensNegociation < 3 || capacitePersuasion < 3 || sensCombativite < 3) {
-        errors.push(`Simulation: Tous les critères doivent être ≥ 3/5`)
-        errors.push(`- Sens négociation: ${sensNegociation}/5 (minimum: 3/5)`)
-        errors.push(`- Capacité persuasion: ${capacitePersuasion}/5 (minimum: 3/5)`)
-        errors.push(`- Sens combativité: ${sensCombativite}/5 (minimum: 3/5)`)
-        
-        setFormData(prev => ({
-          ...prev,
-          decision_test: 'DEFAVORABLE',
-          final_decision: 'NON_RECRUTE'
-        }))
-      } else {
-        setFormData(prev => ({
-          ...prev,
-          decision_test: 'FAVORABLE',
-          final_decision: 'RECRUTE'
-        }))
-      }
-    }
-
-    // Règle 4: Validation Test Psycho pour BO_RECLAM
-    if (candidate.metier === 'BO_RECLAM') {
-      const raisonnementLogique = parseFloat(formData.psycho_raisonnement_logique) || 0
-      const attentionConcentration = parseFloat(formData.psycho_attention_concentration) || 0
-      
-      if (raisonnementLogique < 3 || attentionConcentration < 3) {
-        errors.push(`Test Psychotechnique: Tous les critères doivent être ≥ 3/5`)
-        errors.push(`- Raisonnement logique: ${raisonnementLogique}/5 (minimum: 3/5)`)
-        errors.push(`- Attention & concentration: ${attentionConcentration}/5 (minimum: 3/5)`)
-        
-        setFormData(prev => ({
-          ...prev,
-          decision_test: 'DEFAVORABLE',
-          final_decision: 'NON_RECRUTE'
-        }))
-      } else {
-        setFormData(prev => ({
-          ...prev,
-          decision_test: 'FAVORABLE',
-          final_decision: 'RECRUTE'
-        }))
-      }
-    }
-
-    // Règle 5: Validation autres tests techniques selon la configuration métier
-    const config = getMetierConfig(candidate.metier as Metier)
-    
-    // Validation saisie
-    if (config.requiredTests.typing) {
-      const typingSpeed = parseFloat(formData.typing_speed) || 0
-      const typingAccuracy = parseFloat(formData.typing_accuracy) || 0
-      
-      if (typingSpeed < (config.criteria.minTypingSpeed || 0) || typingAccuracy < (config.criteria.minTypingAccuracy || 0)) {
-        errors.push(`Saisie: Rapidité ≥ ${config.criteria.minTypingSpeed} MPM et Précision ≥ ${config.criteria.minTypingAccuracy}%`)
-        errors.push(`- Rapidité: ${typingSpeed} MPM (minimum: ${config.criteria.minTypingSpeed} MPM)`)
-        errors.push(`- Précision: ${typingAccuracy}% (minimum: ${config.criteria.minTypingAccuracy}%)`)
-        
-        if (formData.decision_test === 'FAVORABLE') {
-          setFormData(prev => ({
-            ...prev,
-            decision_test: 'DEFAVORABLE',
-            final_decision: 'NON_RECRUTE'
-          }))
-        }
-      }
-    }
-
-    // Validation Excel
-    if (config.requiredTests.excel) {
-      const excelScore = parseFloat(formData.excel_test) || 0
-      if (excelScore < (config.criteria.minExcel || 0)) {
-        errors.push(`Excel: Score minimum ${config.criteria.minExcel}/5`)
-        errors.push(`- Score: ${excelScore}/5 (minimum: ${config.criteria.minExcel}/5)`)
-        
-        if (formData.decision_test === 'FAVORABLE') {
-          setFormData(prev => ({
-            ...prev,
-            decision_test: 'DEFAVORABLE',
-            final_decision: 'NON_RECRUTE'
-          }))
-        }
-      }
-    }
-
-    // Validation Dictée
-    if (config.requiredTests.dictation) {
-      const dictationScore = parseFloat(formData.dictation) || 0
-      if (dictationScore < (config.criteria.minDictation || 0)) {
-        errors.push(`Dictée: Score minimum ${config.criteria.minDictation}/20`)
-        errors.push(`- Score: ${dictationScore}/20 (minimum: ${config.criteria.minDictation}/20)`)
-        
-        if (formData.decision_test === 'FAVORABLE') {
-          setFormData(prev => ({
-            ...prev,
-            decision_test: 'DEFAVORABLE',
-            final_decision: 'NON_RECRUTE'
-          }))
-        }
-      }
-    }
-
-    // Validation Analyse
-    if (config.requiredTests.analysisExercise) {
-      const analysisScore = parseFloat(formData.analysis_exercise) || 0
-      if (analysisScore < (config.criteria.minAnalysis || 0)) {
-        errors.push(`Analyse: Score minimum ${config.criteria.minAnalysis}/10`)
-        errors.push(`- Score: ${analysisScore}/10 (minimum: ${config.criteria.minAnalysis}/10)`)
-        
-        if (formData.decision_test === 'FAVORABLE') {
-          setFormData(prev => ({
-            ...prev,
-            decision_test: 'DEFAVORABLE',
-            final_decision: 'NON_RECRUTE'
-          }))
-        }
-      }
-    }
-
-    setValidationErrors(errors)
-    setAutoCalculated(true)
-    
-    return errors.length === 0
-  }
-
-  // Calcul automatique des décisions
-  useEffect(() => {
-    const hasPhase1Scores = formData.presentation_visuelle || formData.verbal_communication || formData.voice_quality
-    const hasPhase2Scores = formData.typing_speed || formData.excel_test || formData.dictation || 
-                           formData.sales_simulation || formData.analysis_exercise ||
-                           formData.simulation_sens_negociation || formData.psycho_raisonnement_logique
-
-    if (hasPhase1Scores || hasPhase2Scores) {
-      validateAllConditions()
-    }
-  }, [
-    formData.presentation_visuelle,
-    formData.verbal_communication, 
-    formData.voice_quality,
-    formData.typing_speed,
-    formData.typing_accuracy,
-    formData.excel_test,
-    formData.dictation,
-    formData.sales_simulation,
-    formData.analysis_exercise,
-    formData.simulation_sens_negociation,
-    formData.simulation_capacite_persuasion,
-    formData.simulation_sens_combativite,
-    formData.psycho_raisonnement_logique,
-    formData.psycho_attention_concentration,
-    candidateAvailability
-  ])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
-    setLoading(true)
-
-    // Validation finale avant envoi
-    const isValid = validateAllConditions()
-    
-    if (!isValid && validationErrors.length > 0) {
-      setError("Des erreurs de validation empêchent l'enregistrement. Veuillez corriger les scores.")
-      setLoading(false)
+    if (candidate.availability === 'NON') {
+      console.log('📊 Candidat non disponible - Pas de chargement des scores jurys')
       return
     }
 
-    try {
-      const response = await fetch(`/api/scores/${candidate.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
+    const fetchJuryScores = async () => {
+      try {
+        const response = await fetch(`/api/candidates/${candidate.id}/jury-scores`)
+        if (response.ok) {
+          const scores = await response.json()
+          setJuryScores(scores)
+          console.log('📊 Scores jurys chargés:', scores)
+        }
+      } catch (error) {
+        console.error('Erreur chargement scores jurys:', error)
+      }
+    }
 
-      if (!response.ok) {
-        throw new Error("Erreur lors de l'enregistrement")
+    const fetchUnlockStatus = async () => {
+      if (needsSimulation) {
+        setLoadingUnlock(true)
+        try {
+          const response = await fetch(`/api/candidates/${candidate.id}/simulation-unlock`)
+          if (response.ok) {
+            const status = await response.json()
+            setUnlockStatus(status)
+          }
+        } catch (error) {
+          console.error('Erreur chargement statut déblocage:', error)
+        } finally {
+          setLoadingUnlock(false)
+        }
+      }
+    }
+
+    fetchJuryScores()
+    fetchUnlockStatus()
+  }, [candidate.id, candidate.metier, candidate.availability, needsSimulation])
+
+  // ⭐ CALCUL DES MOYENNES PHASE 1
+  const calculatePhase1Averages = () => {
+    if (candidate.availability === 'NON') {
+      return {
+        presentationVisuelle: isAgences ? 0 : null,
+        verbalCommunication: 0,
+        voiceQuality: 0,
+        count: 0,
+        allFavorable: false
+      }
+    }
+
+    const phase1Scores = juryScores.filter(s => s.phase === 1)
+    
+    if (phase1Scores.length === 0) {
+      return {
+        presentationVisuelle: null,
+        verbalCommunication: null,
+        voiceQuality: null,
+        count: 0,
+        allFavorable: false
+      }
+    }
+
+    const avgPresentation = isAgences
+      ? phase1Scores.reduce((sum, s) => sum + (s.presentationVisuelle || 0), 0) / phase1Scores.length
+      : null
+
+    const avgVerbal = phase1Scores.reduce((sum, s) => sum + (s.verbalCommunication || 0), 0) / phase1Scores.length
+    const avgVoice = phase1Scores.reduce((sum, s) => sum + (s.voiceQuality || 0), 0) / phase1Scores.length
+
+    const allFavorable = phase1Scores.every(s => s.decision === 'FAVORABLE')
+
+    return {
+      presentationVisuelle: avgPresentation,
+      verbalCommunication: avgVerbal,
+      voiceQuality: avgVoice,
+      count: phase1Scores.length,
+      allFavorable
+    }
+  }
+
+  // ⭐ CALCUL DES MOYENNES PHASE 2
+  const calculatePhase2Averages = () => {
+    if (candidate.availability === 'NON') {
+      return {
+        sensNegociation: 0,
+        capacitePersuasion: 0,
+        sensCombativite: 0,
+        count: 0,
+        allFavorable: false
+      }
+    }
+
+    const phase2Scores = juryScores.filter(s => s.phase === 2)
+    
+    if (phase2Scores.length === 0) {
+      return {
+        sensNegociation: null,
+        capacitePersuasion: null,
+        sensCombativite: null,
+        count: 0,
+        allFavorable: false
+      }
+    }
+
+    const avgNegociation = phase2Scores.reduce((sum, s) => sum + (s.simulationSensNegociation || 0), 0) / phase2Scores.length
+    const avgPersuasion = phase2Scores.reduce((sum, s) => sum + (s.simulationCapacitePersuasion || 0), 0) / phase2Scores.length
+    const avgCombativite = phase2Scores.reduce((sum, s) => sum + (s.simulationSensCombativite || 0), 0) / phase2Scores.length
+
+    const allFavorable = phase2Scores.every(s => s.decision === 'FAVORABLE')
+
+    return {
+      sensNegociation: avgNegociation,
+      capacitePersuasion: avgPersuasion,
+      sensCombativite: avgCombativite,
+      count: phase2Scores.length,
+      allFavorable
+    }
+  }
+
+  const phase1Avg = calculatePhase1Averages()
+  const phase2Avg = calculatePhase2Averages()
+
+  // ⭐ VALIDATION PHASE 1
+  const validatePhase1 = () => {
+    if (candidate.availability === 'NON') return false
+
+    if (phase1Avg.count === 0) return null
+
+    if (isAgences) {
+      return (phase1Avg.presentationVisuelle || 0) >= 3 && 
+             (phase1Avg.verbalCommunication || 0) >= 3 && 
+             (phase1Avg.voiceQuality || 0) >= 3
+    }
+
+    return (phase1Avg.verbalCommunication || 0) >= 3 && 
+           (phase1Avg.voiceQuality || 0) >= 3
+  }
+
+  // ⭐ VALIDATION PHASE 2
+  const validatePhase2 = () => {
+    if (candidate.availability === 'NON') return false
+    if (!needsSimulation || phase2Avg.count === 0) return null
+
+    return (phase2Avg.sensNegociation || 0) >= 3 && 
+           (phase2Avg.capacitePersuasion || 0) >= 3 && 
+           (phase2Avg.sensCombativite || 0) >= 3
+  }
+
+  // ⭐ VALIDATION TESTS TECHNIQUES
+  const validateTechnicalTests = () => {
+    const failures: string[] = []
+
+    if (candidate.availability === 'NON') {
+      return ['Candidat non disponible - tous les tests échoués']
+    }
+
+    // Typing
+    if (config.criteria.typing?.required) {
+      const speed = parseInt(technicalScores.typing_speed)
+      const accuracy = parseFloat(technicalScores.typing_accuracy)
+      
+      if (isNaN(speed) || speed < config.criteria.typing.minSpeed) {
+        failures.push(`Vitesse saisie: ${speed || 0} < ${config.criteria.typing.minSpeed}`)
+      }
+      if (isNaN(accuracy) || accuracy < config.criteria.typing.minAccuracy) {
+        failures.push(`Précision: ${accuracy || 0}% < ${config.criteria.typing.minAccuracy}%`)
+      }
+    }
+
+    // Excel
+    if (config.criteria.excel?.required) {
+      const excel = parseFloat(technicalScores.excel_test)
+      if (isNaN(excel) || excel < config.criteria.excel.minScore) {
+        failures.push(`Excel: ${excel || 0} < ${config.criteria.excel.minScore}`)
+      }
+    }
+
+    // Dictation
+    if (config.criteria.dictation?.required) {
+      const dictation = parseFloat(technicalScores.dictation)
+      if (isNaN(dictation) || dictation < config.criteria.dictation.minScore) {
+        failures.push(`Dictée: ${dictation || 0} < ${config.criteria.dictation.minScore}`)
+      }
+    }
+
+    // Psycho
+    if (config.criteria.psycho?.required) {
+      const raisonnement = parseFloat(technicalScores.psycho_raisonnement)
+      const attention = parseFloat(technicalScores.psycho_attention)
+      
+      if (isNaN(raisonnement) || raisonnement < config.criteria.psycho.minRaisonnementLogique) {
+        failures.push('Raisonnement logique insuffisant')
+      }
+      if (isNaN(attention) || attention < config.criteria.psycho.minAttentionConcentration) {
+        failures.push('Attention/concentration insuffisante')
+      }
+    }
+
+    // Analysis
+    if (config.criteria.analysis?.required) {
+      const analysis = parseFloat(technicalScores.analysis_exercise)
+      if (isNaN(analysis) || analysis < config.criteria.analysis.minScore) {
+        failures.push(`Analyse: ${analysis || 0} < ${config.criteria.analysis.minScore}`)
+      }
+    }
+
+    return failures
+  }
+
+  // ⭐ DÉCISION FINALE AUTOMATIQUE
+  const calculateFinalDecision = () => {
+    if (candidate.availability === 'NON') {
+      return { 
+        decision: 'NON_RECRUTE' as const, 
+        reason: 'Candidat non disponible - Évaluation automatique avec toutes les notes à 0' 
+      }
+    }
+
+    if (technicalScores.statut === 'ABSENT') {
+      return { decision: 'ABSENT' as const, reason: 'Candidat absent' }
+    }
+
+    const phase1Valid = validatePhase1()
+    if (phase1Valid === false) {
+      return { decision: 'NON_RECRUTE' as const, reason: 'Face-à-face non validé' }
+    }
+
+    if (phase1Valid === null) {
+      return { decision: null, reason: 'En attente des évaluations jurys (Phase 1)' }
+    }
+
+    if (needsSimulation) {
+      const phase2Valid = validatePhase2()
+      if (phase2Valid === false) {
+        return { decision: 'NON_RECRUTE' as const, reason: 'Simulation non validée' }
+      }
+      if (phase2Valid === null) {
+        return { decision: null, reason: 'En attente des évaluations jurys (Phase 2)' }
+      }
+    }
+
+    const technicalFailures = validateTechnicalTests()
+    if (technicalFailures.length > 0) {
+      return { decision: 'NON_RECRUTE' as const, reason: technicalFailures.join(', ') }
+    }
+
+    return { decision: 'RECRUTE' as const, reason: 'Tous les critères validés' }
+  }
+
+  const finalDecision = calculateFinalDecision()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      // ⭐ Préparer les données de base (TOUJOURS enregistrées)
+      const scoreData: any = {
+        candidateId: candidate.id,
+        
+        // ⭐ Phase 1 - TOUJOURS enregistrer
+        voice_quality: candidate.availability === 'NON' ? 0 : (phase1Avg.voiceQuality || 0),
+        verbal_communication: candidate.availability === 'NON' ? 0 : (phase1Avg.verbalCommunication || 0),
+        presentation_visuelle: candidate.availability === 'NON' && isAgences ? 0 : (phase1Avg.presentationVisuelle || null),
+        phase1_ff_decision: candidate.availability === 'NON' ? 'DEFAVORABLE' : (validatePhase1() ? 'FAVORABLE' : 'DEFAVORABLE'),
+        phase1_decision: candidate.availability === 'NON' ? 'ELIMINE' : (validatePhase1() ? 'ADMIS' : 'ELIMINE'),
+        
+        // ⭐ Phase 2 - TOUJOURS enregistrer si applicable (même si échoué)
+        ...(needsSimulation && {
+          simulation_sens_negociation: candidate.availability === 'NON' ? 0 : (phase2Avg.sensNegociation || 0),
+          simulation_capacite_persuasion: candidate.availability === 'NON' ? 0 : (phase2Avg.capacitePersuasion || 0),
+          simulation_sens_combativite: candidate.availability === 'NON' ? 0 : (phase2Avg.sensCombativite || 0),
+          decision_test: candidate.availability === 'NON' ? 'DEFAVORABLE' : (validatePhase2() ? 'FAVORABLE' : 'DEFAVORABLE'),
+        }),
+        
+        // ⭐ Statut et commentaires
+        statut: candidate.availability === 'NON' ? 'ABSENT' : technicalScores.statut,
+        statut_commentaire: candidate.availability === 'NON' ? 'Candidat non disponible - évaluation automatique' : technicalScores.statut_commentaire || null,
+        final_decision: finalDecision.decision,
+        comments: technicalScores.comments || null,
       }
 
-      router.refresh()
-      alert("Notes enregistrées avec succès")
-    } catch (err) {
-      setError("Une erreur est survenue")
+      // ⭐ Déterminer si le candidat peut passer les tests techniques
+      const canTakeTechnicalTests = technicalScores.statut === 'PRESENT' && 
+                                   candidate.availability === 'OUI' &&
+                                   validatePhase1() === true &&
+                                   (!needsSimulation || validatePhase2() === true)
+
+      if (canTakeTechnicalTests) {
+        // Ajouter les tests techniques
+        if (config.criteria.typing?.required) {
+          scoreData.typing_speed = parseInt(technicalScores.typing_speed) || null
+          scoreData.typing_accuracy = parseFloat(technicalScores.typing_accuracy) || null
+        }
+        
+        if (config.criteria.excel?.required) {
+          scoreData.excel_test = parseFloat(technicalScores.excel_test) || null
+        }
+        
+        if (config.criteria.dictation?.required) {
+          scoreData.dictation = parseFloat(technicalScores.dictation) || null
+        }
+        
+        if (config.criteria.psycho?.required) {
+          scoreData.psycho_raisonnement_logique = parseFloat(technicalScores.psycho_raisonnement) || null
+          scoreData.psycho_attention_concentration = parseFloat(technicalScores.psycho_attention) || null
+        }
+        
+        if (config.criteria.analysis?.required) {
+          scoreData.analysis_exercise = parseFloat(technicalScores.analysis_exercise) || null
+        }
+      } else {
+        // Si le candidat ne peut pas passer les tests techniques, mettre les notes à null
+        scoreData.typing_speed = null
+        scoreData.typing_accuracy = null
+        scoreData.excel_test = null
+        scoreData.dictation = null
+        scoreData.psycho_raisonnement_logique = null
+        scoreData.psycho_attention_concentration = null
+        scoreData.analysis_exercise = null
+      }
+
+      console.log('📤 Envoi données WFM:', scoreData)
+
+      const response = await fetch(`/api/scores/${candidate.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(scoreData),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        
+        // Message personnalisé selon la situation
+        let message = 'Scores enregistrés avec succès!'
+        if (candidate.availability === 'NON') {
+          message = 'Candidat non disponible - Évaluation automatique enregistrée'
+        } else if (finalDecision.decision === 'NON_RECRUTE') {
+          message = 'Candidat non recruté - Évaluation enregistrée'
+        } else if (!canTakeTechnicalTests) {
+          message = 'Phase(s) non validée(s) - Candidat éliminé avant les tests techniques'
+        }
+        
+        alert(message)
+        router.refresh()
+        router.push('/wfm/scores')
+      } else {
+        const error = await response.json()
+        alert(`Erreur: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Erreur:', error)
+      alert('Erreur lors de la sauvegarde')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-    
-    setTimeout(() => {
-      validateAllConditions()
-    }, 100)
-  }
-
-  const useJuryAverage = (field: string) => {
-    const value = juryAverages[field as keyof typeof juryAverages]
-    if (value > 0) {
-      handleChange(field, value.toFixed(2))
-    }
-  }
-
-  // Calculate average Face to Face scores
-  const phase1FF = faceToFaceScores.filter((s) => s.phase === 1)
-  const avgPhase1 = phase1FF.length > 0 ? (phase1FF.reduce((sum, s) => sum + Number(s.score), 0) / phase1FF.length).toFixed(2) : "N/A"
-
-  // Déterminer quels tests afficher selon le métier
-  const showTypingTest = shouldShowTest(candidate.metier as Metier, 'typing')
-  const showExcelTest = shouldShowTest(candidate.metier as Metier, 'excel')
-  const showDictationTest = shouldShowTest(candidate.metier as Metier, 'dictation')
-  const showSalesSimulationTest = shouldShowTest(candidate.metier as Metier, 'salesSimulation')
-  const showPsychotechnicalTest = shouldShowTest(candidate.metier as Metier, 'psychotechnical')
-  const showAnalysisExerciseTest = shouldShowTest(candidate.metier as Metier, 'analysisExercise')
-
-  // Obtenir la configuration du métier pour afficher les seuils
-  const config = getMetierConfig(candidate.metier as Metier)
-
   return (
-    <div className="space-y-6">
-      {/* En-tête */}
-      <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 border-2 border-orange-200 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-lg">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
+    <form onSubmit={handleSubmit} className="space-y-8">
+      {/* ⚠️ ALERTE DISPONIBILITÉ */}
+      {candidate.availability === 'NON' && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6">
+          <div className="flex items-center gap-3">
+            <XCircle className="w-6 h-6 text-red-600" />
+            <div>
+              <h3 className="font-bold text-red-900">Candidat Non Disponible</h3>
+              <p className="text-red-700">
+                Ce candidat est automatiquement NON RECRUTÉ.
+                Toutes les notes (face-à-face, simulation) seront à 0.
+              </p>
+              <p className="text-red-700 mt-2 font-medium">
+                ⚠️ Décision finale automatique : NON_RECRUTE
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
-              Évaluation du Candidat
-            </h1>
-            <p className="text-orange-700">
-              {candidate.nom} {candidate.prenom} - {candidate.metier}
-            </p>
-            <p className="text-sm text-orange-600 mt-1">
-              Disponibilité: <span className={`font-semibold ${candidateAvailability === 'OUI' ? 'text-green-600' : 'text-red-600'}`}>
-                {candidateAvailability === 'OUI' ? '✅ OUI' : '❌ NON'}
-              </span>
-            </p>
-            {candidateAvailability === 'NON' && (
-              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700 font-medium">
-                  ⚠️ Le candidat sera automatiquement marqué comme non recruté
+        </div>
+      )}
+
+      {/* 📊 PHASE 1 : FACE-À-FACE */}
+      <div className="bg-white border-2 border-blue-200 rounded-xl p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+            <Users className="w-6 h-6 text-blue-600" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">Phase 1 - Face à Face</h2>
+          {candidate.availability === 'NON' && (
+            <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-bold">
+              Notes: 0 (automatique)
+            </span>
+          )}
+        </div>
+
+        {candidate.availability === 'NON' ? (
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold text-gray-700 mb-3">
+                Candidat non disponible - Évaluation automatique
+              </h3>
+              <div className={`grid ${isAgences ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
+                {isAgences && (
+                  <div className="bg-white rounded-lg p-3 border border-gray-300">
+                    <p className="text-sm text-gray-600">Présentation Visuelle</p>
+                    <p className="text-2xl font-bold text-red-600">0/5</p>
+                    <p className="text-xs text-gray-500">Seuil non atteint</p>
+                  </div>
+                )}
+                <div className="bg-white rounded-lg p-3 border border-gray-300">
+                  <p className="text-sm text-gray-600">Communication Verbale</p>
+                  <p className="text-2xl font-bold text-red-600">0/5</p>
+                    <p className="text-xs text-gray-500">Seuil non atteint</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-gray-300">
+                  <p className="text-sm text-gray-600">Qualité de la Voix</p>
+                  <p className="text-2xl font-bold text-red-600">0/5</p>
+                  <p className="text-xs text-gray-500">Seuil non atteint</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : phase1Avg.count === 0 ? (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+              <p className="text-amber-800 font-medium">
+                Aucune évaluation jury pour le moment
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Détail des jurys */}
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <h3 className="font-semibold text-gray-700 mb-3">
+                Évaluations individuelles ({phase1Avg.count} jury{phase1Avg.count > 1 ? 's' : ''})
+              </h3>
+              {juryScores.filter(s => s.phase === 1).map((score) => (
+                <div key={score.id} className="bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-gray-900">
+                      {score.juryMember.fullName} ({score.juryMember.roleType})
+                    </span>
+                    <span className={`px-3 py-1 rounded-lg text-sm font-semibold ${
+                      score.decision === 'FAVORABLE' 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      {score.decision}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    {isAgences && (
+                      <div>
+                        <span className="text-gray-600">Présentation Visuelle:</span>
+                        <span className="font-semibold ml-2">{score.presentationVisuelle}/5</span>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-gray-600">Communication Verbale:</span>
+                      <span className="font-semibold ml-2">{score.verbalCommunication}/5</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Qualité Vocale:</span>
+                      <span className="font-semibold ml-2">{score.voiceQuality}/5</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Moyennes calculées */}
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+              <h3 className="font-bold text-blue-900 mb-3">Moyennes Calculées Automatiquement</h3>
+              <div className={`grid ${isAgences ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
+                {isAgences && (
+                  <div className="bg-white rounded-lg p-3 border border-blue-200">
+                    <p className="text-sm text-gray-600">Présentation Visuelle</p>
+                    <p className={`text-2xl font-bold ${
+                      (phase1Avg.presentationVisuelle || 0) >= 3 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {phase1Avg.presentationVisuelle?.toFixed(2)}/5
+                    </p>
+                    <p className="text-xs text-gray-500">Seuil: ≥ 3/5</p>
+                  </div>
+                )}
+                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                  <p className="text-sm text-gray-600">Communication Verbale</p>
+                  <p className={`text-2xl font-bold ${
+                    (phase1Avg.verbalCommunication || 0) >= 3 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {phase1Avg.verbalCommunication?.toFixed(2)}/5
+                  </p>
+                  <p className="text-xs text-gray-500">Seuil: ≥ 3/5</p>
+                </div>
+                <div className="bg-white rounded-lg p-3 border border-blue-200">
+                  <p className="text-sm text-gray-600">Qualité de la Voix</p>
+                  <p className={`text-2xl font-bold ${
+                    (phase1Avg.voiceQuality || 0) >= 3 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {phase1Avg.voiceQuality?.toFixed(2)}/5
+                  </p>
+                  <p className="text-xs text-gray-500">Seuil: ≥ 3/5</p>
+                </div>
+              </div>
+
+              <div className={`mt-4 p-3 rounded-lg ${
+                validatePhase1() ? 'bg-green-100' : 'bg-red-100'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-gray-900">Décision Phase 1:</span>
+                  <span className={`text-lg font-bold flex items-center gap-2 ${
+                    validatePhase1() ? 'text-green-700' : 'text-red-700'
+                  }`}>
+                    {validatePhase1() ? (
+                      <>
+                        <CheckCircle className="w-5 h-5" />
+                        ADMIS
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-5 h-5" />
+                        ÉLIMINÉ
+                      </>
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 🔓 INDICATEUR DÉBLOCAGE SIMULATION */}
+      {needsSimulation && candidate.availability === 'OUI' && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              {loadingUnlock ? (
+                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : unlockStatus?.unlocked ? (
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                  <Unlock className="w-6 h-6 text-green-600" />
+                </div>
+              ) : (
+                <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <Lock className="w-6 h-6 text-orange-600" />
+                </div>
+              )}
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {loadingUnlock ? 'Vérification...' : 
+                   unlockStatus?.unlocked ? '🔓 Simulation Débloquée' : '🔒 Simulation Verrouillée'}
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Conditions pour accéder à la phase 2
                 </p>
               </div>
+            </div>
+            {!loadingUnlock && unlockStatus && (
+              <div className={`px-4 py-2 rounded-lg font-bold ${
+                unlockStatus.unlocked 
+                  ? 'bg-green-100 text-green-700 border-2 border-green-300' 
+                  : 'bg-orange-100 text-orange-700 border-2 border-orange-300'
+              }`}>
+                {unlockStatus.unlocked ? 'DÉBLOQUÉE' : 'VERROUILLÉE'}
+              </div>
+            )}
+          </div>
+
+          {!loadingUnlock && unlockStatus && (
+            <div className="space-y-4">
+              {/* Barre de progression */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Progression des jurys</span>
+                  <span className="font-semibold">
+                    {unlockStatus.phase1Decisions.length} jury{unlockStatus.phase1Decisions.length > 1 ? 's' : ''} noté{unlockStatus.phase1Decisions.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full ${
+                      unlockStatus.conditions.allJurysEvaluatedPhase1 ? 'bg-green-500' : 'bg-orange-500'
+                    }`}
+                    style={{ width: unlockStatus.conditions.allJurysEvaluatedPhase1 ? '100%' : '50%' }}
+                  />
+                </div>
+              </div>
+
+              {/* Conditions */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`p-3 rounded-lg border ${
+                  unlockStatus.conditions.allJurysEvaluatedPhase1 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-orange-50 border-orange-200'
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    {unlockStatus.conditions.allJurysEvaluatedPhase1 ? 
+                      <CheckCircle className="w-4 h-4 text-green-600" /> : 
+                      <XCircle className="w-4 h-4 text-orange-600" />
+                    }
+                    <span className="font-semibold">Tous les jurys ont noté</span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {unlockStatus.conditions.allJurysEvaluatedPhase1 ? 
+                      '✅ Validé' : 
+                      unlockStatus.missingJurys.length > 0 ? 
+                      `${unlockStatus.missingJurys.length} jury(s) manquant(s)` : 
+                      'En attente de notations'
+                    }
+                  </p>
+                </div>
+
+                <div className={`p-3 rounded-lg border ${
+                  unlockStatus.conditions.allAveragesAboveThreshold 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-orange-50 border-orange-200'
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    {unlockStatus.conditions.allAveragesAboveThreshold ? 
+                      <CheckCircle className="w-4 h-4 text-green-600" /> : 
+                      <XCircle className="w-4 h-4 text-orange-600" />
+                    }
+                    <span className="font-semibold">Moyennes ≥ 3/5</span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {unlockStatus.conditions.allAveragesAboveThreshold ? 
+                      '✅ Validé' : 
+                      'Moyennes insuffisantes'
+                    }
+                  </p>
+                </div>
+
+                <div className={`p-3 rounded-lg border ${
+                  unlockStatus.conditions.allDecisionsFavorable 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-orange-50 border-orange-200'
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    {unlockStatus.conditions.allDecisionsFavorable ? 
+                      <CheckCircle className="w-4 h-4 text-green-600" /> : 
+                      <XCircle className="w-4 h-4 text-orange-600" />
+                    }
+                    <span className="font-semibold">Décisions favorables</span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {unlockStatus.conditions.allDecisionsFavorable ? 
+                      '✅ Validé' : 
+                      'Décisions défavorables détectées'
+                    }
+                  </p>
+                </div>
+
+                <div className={`p-3 rounded-lg border ${
+                  unlockStatus.conditions.isCorrectMetier 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-orange-50 border-orange-200'
+                }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="font-semibold">Métier compatible</span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {candidate.metier === 'AGENCES' ? 'Agences' : 'Télévente'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Détails des moyennes */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-700 mb-3">Moyennes actuelles Phase 1</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {candidate.metier === 'AGENCES' && (
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600">Présentation Visuelle</p>
+                      <p className={`text-2xl font-bold ${
+                        (unlockStatus.phase1Averages.presentationVisuelle || 0) >= 3 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {(unlockStatus.phase1Averages.presentationVisuelle || 0).toFixed(2)}/5
+                      </p>
+                    </div>
+                  )}
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">Communication Verbale</p>
+                    <p className={`text-2xl font-bold ${
+                      unlockStatus.phase1Averages.verbalCommunication >= 3 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {unlockStatus.phase1Averages.verbalCommunication.toFixed(2)}/5
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">Qualité Vocale</p>
+                    <p className={`text-2xl font-bold ${
+                      unlockStatus.phase1Averages.voiceQuality >= 3 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {unlockStatus.phase1Averages.voiceQuality.toFixed(2)}/5
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Conditions manquantes */}
+              {!unlockStatus.unlocked && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <AlertCircle className="w-5 h-5 text-red-600" />
+                    <h3 className="font-bold text-red-900">Conditions manquantes</h3>
+                  </div>
+                  <ul className="space-y-1">
+                    {unlockStatus.missingConditions.map((condition: string, index: number) => (
+                      <li key={index} className="flex items-start gap-2 text-red-700">
+                        <span className="mt-1">•</span>
+                        <span>{condition}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 🎭 PHASE 2 : SIMULATION (toujours afficher si applicable, même si échouée) */}
+      {needsSimulation && (candidate.availability === 'NON' || candidate.availability === 'OUI') && (
+        <div className="bg-white border-2 border-green-200 rounded-xl p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <span className="text-2xl">🎭</span>
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">Phase 2 - Simulation</h2>
+            {candidate.availability === 'NON' && (
+              <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-bold">
+                Notes: 0 (automatique)
+              </span>
+            )}
+          </div>
+
+          {candidate.availability === 'NON' ? (
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-700 mb-3">
+                  Candidat non disponible - Simulation automatique
+                </h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white rounded-lg p-3 border border-gray-300">
+                    <p className="text-sm text-gray-600">Sens Négociation</p>
+                    <p className="text-2xl font-bold text-red-600">0/5</p>
+                    <p className="text-xs text-gray-500">Seuil non atteint</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-gray-300">
+                    <p className="text-sm text-gray-600">Capacité Persuasion</p>
+                    <p className="text-2xl font-bold text-red-600">0/5</p>
+                    <p className="text-xs text-gray-500">Seuil non atteint</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-gray-300">
+                    <p className="text-sm text-gray-600">Sens Combativité</p>
+                    <p className="text-2xl font-bold text-red-600">0/5</p>
+                    <p className="text-xs text-gray-500">Seuil non atteint</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : phase2Avg.count === 0 ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+                <p className="text-amber-800 font-medium">
+                  En attente des évaluations de simulation par les jurys
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Détail des jurys Phase 2 */}
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                <h3 className="font-semibold text-gray-700 mb-3">
+                  Évaluations individuelles ({phase2Avg.count} jury{phase2Avg.count > 1 ? 's' : ''})
+                </h3>
+                {juryScores.filter(s => s.phase === 2).map((score) => (
+                  <div key={score.id} className="bg-white rounded-lg p-3 border border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-gray-900">
+                        {score.juryMember.fullName} ({score.juryMember.roleType})
+                      </span>
+                      <span className={`px-3 py-1 rounded-lg text-sm font-semibold ${
+                        score.decision === 'FAVORABLE' 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {score.decision}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div>
+                        <span className="text-gray-600">Sens de Négociation:</span>
+                        <span className="font-semibold ml-2">{score.simulationSensNegociation}/5</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Capacité de Persuasion:</span>
+                        <span className="font-semibold ml-2">{score.simulationCapacitePersuasion}/5</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Sens de Combativité:</span>
+                        <span className="font-semibold ml-2">{score.simulationSensCombativite}/5</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Moyennes Phase 2 */}
+              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                <h3 className="font-bold text-green-900 mb-3">Moyennes Calculées Automatiquement</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white rounded-lg p-3 border border-green-200">
+                    <p className="text-sm text-gray-600">Sens Négociation</p>
+                    <p className={`text-2xl font-bold ${
+                      (phase2Avg.sensNegociation || 0) >= 3 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {phase2Avg.sensNegociation?.toFixed(2)}/5
+                    </p>
+                    <p className="text-xs text-gray-500">Seuil: ≥ 3/5</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-green-200">
+                    <p className="text-sm text-gray-600">Capacité Persuasion</p>
+                    <p className={`text-2xl font-bold ${
+                      (phase2Avg.capacitePersuasion || 0) >= 3 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {phase2Avg.capacitePersuasion?.toFixed(2)}/5
+                    </p>
+                    <p className="text-xs text-gray-500">Seuil: ≥ 3/5</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 border border-green-200">
+                    <p className="text-sm text-gray-600">Sens Combativité</p>
+                    <p className={`text-2xl font-bold ${
+                      (phase2Avg.sensCombativite || 0) >= 3 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {phase2Avg.sensCombativite?.toFixed(2)}/5
+                    </p>
+                    <p className="text-xs text-gray-500">Seuil: ≥ 3/5</p>
+                  </div>
+                </div>
+
+                <div className={`mt-4 p-3 rounded-lg ${
+                  validatePhase2() ? 'bg-green-100' : 'bg-red-100'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-gray-900">Décision Phase 2:</span>
+                    <span className={`text-lg font-bold flex items-center gap-2 ${
+                      validatePhase2() ? 'text-green-700' : 'text-red-700'
+                    }`}>
+                      {validatePhase2() ? (
+                        <>
+                          <CheckCircle className="w-5 h-5" />
+                          VALIDÉE
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-5 h-5" />
+                          NON VALIDÉE
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 📝 STATUT PRÉSENCE/ABSENCE */}
+      <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
+        <h3 className="text-lg font-bold mb-4">Statut du Candidat</h3>
+        
+        {candidate.availability === 'NON' && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-amber-700">
+              ⚠️ Candidat non disponible - Statut automatiquement ABSENT
+            </p>
+          </div>
+        )}
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Statut *
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="PRESENT"
+                  checked={technicalScores.statut === 'PRESENT' && candidate.availability !== 'NON'}
+                  onChange={(e) => {
+                    if (candidate.availability === 'NON') return
+                    setTechnicalScores(prev => ({ 
+                      ...prev, 
+                      statut: e.target.value 
+                    }))
+                  }}
+                  className="w-4 h-4"
+                  disabled={candidate.availability === 'NON'}
+                />
+                <span className={`font-medium ${candidate.availability === 'NON' ? 'text-gray-400' : ''}`}>
+                  Présent
+                </span>
+              </label>
+              
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  value="ABSENT"
+                  checked={technicalScores.statut === 'ABSENT' || candidate.availability === 'NON'}
+                  onChange={(e) => {
+                    if (candidate.availability === 'NON') return
+                    setTechnicalScores(prev => ({ 
+                      ...prev, 
+                      statut: e.target.value 
+                    }))
+                  }}
+                  className="w-4 h-4"
+                  disabled={candidate.availability === 'NON'}
+                />
+                <span className={`font-medium ${candidate.availability === 'NON' ? 'text-gray-400' : ''}`}>
+                  Absent
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {(technicalScores.statut === 'ABSENT' || candidate.availability === 'NON') && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Commentaire (obligatoire si absent) *
+              </label>
+              <textarea
+                value={candidate.availability === 'NON' 
+                  ? 'Candidat non disponible - évaluation automatique' 
+                  : technicalScores.statut_commentaire}
+                onChange={(e) => {
+                  if (candidate.availability === 'NON') return
+                  setTechnicalScores(prev => ({ 
+                    ...prev, 
+                    statut_commentaire: e.target.value 
+                  }))
+                }}
+                rows={3}
+                required
+                className={`w-full p-3 border border-gray-300 rounded-lg ${
+                  candidate.availability === 'NON' ? 'bg-gray-100 cursor-not-allowed' : ''
+                }`}
+                placeholder={
+                  candidate.availability === 'NON' 
+                    ? 'Candidat non disponible - évaluation automatique' 
+                    : 'Raison de l\'absence...'
+                }
+                readOnly={candidate.availability === 'NON'}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 📝 TESTS TECHNIQUES (affichage conditionnel) */}
+      {technicalScores.statut === 'PRESENT' && 
+       candidate.availability === 'OUI' &&
+       validatePhase1() === true &&
+       (!needsSimulation || validatePhase2() === true) ? (
+        <div className="bg-white border-2 border-purple-200 rounded-xl p-6">
+          <h2 className="text-xl font-bold mb-6">Tests Techniques (WFM)</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Typing */}
+            {config.criteria.typing?.required && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Vitesse de Saisie (MPM)
+                  </label>
+                  <input
+                    type="number"
+                    value={technicalScores.typing_speed}
+                    onChange={(e) => {
+                      setTechnicalScores(prev => ({ 
+                        ...prev, 
+                        typing_speed: e.target.value 
+                      }))
+                    }}
+                    className="w-full p-3 border border-gray-300 rounded-lg"
+                    placeholder={`Min: ${config.criteria.typing.minSpeed}`}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Seuil: ≥ {config.criteria.typing.minSpeed} MPM
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Précision (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={technicalScores.typing_accuracy}
+                    onChange={(e) => {
+                      setTechnicalScores(prev => ({ 
+                        ...prev, 
+                        typing_accuracy: e.target.value 
+                      }))
+                    }}
+                    className="w-full p-3 border border-gray-300 rounded-lg"
+                    placeholder={`Min: ${config.criteria.typing.minAccuracy}%`}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Seuil: ≥ {config.criteria.typing.minAccuracy}%
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Excel */}
+            {config.criteria.excel?.required && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Test Excel (/5)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="5"
+                  value={technicalScores.excel_test}
+                  onChange={(e) => {
+                    setTechnicalScores(prev => ({ 
+                      ...prev, 
+                      excel_test: e.target.value 
+                    }))
+                  }}
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  placeholder={`Min: ${config.criteria.excel.minScore}/5`}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Seuil: ≥ {config.criteria.excel.minScore}/5
+                </p>
+              </div>
+            )}
+
+            {/* Dictation */}
+            {config.criteria.dictation?.required && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Dictée (/20)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="20"
+                  value={technicalScores.dictation}
+                  onChange={(e) => {
+                    setTechnicalScores(prev => ({ 
+                      ...prev, 
+                      dictation: e.target.value 
+                    }))
+                  }}
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  placeholder={`Min: ${config.criteria.dictation.minScore}/20`}
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Seuil: ≥ {config.criteria.dictation.minScore}/20
+                </p>
+              </div>
+            )}
+
+            {/* Psycho */}
+            {config.criteria.psycho?.required && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Raisonnement Logique (/5)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="5"
+                    value={technicalScores.psycho_raisonnement}
+                    onChange={(e) => {
+                      setTechnicalScores(prev => ({ 
+                        ...prev, 
+                        psycho_raisonnement: e.target.value 
+                      }))
+                    }}
+                    className="w-full p-3 border border-gray-300 rounded-lg"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Seuil: ≥ {config.criteria.psycho.minRaisonnementLogique}/5
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Attention/Concentration (/5)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="5"
+                    value={technicalScores.psycho_attention}
+                    onChange={(e) => {
+                      setTechnicalScores(prev => ({ 
+                        ...prev, 
+                        psycho_attention: e.target.value 
+                      }))
+                    }}
+                    className="w-full p-3 border border-gray-300 rounded-lg"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Seuil: ≥ {config.criteria.psycho.minAttentionConcentration}/5
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Analysis */}
+            {config.criteria.analysis?.required && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Capacité d'Analyse (/5)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="5"
+                  value={technicalScores.analysis_exercise}
+                  onChange={(e) => {
+                    setTechnicalScores(prev => ({ 
+                      ...prev, 
+                      analysis_exercise: e.target.value 
+                    }))
+                  }}
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Seuil: ≥ {config.criteria.analysis.minScore}/5
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Validation tests techniques */}
+          {validateTechnicalTests().length > 0 && (
+            <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
+              <h4 className="font-bold text-red-900 mb-2">❌ Tests techniques échoués:</h4>
+              <ul className="list-disc list-inside text-red-700 space-y-1">
+                {validateTechnicalTests().map((failure, idx) => (
+                  <li key={idx}>{failure}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      ) : technicalScores.statut === 'PRESENT' && 
+        candidate.availability === 'OUI' ? (
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-6">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-6 h-6 text-amber-600" />
+            <div>
+              <h3 className="font-bold text-amber-900">Tests techniques non accessibles</h3>
+              <p className="text-amber-700">
+                Ce candidat n'a pas validé les phases précédentes et ne peut donc pas passer les tests techniques.
+                Les notes des tests techniques ne seront pas enregistrées.
+              </p>
+              <p className="text-amber-700 mt-2">
+                <strong>Décision finale :</strong> {finalDecision.decision === 'NON_RECRUTE' ? 'NON RECRUTÉ' : 'EN ATTENTE'}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Commentaires */}
+      <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Commentaires généraux
+        </label>
+        <textarea
+          value={technicalScores.comments}
+          onChange={(e) => setTechnicalScores(prev => ({ 
+            ...prev, 
+            comments: e.target.value 
+          }))}
+          rows={4}
+          className="w-full p-3 border border-gray-300 rounded-lg"
+          placeholder={
+            candidate.availability === 'NON' 
+              ? 'Observations sur le candidat non disponible...' 
+              : 'Observations générales sur le candidat...'
+          }
+        />
+      </div>
+
+      {/* 🎯 DÉCISION FINALE */}
+      <div className={`border-4 rounded-xl p-6 ${
+        finalDecision.decision === 'RECRUTE' ? 'bg-green-50 border-green-300' :
+        finalDecision.decision === 'NON_RECRUTE' ? 'bg-red-50 border-red-300' :
+        'bg-gray-50 border-gray-300'
+      }`}>
+        <h2 className="text-2xl font-bold mb-4">Décision Finale Automatique</h2>
+        
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-gray-700 mb-2">
+              <strong>Statut:</strong>
+            </p>
+            <p className="text-sm text-gray-600">
+              {finalDecision.reason}
+            </p>
+          </div>
+          
+          <div className={`text-4xl font-bold flex items-center gap-3 ${
+            finalDecision.decision === 'RECRUTE' ? 'text-green-600' :
+            finalDecision.decision === 'NON_RECRUTE' ? 'text-red-600' :
+            'text-gray-600'
+          }`}>
+            {finalDecision.decision === 'RECRUTE' && (
+              <>
+                <CheckCircle className="w-12 h-12" />
+                RECRUTÉ
+              </>
+            )}
+            {finalDecision.decision === 'NON_RECRUTE' && (
+              <>
+                <XCircle className="w-12 h-12" />
+                NON RECRUTÉ
+              </>
+            )}
+            {!finalDecision.decision && (
+              <>
+                <AlertTriangle className="w-12 h-12" />
+                EN ATTENTE
+              </>
             )}
           </div>
         </div>
       </div>
 
-      {/* Messages de validation */}
-      {validationErrors.length > 0 && (
-        <Card className="border-2 border-red-200 bg-red-50">
-          <CardHeader className="bg-gradient-to-r from-red-50 to-pink-50 border-b-2 border-red-200">
-            <CardTitle className="flex items-center gap-2 text-red-800">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Erreurs de validation
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4">
-            <div className="space-y-2">
-              {validationErrors.map((error, index) => (
-                <div key={index} className="flex items-start gap-2 text-sm text-red-700">
-                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0"></div>
-                  <span>{error}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Face to Face Scores Summary */}
-        <Card className="border-2 border-orange-200 shadow-lg rounded-2xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50 border-b-2 border-orange-200">
-            <CardTitle className="flex items-center gap-2 text-orange-800">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-              </svg>
-              Notes Face à Face (Saisies par les Jurys)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gradient-to-br from-blue-50 to-white rounded-2xl p-6 border-2 border-blue-200">
-                <h4 className="font-bold text-blue-800 mb-4 flex items-center gap-2">
-                  <div className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <span className="text-blue-700 font-bold text-sm">1</span>
-                  </div>
-                  Phase 1
-                </h4>
-                {phase1FF.length === 0 ? (
-                  <div className="text-center py-4">
-                    <svg className="w-8 h-8 text-blue-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-blue-600 font-medium">Aucune note saisie</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {phase1FF.map((s) => (
-                      <div key={s.id} className="flex justify-between items-start p-4 bg-white rounded-xl border border-blue-200">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="font-medium text-gray-900">{s.jury_name}</span>
-                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">{s.role_type}</span>
-                          </div>
-                          
-                          {/* Afficher les scores détaillés */}
-                          {(s.presentation_visuelle || s.verbal_communication || s.voice_quality) && (
-                            <div className="grid grid-cols-3 gap-3 mt-2 text-xs">
-                              <div className="text-center p-2 bg-blue-50 rounded">
-                                <div className="font-medium text-blue-700">Présentation</div>
-                                <div className="text-blue-900 font-bold">
-                                  {s.presentation_visuelle ? `${s.presentation_visuelle}/5` : 'N/A'}
-                                </div>
-                              </div>
-                              <div className="text-center p-2 bg-blue-50 rounded">
-                                <div className="font-medium text-blue-700">Communication</div>
-                                <div className="text-blue-900 font-bold">
-                                  {s.verbal_communication ? `${s.verbal_communication}/5` : 'N/A'}
-                                </div>
-                              </div>
-                              <div className="text-center p-2 bg-blue-50 rounded">
-                                <div className="font-medium text-blue-700">Voix</div>
-                                <div className="text-blue-900 font-bold">
-                                  {s.voice_quality ? `${s.voice_quality}/5` : 'N/A'}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {s.comments && (
-                            <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600">
-                              {s.comments}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right ml-4">
-                          <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg font-bold text-lg">{s.score}/5</span>
-                          <p className="text-xs text-blue-600 mt-1">Moyenne</p>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="pt-3 border-t border-blue-200 flex justify-between font-bold">
-                      <span className="text-blue-800">Moyenne Phase 1</span>
-                      <span className="text-blue-600">{avgPhase1}/5</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Phase 1 - Consolidation WFM */}
-        <Card className="border-2 border-orange-200 shadow-lg rounded-2xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b-2 border-blue-200">
-            <CardTitle className="flex items-center gap-2 text-blue-800">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-              Phase 1 - Consolidation WFM
-            </CardTitle>
-            <div className="flex flex-col gap-1">
-              {autoCalculated && (
-                <p className="text-sm text-emerald-600 font-medium flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Décisions calculées automatiquement
-                </p>
-              )}
-              <p className="text-sm text-blue-600">
-                {candidate.metier === 'AGENCES' 
-                  ? 'Pour AGENCES: Présentation visuelle ≥ 3/5, Qualité voix ≥ 3/5, Communication verbale ≥ 3/5'
-                  : 'Pour tous les autres métiers: Qualité voix ≥ 3/5, Communication verbale ≥ 3/5'
-                }
-              </p>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6 space-y-6">
-            
-            {/* Résumé automatique des notes jurys */}
-            {phase1FF.length > 0 && (
-              <div className="bg-gradient-to-br from-blue-50 to-white rounded-2xl p-4 border-2 border-blue-200">
-                <h4 className="font-semibold text-blue-800 mb-3">Résumé des Notes Jurys</h4>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="text-sm text-blue-600">Présentation Visuelle</div>
-                    <div className="text-xl font-bold text-blue-800">
-                      {juryAverages.presentation_visuelle.toFixed(2)}/5
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-blue-600">Communication Verbale</div>
-                    <div className="text-xl font-bold text-blue-800">
-                      {juryAverages.verbal_communication.toFixed(2)}/5
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-blue-600">Qualité Vocale</div>
-                    <div className="text-xl font-bold text-blue-800">
-                      {juryAverages.voice_quality.toFixed(2)}/5
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 text-center">
-                  <div className="text-sm text-blue-600">Moyenne Générale Phase 1</div>
-                  <div className="text-2xl font-bold text-blue-800">{avgPhase1}/5</div>
-                </div>
-              </div>
-            )}
-
-            {/* Saisie WFM avec valeurs pré-remplies */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Présentation Visuelle */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="presentation_visuelle" className="text-gray-700 font-semibold">
-                    Présentation Visuelle (/5)
-                  </Label>
-                  {phase1FF.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => useJuryAverage('presentation_visuelle')}
-                      className="text-xs border border-blue-200 text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors"
-                    >
-                      Utiliser moyenne
-                    </button>
-                  )}
-                </div>
-                <Input
-                  id="presentation_visuelle"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="5"
-                  value={formData.presentation_visuelle}
-                  onChange={(e) => handleChange("presentation_visuelle", e.target.value)}
-                  className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                  placeholder={candidate.metier === 'AGENCES' ? "≥ 3/5" : "0-5"}
-                />
-                {phase1FF.length > 0 && (
-                  <p className="text-xs text-blue-600">
-                    Moyenne jury: {juryAverages.presentation_visuelle.toFixed(2)}/5
-                  </p>
-                )}
-                {candidate.metier === 'AGENCES' && (
-                  <p className="text-xs text-orange-600 font-medium">Minimum: 3/5 pour AGENCES</p>
-                )}
-              </div>
-
-              {/* Communication Verbale */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="verbal_communication" className="text-gray-700 font-semibold">
-                    Communication Verbale (/5)
-                  </Label>
-                  {phase1FF.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => useJuryAverage('verbal_communication')}
-                      className="text-xs border border-blue-200 text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors"
-                    >
-                      Utiliser moyenne
-                    </button>
-                  )}
-                </div>
-                <Input
-                  id="verbal_communication"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="5"
-                  value={formData.verbal_communication}
-                  onChange={(e) => handleChange("verbal_communication", e.target.value)}
-                  className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                  placeholder="≥ 3/5"
-                />
-                {phase1FF.length > 0 && (
-                  <p className="text-xs text-blue-600">
-                    Moyenne jury: {juryAverages.verbal_communication.toFixed(2)}/5
-                  </p>
-                )}
-                <p className="text-xs text-orange-600 font-medium">Minimum: 3/5 pour tous les métiers</p>
-              </div>
-
-              {/* Qualité de la Voix */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="voice_quality" className="text-gray-700 font-semibold">
-                    Qualité de la Voix (/5)
-                  </Label>
-                  {phase1FF.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => useJuryAverage('voice_quality')}
-                      className="text-xs border border-blue-200 text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors"
-                    >
-                      Utiliser moyenne
-                    </button>
-                  )}
-                </div>
-                <Input
-                  id="voice_quality"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="5"
-                  value={formData.voice_quality}
-                  onChange={(e) => handleChange("voice_quality", e.target.value)}
-                  className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                  placeholder="≥ 3/5"
-                />
-                {phase1FF.length > 0 && (
-                  <p className="text-xs text-blue-600">
-                    Moyenne jury: {juryAverages.voice_quality.toFixed(2)}/5
-                  </p>
-                )}
-                <p className="text-xs text-orange-600 font-medium">Minimum: 3/5 pour tous les métiers</p>
-              </div>
-            </div>
-
-            {/* Décisions Phase 1 - Auto-calculées */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <Label htmlFor="phase1_ff_decision" className="text-gray-700 font-semibold">
-                  Décision FF Phase 1 {autoCalculated && "✓"}
-                </Label>
-                <Select
-                  value={formData.phase1_ff_decision}
-                  onValueChange={(value) => handleChange("phase1_ff_decision", value)}
-                >
-                  <SelectTrigger className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-orange-50">
-                    <SelectValue placeholder="Auto-calculé" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="FAVORABLE" className="rounded-lg">FAVORABLE</SelectItem>
-                    <SelectItem value="DEFAVORABLE" className="rounded-lg">DEFAVORABLE</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="phase1_decision" className="text-gray-700 font-semibold">
-                  Décision Phase 1 {autoCalculated && "✓"}
-                </Label>
-                <Select
-                  value={formData.phase1_decision}
-                  onValueChange={(value) => handleChange("phase1_decision", value)}
-                >
-                  <SelectTrigger className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-orange-50">
-                    <SelectValue placeholder="Auto-calculé" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ADMIS" className="rounded-lg">ADMIS</SelectItem>
-                    <SelectItem value="ELIMINE" className="rounded-lg">ELIMINE</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Test Psychotechnique - Conditionnel */}
-        {showPsychotechnicalTest && (
-          <Card className="border-2 border-orange-200 shadow-lg rounded-2xl overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b-2 border-indigo-200">
-              <CardTitle className="flex items-center gap-2 text-indigo-800">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                </svg>
-                Test Psychotechnique - Sous-critères
-              </CardTitle>
-              <p className="text-sm text-indigo-600">
-                Raisonnement logique ≥ 3/5 et Attention & concentration ≥ 3/5
-              </p>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <Label htmlFor="psycho_raisonnement_logique" className="text-gray-700 font-semibold">
-                    Raisonnement logique (/5)
-                  </Label>
-                  <Input
-                    id="psycho_raisonnement_logique"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    value={formData.psycho_raisonnement_logique}
-                    onChange={(e) => handleChange("psycho_raisonnement_logique", e.target.value)}
-                    className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                    placeholder="≥ 3/5"
-                  />
-                  <p className="text-xs text-orange-600 font-medium">Minimum: 3/5</p>
-                </div>
-
-                <div className="space-y-3">
-                  <Label htmlFor="psycho_attention_concentration" className="text-gray-700 font-semibold">
-                    Attention & concentration (/5)
-                  </Label>
-                  <Input
-                    id="psycho_attention_concentration"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    value={formData.psycho_attention_concentration}
-                    onChange={(e) => handleChange("psycho_attention_concentration", e.target.value)}
-                    className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                    placeholder="≥ 3/5"
-                  />
-                  <p className="text-xs text-orange-600 font-medium">Minimum: 3/5</p>
-                </div>
-              </div>
-
-              {/* Score global (optionnel) */}
-              <div className="space-y-3">
-                <Label htmlFor="psychotechnical_test" className="text-gray-700 font-semibold">
-                  Score global psychotechnique (/10) - Optionnel
-                </Label>
-                <Input
-                  id="psychotechnical_test"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="10"
-                  value={formData.psychotechnical_test}
-                  onChange={(e) => handleChange("psychotechnical_test", e.target.value)}
-                  className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                  placeholder="0-10"
-                />
-              </div>
-            </CardContent>
-          </Card>
+      {/* Bouton Submit */}
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4 rounded-xl hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-3"
+      >
+        {loading ? (
+          <>
+            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            Enregistrement en cours...
+          </>
+        ) : candidate.availability === 'NON' ? (
+          <>
+            <CheckCircle className="w-6 h-6" />
+            Enregistrer l'Évaluation (Toutes les notes à 0)
+          </>
+        ) : (
+          <>
+            <CheckCircle className="w-6 h-6" />
+            Enregistrer l'Évaluation Complète
+          </>
         )}
-
-        {/* Phase 2 - Technical Tests */}
-        {(showTypingTest || showExcelTest || showDictationTest || showSalesSimulationTest || showAnalysisExerciseTest) && (
-          <Card className="border-2 border-orange-200 shadow-lg rounded-2xl overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b-2 border-purple-200">
-              <CardTitle className="flex items-center gap-2 text-purple-800">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                </svg>
-                Phase 2 - Épreuves Techniques
-              </CardTitle>
-              <p className="text-sm text-purple-600">
-                Tests requis pour {candidate.metier}
-              </p>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Saisie - Conditionnel */}
-                {showTypingTest && (
-                  <>
-                    <div className="space-y-3">
-                      <Label htmlFor="typing_speed" className="text-gray-700 font-semibold">
-                        Rapidité de Saisie (MPM)
-                      </Label>
-                      <Input
-                        id="typing_speed"
-                        type="number"
-                        min="0"
-                        value={formData.typing_speed}
-                        onChange={(e) => handleChange("typing_speed", e.target.value)}
-                        className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                        placeholder={`≥ ${config.criteria.minTypingSpeed || 17} MPM`}
-                      />
-                      <p className="text-xs text-orange-600 font-medium">
-                        Minimum: {config.criteria.minTypingSpeed || 17} MPM
-                      </p>
-                    </div>
-
-                    <div className="space-y-3">
-                      <Label htmlFor="typing_accuracy" className="text-gray-700 font-semibold">
-                        Précision de Saisie (%)
-                      </Label>
-                      <Input
-                        id="typing_accuracy"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="100"
-                        value={formData.typing_accuracy}
-                        onChange={(e) => handleChange("typing_accuracy", e.target.value)}
-                        className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                        placeholder={`≥ ${config.criteria.minTypingAccuracy || 85}%`}
-                      />
-                      <p className="text-xs text-orange-600 font-medium">
-                        Minimum: {config.criteria.minTypingAccuracy || 85}%
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {/* Excel - Conditionnel */}
-                {showExcelTest && (
-                  <div className="space-y-3">
-                    <Label htmlFor="excel_test" className="text-gray-700 font-semibold">
-                      Test Excel (/5)
-                    </Label>
-                    <Input
-                      id="excel_test"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="5"
-                      value={formData.excel_test}
-                      onChange={(e) => handleChange("excel_test", e.target.value)}
-                      className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                      placeholder={`≥ ${config.criteria.minExcel || 3}/5`}
-                    />
-                    <p className="text-xs text-orange-600 font-medium">
-                      Minimum: {config.criteria.minExcel || 3}/5
-                    </p>
-                  </div>
-                )}
-
-                {/* Dictée - Conditionnel */}
-                {showDictationTest && (
-                  <div className="space-y-3">
-                    <Label htmlFor="dictation" className="text-gray-700 font-semibold">
-                      Dictée (/20)
-                    </Label>
-                    <Input
-                      id="dictation"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="20"
-                      value={formData.dictation}
-                      onChange={(e) => handleChange("dictation", e.target.value)}
-                      className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                      placeholder={`≥ ${config.criteria.minDictation || 16}/20`}
-                    />
-                    <p className="text-xs text-orange-600 font-medium">
-                      Minimum: {config.criteria.minDictation || 16}/20
-                    </p>
-                  </div>
-                )}
-
-                {/* Exercice Analyse - Conditionnel */}
-                {showAnalysisExerciseTest && (
-                  <div className="space-y-3">
-                    <Label htmlFor="analysis_exercise" className="text-gray-700 font-semibold">
-                      Exercice d'Analyse (/10)
-                    </Label>
-                    <Input
-                      id="analysis_exercise"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="10"
-                      value={formData.analysis_exercise}
-                      onChange={(e) => handleChange("analysis_exercise", e.target.value)}
-                      className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                      placeholder={`≥ ${config.criteria.minAnalysis || 6}/10`}
-                    />
-                    <p className="text-xs text-orange-600 font-medium">
-                      Minimum: {config.criteria.minAnalysis || 6}/10
-                    </p>
-                  </div>
-                )}
-
-                {/* Champs communs Phase 2 */}
-                <div className="space-y-3">
-                  <Label htmlFor="phase2_date" className="text-gray-700 font-semibold">
-                    Date Présence Phase 2
-                  </Label>
-                  <Input
-                    id="phase2_date"
-                    type="date"
-                    value={formData.phase2_date}
-                    onChange={(e) => handleChange("phase2_date", e.target.value)}
-                    className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                  />
-                </div>
-
-                <div className="space-y-3">
-                  <Label htmlFor="decision_test" className="text-gray-700 font-semibold">
-                    Décision Test {autoCalculated && "✓"}
-                  </Label>
-                  <Select
-                    value={formData.decision_test}
-                    onValueChange={(value) => handleChange("decision_test", value)}
-                  >
-                    <SelectTrigger className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-orange-50">
-                      <SelectValue placeholder="Auto-calculé" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="FAVORABLE" className="rounded-lg">FAVORABLE</SelectItem>
-                      <SelectItem value="DEFAVORABLE" className="rounded-lg">DEFAVORABLE</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Simulation Vente - Conditionnel */}
-        {showSalesSimulationTest && (
-          <Card className="border-2 border-orange-200 shadow-lg rounded-2xl overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b-2 border-green-200">
-              <CardTitle className="flex items-center gap-2 text-green-800">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                Simulation de Vente - Sous-critères
-              </CardTitle>
-              <p className="text-sm text-green-600">
-                Sens négociation ≥ 3/5, Capacité persuasion ≥ 3/5, Sens combativité ≥ 3/5
-              </p>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-3">
-                  <Label htmlFor="simulation_sens_negociation" className="text-gray-700 font-semibold">
-                    Sens de la négociation (/5)
-                  </Label>
-                  <Input
-                    id="simulation_sens_negociation"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    value={formData.simulation_sens_negociation}
-                    onChange={(e) => handleChange("simulation_sens_negociation", e.target.value)}
-                    className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                    placeholder="≥ 3/5"
-                  />
-                  <p className="text-xs text-orange-600 font-medium">Minimum: 3/5</p>
-                </div>
-
-                <div className="space-y-3">
-                  <Label htmlFor="simulation_capacite_persuasion" className="text-gray-700 font-semibold">
-                    Capacité de persuasion (/5)
-                  </Label>
-                  <Input
-                    id="simulation_capacite_persuasion"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    value={formData.simulation_capacite_persuasion}
-                    onChange={(e) => handleChange("simulation_capacite_persuasion", e.target.value)}
-                    className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                    placeholder="≥ 3/5"
-                  />
-                  <p className="text-xs text-orange-600 font-medium">Minimum: 3/5</p>
-                </div>
-
-                <div className="space-y-3">
-                  <Label htmlFor="simulation_sens_combativite" className="text-gray-700 font-semibold">
-                    Sens de la combativité (/5)
-                  </Label>
-                  <Input
-                    id="simulation_sens_combativite"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="5"
-                    value={formData.simulation_sens_combativite}
-                    onChange={(e) => handleChange("simulation_sens_combativite", e.target.value)}
-                    className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                    placeholder="≥ 3/5"
-                  />
-                  <p className="text-xs text-orange-600 font-medium">Minimum: 3/5</p>
-                </div>
-              </div>
-
-              {/* Score global (optionnel) */}
-              <div className="space-y-3">
-                <Label htmlFor="sales_simulation" className="text-gray-700 font-semibold">
-                  Score global simulation (/5) - Optionnel
-                </Label>
-                <Input
-                  id="sales_simulation"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="5"
-                  value={formData.sales_simulation}
-                  onChange={(e) => handleChange("sales_simulation", e.target.value)}
-                  className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                  placeholder="0-5"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Statut de présence */}
-        <Card className="border-2 border-orange-200 shadow-lg rounded-2xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 border-b-2 border-indigo-200">
-            <CardTitle className="flex items-center gap-2 text-indigo-800">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Statut de Présence
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <Label htmlFor="statut" className="text-gray-700 font-semibold">
-                  Statut
-                </Label>
-                <Select value={formData.statut} onValueChange={(value) => handleChange("statut", value)}>
-                  <SelectTrigger className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white">
-                    <SelectValue placeholder="Sélectionner un statut" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PRESENT" className="rounded-lg">✅ PRÉSENT</SelectItem>
-                    <SelectItem value="ABSENT" className="rounded-lg">❌ ABSENT</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-3">
-                <Label htmlFor="statutCommentaire" className="text-gray-700 font-semibold">
-                  Commentaire Statut
-                </Label>
-                <Input
-                  id="statutCommentaire"
-                  type="text"
-                  value={formData.statutCommentaire || ''}
-                  onChange={(e) => handleChange("statutCommentaire", e.target.value)}
-                  className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors"
-                  placeholder="Justification du statut"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Final Decision */}
-        <Card className="border-2 border-orange-200 shadow-lg rounded-2xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50 border-b-2 border-emerald-200">
-            <CardTitle className="flex items-center gap-2 text-emerald-800">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Décision Finale
-            </CardTitle>
-            {autoCalculated && (
-              <p className="text-sm text-emerald-600 font-medium flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Décision finale calculée automatiquement
-              </p>
-            )}
-          </CardHeader>
-          <CardContent className="p-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <Label htmlFor="final_decision" className="text-gray-700 font-semibold">
-                  Décision Finale {autoCalculated && "✓"}
-                </Label>
-                <Select value={formData.final_decision} onValueChange={(value) => handleChange("final_decision", value)}>
-                  <SelectTrigger className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-orange-50">
-                    <SelectValue placeholder="Auto-calculé" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="RECRUTE" className="rounded-lg">RECRUTE</SelectItem>
-                    <SelectItem value="NON_RECRUTE" className="rounded-lg">NON RECRUTE</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <Label htmlFor="comments" className="text-gray-700 font-semibold">
-                Commentaires
-              </Label>
-              <Textarea
-                id="comments"
-                value={formData.comments}
-                onChange={(e) => handleChange("comments", e.target.value)}
-                rows={4}
-                className="border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl p-3 bg-white transition-colors resize-none"
-                placeholder="Commentaires supplémentaires..."
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {error && (
-          <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-2xl p-4 border-2 border-red-200">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 bg-red-100 rounded-full flex items-center justify-center">
-                <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <p className="text-red-700 font-medium">{error}</p>
-            </div>
-          </div>
-        )}
-
-        <div className="flex gap-4 justify-end">
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={() => router.back()} 
-            className="border-2 border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400 rounded-xl px-6 py-3 font-semibold transition-all duration-200"
-          >
-            Annuler
-          </Button>
-          <Button 
-            type="submit" 
-            className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white border-0 shadow-lg hover:shadow-xl rounded-xl px-6 py-3 font-semibold transition-all duration-200 disabled:opacity-50" 
-            disabled={loading || validationErrors.length > 0}
-          >
-            {loading ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Enregistrement...
-              </div>
-            ) : (
-              "Enregistrer les Notes"
-            )}
-          </Button>
-        </div>
-      </form>
-    </div>
+      </button>
+    </form>
   )
 }

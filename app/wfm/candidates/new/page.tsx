@@ -15,13 +15,11 @@ export default async function NewCandidatePage() {
     redirect("/auth/login")
   }
 
-  // Vérification du rôle
   const userRole = (session.user as any).role || "JURY"
   if (userRole !== "WFM") {
     redirect("/auth/login")
   }
 
-  // Récupérer les sessions disponibles pour l'association
   const sessions = await prisma.recruitmentSession.findMany({
     where: {
       OR: [
@@ -43,31 +41,26 @@ export default async function NewCandidatePage() {
   })
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardHeader user={session.user} role="WFM" />
-      <main className="container mx-auto p-6 max-w-4xl">
+    <div className="min-h-screen bg-gray-50">
+      <DashboardHeader user={session.user} role={userRole} />
+      
+      <main className="container mx-auto p-6 max-w-5xl">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-foreground">Nouveau Candidat</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-3xl font-bold text-gray-900">Nouveau Candidat</h1>
+          <p className="text-gray-600 mt-2">
             Enregistrer un nouveau candidat dans le système de recrutement
           </p>
-          
-          {/* Informations sur les sessions disponibles */}
-          {sessions.length > 0 && (
-            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-700">
-                <strong>{sessions.length} session(s) disponible(s)</strong> pour associer ce candidat
-              </p>
-            </div>
-          )}
         </div>
 
-        {/* Passez les sessions au formulaire */}
-        <CandidateForm sessions={sessions} />
-        
-     
+        {sessions.length > 0 && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-blue-800 text-sm">
+              💡 {sessions.length} session(s) disponible(s) pour associer ce candidat
+            </p>
+          </div>
+        )}
 
-       
+        <CandidateForm sessions={sessions} />
       </main>
     </div>
   )

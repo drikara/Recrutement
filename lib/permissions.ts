@@ -1,13 +1,18 @@
-// lib/permissions.ts
 import { Metier, JuryRoleType, SessionStatus } from "@prisma/client"
 
 export function canJuryMemberAccessCandidate(juryMember: any, candidate: any): boolean {
-  // DRH, EPC et WFM_JURY peuvent voir tous les candidats
-  if (["DRH", "EPC", "WFM_JURY"].includes(juryMember.roleType)) {
+  // ⭐⭐ VÉRIFICATION DISPONIBILITÉ : Les jurys ne peuvent voir que les candidats disponibles
+  if (candidate.availability === 'NON') {
+    console.log(`❌ Jury ${juryMember.id} - Candidat ${candidate.id} non disponible`)
+    return false
+  }
+
+  // DRH, EPC et WFM_JURY peuvent voir tous les candidats disponibles
+  if (["DRH", "EPC","FORMATEUR", "WFM_JURY"].includes(juryMember.roleType)) {
     return true
   }
 
-  // REPRESENTANT_METIER ne voit que les candidats de son métier
+  // REPRESENTANT_METIER ne voit que les candidats de son métier ET disponibles
   if (juryMember.roleType === "REPRESENTANT_METIER") {
     return juryMember.specialite === candidate.metier
   }
@@ -27,8 +32,13 @@ export function canJuryEvaluate(session: any): boolean {
 }
 
 export function filterCandidatesForJury(candidates: any[], juryMember: any): any[] {
-  return candidates.filter(candidate => 
+  console.log(`🔍 Filtrage jurys: ${candidates.length} candidats avant filtrage`)
+  
+  const filtered = candidates.filter(candidate => 
     canJuryMemberAccessCandidate(juryMember, candidate) &&
     isSessionActive(candidate.session)
   )
+  
+  console.log(`✅ Filtrage jurys: ${filtered.length} candidats après filtrage`)
+  return filtered
 }

@@ -1,32 +1,92 @@
-// api/sessions/[id]/jury/route.ts
-import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
+// app/api/sessions/[id]/jury/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-export async function POST(request: Request, { params }: RouteParams) {
+// GET - Récupérer les jurys assignés à une session
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const { id } = await params
-    console.log(`🎯 POST /api/sessions/${id}/jury - Ajout membre du jury`)
-
     const session = await auth.api.getSession({
-      headers: await headers(),
+      headers: request.headers,
     })
 
-    if (!session || (session.user as any).role !== "WFM") {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+    if (!session || session.user.role !== 'WFM') {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
-    const data = await request.json()
-    const { juryMemberId, wasPresent, absenceReason } = data
+    const { id } = await params
+    console.log('📖 GET /api/sessions/[id]/jury - Session ID:', id)
 
-    if (!juryMemberId) {
+    const juryPresences = await prisma.juryPresence.findMany({
+      where: { sessionId: id },
+      include: {
+        juryMember: {
+          include: {
+            user: {
+              select: {
+                email: true,
+                name: true,
+                isActive: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
+
+    console.log('✅ Jurys assignés trouvés:', juryPresences.length)
+    return NextResponse.json(juryPresences)
+
+  } catch (error) {
+    console.error('❌ Error fetching session jury:', error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  }
+}
+
+// POST - Assigner un ou plusieurs jurys à une session
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  try {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    })
+
+    if (!session || session.user.role !== 'WFM') {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+    }
+
+    const { id } = await params
+    const body = await request.json()
+    
+    // ✅ Accepter les deux formats : juryMemberId (single) ou juryMemberIds (array)
+    let juryMemberIds: number[]
+    
+    if (body.juryMemberId) {
+      // Format: { juryMemberId: 123 }
+      juryMemberIds = [body.juryMemberId]
+      console.log('📝 Format single ID détecté:', body.juryMemberId)
+    } else if (body.juryMemberIds) {
+      // Format: { juryMemberIds: [123, 456] }
+      juryMemberIds = body.juryMemberIds
+      console.log('📝 Format array IDs détecté:', body.juryMemberIds)
+    } else {
       return NextResponse.json({ 
-        error: "juryMemberId requis" 
+        error: 'Paramètre juryMemberId ou juryMemberIds requis' 
+      }, { status: 400 })
+    }
+
+    console.log('📝 POST /api/sessions/[id]/jury - Session ID:', id)
+    console.log('📝 Jury IDs à assigner:', juryMemberIds)
+
+    if (!Array.isArray(juryMemberIds) || juryMemberIds.length === 0) {
+      return NextResponse.json({ 
+        error: 'Au moins un jury doit être sélectionné' 
       }, { status: 400 })
     }
 
@@ -36,61 +96,126 @@ export async function POST(request: Request, { params }: RouteParams) {
     })
 
     if (!recruitmentSession) {
-      return NextResponse.json({ 
-        error: "Session non trouvée" 
-      }, { status: 404 })
+      return NextResponse.json({ error: 'Session non trouvée' }, { status: 404 })
     }
 
-    // Vérifier que le jury existe
-    const juryMember = await prisma.juryMember.findUnique({
-      where: { id: juryMemberId }
-    })
+    console.log('✅ Session trouvée:', recruitmentSession.metier, recruitmentSession.date)
 
-    if (!juryMember) {
-      return NextResponse.json({ 
-        error: "Membre du jury non trouvé" 
-      }, { status: 404 })
-    }
-
-    // Vérifier que le jury n'est pas déjà dans cette session
-    const existingPresence = await prisma.juryPresence.findFirst({
+    // Vérifier que tous les jurys existent
+    const juryMembers = await prisma.juryMember.findMany({
       where: {
-        sessionId: id,
-        juryMemberId: juryMemberId
+        id: { in: juryMemberIds },
+        isActive: true
       }
     })
 
-    if (existingPresence) {
+    if (juryMembers.length !== juryMemberIds.length) {
       return NextResponse.json({ 
-        error: "Ce membre est déjà assigné à cette session" 
+        error: 'Certains jurys sont invalides ou inactifs' 
       }, { status: 400 })
     }
 
-    // Créer la présence
-    const juryPresence = await prisma.juryPresence.create({
-      data: {
-        sessionId: id,
-        juryMemberId: juryMemberId,
-        wasPresent: wasPresent ?? true,
-        absenceReason: !wasPresent ? absenceReason : null
-      },
-      include: {
-        juryMember: {
-          select: {
-            id: true,
-            fullName: true,
-            roleType: true,
-            specialite: true
+    console.log('✅ Jurys validés:', juryMembers.map(j => j.fullName).join(', '))
+
+    // Créer les assignations (upsert pour éviter les doublons)
+    const assignations = []
+    
+    for (const juryMemberId of juryMemberIds) {
+      try {
+        const presence = await prisma.juryPresence.upsert({
+          where: {
+            juryMemberId_sessionId: {
+              juryMemberId: juryMemberId,
+              sessionId: id
+            }
+          },
+          update: {
+            wasPresent: body.wasPresent ?? true,
+            absenceReason: body.wasPresent === false ? body.absenceReason : null,
+            updatedAt: new Date()
+          },
+          create: {
+            juryMemberId: juryMemberId,
+            sessionId: id,
+            wasPresent: body.wasPresent ?? true,
+            absenceReason: body.wasPresent === false ? body.absenceReason : null
+          },
+          include: {
+            juryMember: {
+              select: {
+                fullName: true,
+                roleType: true,
+                specialite: true
+              }
+            }
           }
-        }
+        })
+
+        assignations.push(presence)
+        console.log('✅ Jury assigné:', presence.juryMember.fullName)
+      } catch (error) {
+        console.error('❌ Erreur assignation jury:', juryMemberId, error)
+      }
+    }
+
+    console.log('✅ Total assignations créées:', assignations.length)
+
+    return NextResponse.json({ 
+      message: `${assignations.length} jury(s) assigné(s) avec succès`,
+      assignations 
+    }, { status: 201 })
+
+  } catch (error) {
+    console.error('❌ Error assigning jury to session:', error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  }
+}
+
+// DELETE - Retirer un jury d'une session
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+  try {
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    })
+
+    if (!session || session.user.role !== 'WFM') {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+    }
+
+    const { id } = await params
+    const { searchParams } = new URL(request.url)
+    const juryMemberId = searchParams.get('juryMemberId')
+
+    if (!juryMemberId) {
+      return NextResponse.json({ 
+        error: 'ID du jury manquant' 
+      }, { status: 400 })
+    }
+
+    console.log('🗑️ DELETE /api/sessions/[id]/jury - Session:', id, 'Jury:', juryMemberId)
+
+    const deleted = await prisma.juryPresence.deleteMany({
+      where: {
+        sessionId: id,
+        juryMemberId: parseInt(juryMemberId)
       }
     })
 
-    console.log("✅ Jury ajouté à la session:", juryPresence.id)
-    return NextResponse.json(juryPresence)
+    if (deleted.count === 0) {
+      return NextResponse.json({ 
+        error: 'Assignation non trouvée' 
+      }, { status: 404 })
+    }
+
+    console.log('✅ Jury retiré de la session')
+
+    return NextResponse.json({ 
+      message: 'Jury retiré avec succès',
+      deleted: deleted.count 
+    })
 
   } catch (error) {
-    console.error("❌ Erreur POST jury:", error)
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
+    console.error('❌ Error removing jury from session:', error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

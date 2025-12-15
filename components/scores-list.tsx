@@ -1,4 +1,3 @@
-// components/scores-list.tsx
 "use client"
 
 import { useState } from "react"
@@ -11,9 +10,9 @@ type Candidate = {
   id: number
   full_name: string
   metier: string
-  email: string
+  email: string | null  // Modifié pour accepter null
   final_decision?: string
-  created_at: string
+  created_at: Date  // Changé de string à Date
   phone?: string
   scores?: {
     voice_quality?: number | null
@@ -75,11 +74,26 @@ export function ScoresList({ candidates }: ScoresListProps) {
     { value: "analysis_exercise", label: "Exercice analyse" },
   ]
 
+  // Vérification que candidates est défini
+  if (!candidates) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-gray-400 mb-4">
+          <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p className="text-gray-500 text-lg">Aucun candidat disponible</p>
+      </div>
+    )
+  }
+
   const filteredCandidates = candidates
     .filter((candidate) => {
       const matchesSearch =
         candidate.full_name.toLowerCase().includes(search.toLowerCase()) ||
-        candidate.email.toLowerCase().includes(search.toLowerCase())
+        (candidate.email && candidate.email.toLowerCase().includes(search.toLowerCase())) ||
+        false
       
       const matchesMetier = metierFilter === "all" || candidate.metier === metierFilter
       
@@ -95,17 +109,19 @@ export function ScoresList({ candidates }: ScoresListProps) {
       let aValue: any
       let bValue: any
 
+      // Vérifier si la propriété existe directement dans candidate
       if (sortBy in a && sortBy in b) {
         aValue = a[sortBy as keyof Candidate]
         bValue = b[sortBy as keyof Candidate]
       } else {
+        // Sinon, chercher dans scores
         aValue = a.scores?.[sortBy as keyof typeof a.scores]
         bValue = b.scores?.[sortBy as keyof typeof b.scores]
       }
 
       if (sortBy === "created_at") {
-        aValue = new Date(aValue || 0)
-        bValue = new Date(bValue || 0)
+        aValue = new Date(aValue || 0).getTime()
+        bValue = new Date(bValue || 0).getTime()
       }
 
       if (aValue === bValue) return 0
@@ -134,7 +150,7 @@ export function ScoresList({ candidates }: ScoresListProps) {
       case 'typing_accuracy':
         return `${formatNumber(numericScore)}%`
       default:
-        return `${formatNumber(numericScore)}/20`
+        return `${formatNumber(numericScore)}/5`
     }
   }
 
@@ -249,36 +265,9 @@ export function ScoresList({ candidates }: ScoresListProps) {
                   )}
                 </div>
 
-                {/* Scores rapides */}
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-gray-600 text-xs">Qualité vocale:</span>
-                    <div className={`font-medium ${getScoreColor(candidate.scores?.voice_quality)}`}>
-                      {getScoreDisplay(candidate, 'voice_quality')}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600 text-xs">Comm. verbale:</span>
-                    <div className={`font-medium ${getScoreColor(candidate.scores?.verbal_communication)}`}>
-                      {getScoreDisplay(candidate, 'verbal_communication')}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600 text-xs">Frappe:</span>
-                    <div className={`font-medium ${getScoreColor(candidate.scores?.typing_speed)}`}>
-                      {getScoreDisplay(candidate, 'typing_speed')}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600 text-xs">Précision:</span>
-                    <div className={`font-medium ${getScoreColor(candidate.scores?.typing_accuracy)}`}>
-                      {getScoreDisplay(candidate, 'typing_accuracy')}
-                    </div>
-                  </div>
-                </div>
-
+               
                 {/* Statut et actions */}
-                <div className="flex items-center justify-between pt-3 border-t border-gray-200 cursor-pointer">
+                <div className="flex items-center justify-between pt-3 border-t border-gray-200">
                   {candidate.final_decision ? (
                     <span
                       className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
@@ -305,16 +294,6 @@ export function ScoresList({ candidates }: ScoresListProps) {
                   </Link>
                 </div>
 
-                {/* Indicateur de complétion des scores */}
-                {candidate.scores && (
-                  <div className="text-xs text-gray-500 flex items-center justify-between">
-                    <span>Progression des scores:</span>
-                    <span className="font-medium">
-                      {Object.values(candidate.scores).filter(score => score !== null && score !== undefined).length} /
-                      {Object.keys(candidate.scores).length}
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
           ))

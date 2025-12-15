@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { DashboardHeader } from "@/components/dashboard-header"
-import { JuryEvaluationForm } from "@/components/jury-evaluation-form"
+import { JuryScoreForm } from "@/components/jury-score-form"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { 
@@ -59,10 +59,10 @@ export default async function JuryEvaluationPage({
         where: { 
           juryMemberId: juryMember.id
         },
-        orderBy: { 
-          evaluatedAt: 'desc' 
-        },
-        take: 1
+        orderBy: [
+          { phase: 'asc' },
+          { evaluatedAt: 'desc' }
+        ]
       }
     }
   })
@@ -79,7 +79,15 @@ export default async function JuryEvaluationPage({
     redirect("/jury/evaluations")
   }
 
-  const existingScore = candidate.faceToFaceScores[0]
+  // Vérifier Phase 1 et Phase 2
+  const phase1Score = candidate.faceToFaceScores.find(s => s.phase === 1)
+  const phase2Score = candidate.faceToFaceScores.find(s => s.phase === 2)
+  
+  const phase1Complete = !!phase1Score
+  const needsSimulation = candidate.metier === 'AGENCES' || candidate.metier === 'TELEVENTE'
+  const canDoPhase2 = needsSimulation && phase1Complete && phase1Score?.decision === 'FAVORABLE'
+  
+  const fullName = `${candidate.prenom} ${candidate.nom}`
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -87,20 +95,21 @@ export default async function JuryEvaluationPage({
       
       <main className="container mx-auto p-6 space-y-6">
         <Link href="/jury/evaluations">
-          <Button variant="outline" className="flex items-center  my-4 bg-orange-500 text-white hover:bg-orange-600 transition-all duration-200 shadow-md cursor-pointer">
+          <Button variant="outline" className="flex items-center my-4 bg-orange-500 text-white hover:bg-orange-600 transition-all duration-200 shadow-md cursor-pointer">
             <ArrowLeft className="w-4 h-4" />
             Retour aux évaluations
           </Button>
         </Link>
 
+        {/* En-tête candidat */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
               <User className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-800">{candidate.fullName}</h1>
-              <p className="text-gray-600 mt-1">Évaluation Face-à-Face - {candidate.metier}</p>
+              <h1 className="text-3xl font-bold text-gray-800">{fullName}</h1>
+              <p className="text-gray-600 mt-1">Évaluation - {candidate.metier}</p>
             </div>
           </div>
 
@@ -137,7 +146,7 @@ export default async function JuryEvaluationPage({
               <Mail className="w-5 h-5 text-orange-500" />
               <div>
                 <p className="text-xs text-gray-500">Email</p>
-                <p className="font-semibold text-sm">{candidate.email}</p>
+                <p className="font-semibold text-sm">{candidate.email || 'N/A'}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 text-gray-700">
@@ -149,115 +158,225 @@ export default async function JuryEvaluationPage({
             </div>
           </div>
 
-          {/* Indicateur de phase */}
-          <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">1</span>
-              </div>
-              <div>
-                <p className="font-semibold text-orange-800">Évaluation Face-à-Face</p>
-                <p className="text-sm text-orange-700">
-                  Évaluation du comportement, communication et présentation du candidat
-                </p>
+          {/* Indicateur de phases */}
+          <div className="space-y-3">
+            <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">1</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-orange-800">Phase 1 - Face-à-Face</p>
+                    <p className="text-sm text-orange-700">
+                      Comportement, communication et présentation
+                    </p>
+                  </div>
+                </div>
+                {phase1Complete && (
+                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg font-semibold text-sm">
+                    ✅ Complétée
+                  </span>
+                )}
               </div>
             </div>
+
+            {needsSimulation && (
+              <div className={`p-4 border rounded-xl ${
+                canDoPhase2 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-gray-50 border-gray-200 opacity-60'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      canDoPhase2 ? 'bg-green-500' : 'bg-gray-400'
+                    }`}>
+                      <span className="text-white font-bold text-sm">2</span>
+                    </div>
+                    <div>
+                      <p className={`font-semibold ${
+                        canDoPhase2 ? 'text-green-800' : 'text-gray-600'
+                      }`}>
+                        Phase 2 - Simulation 🎭
+                      </p>
+                      <p className={`text-sm ${
+                        canDoPhase2 ? 'text-green-700' : 'text-gray-500'
+                      }`}>
+                        {canDoPhase2 ? 'Disponible' : 'Validez Phase 1 d\'abord'}
+                      </p>
+                    </div>
+                  </div>
+                  {phase2Score && (
+                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg font-semibold text-sm">
+                      ✅ Complétée
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
+        {/* Formulaire d'évaluation */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
-            {existingScore ? 'Modifier l\'évaluation' : 'Nouvelle évaluation'}
-          </h2>
-          
-          {existingScore && (
-            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-              <p className="text-sm text-yellow-700">
-                <strong>Note :</strong> Vous avez déjà évalué ce candidat. 
-                Vous pouvez modifier votre évaluation ci-dessous.
-              </p>
-            </div>
-          )}
-
-          <JuryEvaluationForm 
-            candidateId={candidate.id}
-            candidateName={candidate.fullName}
-            existingScore={existingScore ? {
-              presentationVisuelle: existingScore.presentationVisuelle ? Number(existingScore.presentationVisuelle) : undefined,
-              verbalCommunication: existingScore.verbalCommunication ? Number(existingScore.verbalCommunication) : undefined,
-              voiceQuality: existingScore.voiceQuality ? Number(existingScore.voiceQuality) : undefined,
-              score: Number(existingScore.score),
-              comments: existingScore.comments || undefined
-            } : undefined}
+          <JuryScoreForm 
+            candidate={{
+              id: candidate.id,
+              fullName: fullName,
+              metier: candidate.metier
+            }}
+            juryMember={{
+              id: juryMember.id,
+              fullName: juryMember.fullName,
+              roleType: juryMember.roleType
+            }}
+            phase1Complete={phase1Complete}
+            canDoPhase2={canDoPhase2}
           />
         </div>
 
-        {/* Affichage de l'évaluation existante */}
-        {existingScore && (
+        {/* Affichage des évaluations existantes */}
+        {(phase1Score || phase2Score) && (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Votre évaluation actuelle</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Vos évaluations</h2>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div className="p-4 bg-gray-50 rounded-xl">
-                <p className="text-sm text-gray-600 mb-2">Présentation visuelle</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {Number(existingScore.presentationVisuelle).toFixed(1)} / 5
-                </p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-xl">
-                <p className="text-sm text-gray-600 mb-2">Qualité de la voix</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {Number(existingScore.voiceQuality).toFixed(1)} / 5
-                </p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-xl">
-                <p className="text-sm text-gray-600 mb-2">Communication verbale</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {Number(existingScore.verbalCommunication).toFixed(1)} / 5
-                </p>
-              </div>
-            </div>
-
-            <div className="p-4 bg-orange-50 rounded-xl border-2 border-orange-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-orange-600 mb-2 font-semibold">Score moyen</p>
-                  <p className="text-2xl font-bold text-orange-600">
-                    {Number(existingScore.score).toFixed(2)} / 5
-                  </p>
+            {/* Phase 1 */}
+            {phase1Score && (
+              <div className="mb-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-xs">1</span>
+                  </div>
+                  Phase 1 - Face-à-Face
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  {candidate.metier === 'AGENCES' && phase1Score.presentationVisuelle && (
+                    <div className="p-4 bg-gray-50 rounded-xl">
+                      <p className="text-sm text-gray-600 mb-2">Présentation visuelle</p>
+                      <p className="text-2xl font-bold text-gray-800">
+                        {Number(phase1Score.presentationVisuelle).toFixed(1)} / 5
+                      </p>
+                    </div>
+                  )}
+                  <div className="p-4 bg-gray-50 rounded-xl">
+                    <p className="text-sm text-gray-600 mb-2">Communication verbale</p>
+                    <p className="text-2xl font-bold text-gray-800">
+                      {Number(phase1Score.verbalCommunication).toFixed(1)} / 5
+                    </p>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-xl">
+                    <p className="text-sm text-gray-600 mb-2">Qualité de la voix</p>
+                    <p className="text-2xl font-bold text-gray-800">
+                      {Number(phase1Score.voiceQuality).toFixed(1)} / 5
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-orange-600 mb-2 font-semibold">Décision</p>
-                  <p className={`text-xl font-bold ${
-                    Number(existingScore.score) >= 3 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {Number(existingScore.score) >= 3 ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
-                  </p>
-                </div>
-              </div>
-            </div>
 
-            {existingScore.comments && (
-              <div className="mt-6 p-4 bg-gray-50 rounded-xl">
-                <p className="text-sm text-gray-600 mb-2 font-semibold">Commentaires</p>
-                <p className="text-gray-700">{existingScore.comments}</p>
+                <div className={`p-4 rounded-xl border-2 ${
+                  phase1Score.decision === 'FAVORABLE' 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-gray-700">Décision</p>
+                    <p className={`text-xl font-bold ${
+                      phase1Score.decision === 'FAVORABLE' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {phase1Score.decision === 'FAVORABLE' ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
+                    </p>
+                  </div>
+                </div>
+
+                {phase1Score.comments && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-xl">
+                    <p className="text-sm text-gray-600 mb-2 font-semibold">Commentaires</p>
+                    <p className="text-gray-700">{phase1Score.comments}</p>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500 mt-2">
+                  Évalué le {new Date(phase1Score.evaluatedAt).toLocaleDateString('fr-FR', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
               </div>
             )}
 
-            <p className="text-xs text-gray-500 mt-4">
-              Évalué le {new Date(existingScore.evaluatedAt).toLocaleDateString('fr-FR', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </p>
+            {/* Phase 2 */}
+            {phase2Score && (
+              <div>
+                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-xs">2</span>
+                  </div>
+                  Phase 2 - Simulation 🎭
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="p-4 bg-gray-50 rounded-xl">
+                    <p className="text-sm text-gray-600 mb-2">Sens négociation</p>
+                    <p className="text-2xl font-bold text-gray-800">
+                      {Number(phase2Score.simulationSensNegociation).toFixed(1)} / 5
+                    </p>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-xl">
+                    <p className="text-sm text-gray-600 mb-2">Capacité persuasion</p>
+                    <p className="text-2xl font-bold text-gray-800">
+                      {Number(phase2Score.simulationCapacitePersuasion).toFixed(1)} / 5
+                    </p>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-xl">
+                    <p className="text-sm text-gray-600 mb-2">Sens combativité</p>
+                    <p className="text-2xl font-bold text-gray-800">
+                      {Number(phase2Score.simulationSensCombativite).toFixed(1)} / 5
+                    </p>
+                  </div>
+                </div>
+
+                <div className={`p-4 rounded-xl border-2 ${
+                  phase2Score.decision === 'FAVORABLE' 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-gray-700">Décision</p>
+                    <p className={`text-xl font-bold ${
+                      phase2Score.decision === 'FAVORABLE' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {phase2Score.decision === 'FAVORABLE' ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
+                    </p>
+                  </div>
+                </div>
+
+                {phase2Score.comments && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-xl">
+                    <p className="text-sm text-gray-600 mb-2 font-semibold">Commentaires</p>
+                    <p className="text-gray-700">{phase2Score.comments}</p>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500 mt-2">
+                  Évalué le {new Date(phase2Score.evaluatedAt).toLocaleDateString('fr-FR', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </main>
 
-      {/* Footer avec copyright */}
+      {/* Footer */}
       <footer className="border-t mt-8 py-4">
         <div className="container mx-auto px-6 text-center text-muted-foreground text-sm">
           © {new Date().getFullYear()} Orange Côte d'Ivoire. Developed by okd_dev. All rights reserved.
@@ -265,4 +384,4 @@ export default async function JuryEvaluationPage({
       </footer>
     </div>
   )
-}
+} 

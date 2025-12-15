@@ -1,11 +1,10 @@
-// app/wfm/candidates/[id]/page.tsx
 import { notFound, redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { CandidateDetails } from "@/components/candidates-details"
-import { transformPrismaData } from "@/lib/server-utils"
+import { serializeForClient } from "@/lib/server-utils"
 
 interface CandidateDetailPageProps {
   params: Promise<{
@@ -25,14 +24,25 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
   const { id } = await params
 
   try {
-    // Récupérer les données du candidat avec toutes les relations nécessaires
+    // Récupérer le candidat avec TOUTES les données nécessaires
     const candidate = await prisma.candidate.findUnique({
       where: {
         id: parseInt(id),
       },
       include: {
         scores: true,
-        session: true,
+        session: {
+          include: {
+            juryPresences: {
+              where: { wasPresent: true },
+              include: {
+                juryMember: {
+                  select: { id: true }
+                }
+              }
+            }
+          }
+        },
         faceToFaceScores: {
           include: {
             juryMember: {
@@ -54,15 +64,45 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
       notFound()
     }
 
-    // Transformer les données Prisma (Decimal -> number, Date -> ISO string)
-    const serializedCandidate = transformPrismaData(candidate)
+    // ⭐⭐ CALCULER LE NOMBRE DE JURYS ATTENDUS (présents)
+    const expectedJuryCount = candidate.session?.juryPresences.length || 0
+    
+    // ⭐⭐ RÉCUPÉRER LES IDS DES JURYS PRÉSENTS
+    const presentJuryIds = candidate.session?.juryPresences.map(p => p.juryMember.id) || []
+    
+    // ⭐⭐ COMPTER LE NOMBRE DE JURYS QUI ONT NOTÉ LA PHASE 1
+    const phase1Scores = candidate.faceToFaceScores.filter(score => score.phase === 1)
+    const uniqueJuryIds = [...new Set(phase1Scores.map(score => score.juryMemberId))]
+    const hasAllJuryScores = uniqueJuryIds.length === expectedJuryCount
+
+    console.log('📊 Informations jurys:', {
+      candidatId: candidate.id,
+      expectedJuryCount,
+      presentJuryIds,
+      phase1ScoresCount: phase1Scores.length,
+      uniqueJuryIds,
+      hasAllJuryScores
+    })
+
+    // Sérialiser les données
+    const serializedCandidate = serializeForClient(candidate)
+
+    // Récupérer les scores existants
+    const existingScores = await prisma.score.findUnique({
+      where: { candidateId: parseInt(id) }
+    })
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20">
         <DashboardHeader user={session.user} role="WFM" />
         
         <main className="container mx-auto p-6 max-w-7xl">
-          <CandidateDetails candidate={serializedCandidate} />
+          <CandidateDetails 
+            candidate={serializedCandidate} 
+            expectedJuryCount={expectedJuryCount}
+            hasAllJuryScores={hasAllJuryScores}
+            existingScores={existingScores}
+          />
         </main>
       </div>
     )

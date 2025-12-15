@@ -163,7 +163,7 @@ export function DashboardHeader({ user, role }: DashboardHeaderProps) {
                   <span className="text-white font-bold text-lg tracking-tight">R</span>
                 </div>
                 <div className="hidden lg:block">
-                  <div className="text-sm font-semibold text-gray-900">Recruitement</div>
+                  <div className="text-sm font-semibold text-gray-900">Recrutement</div>
                   <div className="text-xs text-gray-500">Consolidation</div>
                 </div>
               </div>

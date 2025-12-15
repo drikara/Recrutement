@@ -1,306 +1,401 @@
-// components/jury-evaluation-form.tsx
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { useToast } from '@/hooks/use-toast'
-import { Loader2, Save } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import type React from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
+import { Metier, FFDecision } from "@prisma/client"
+import { shouldShowTest, getMetierConfig } from "../lib/metier-utils"
 
-interface ExistingScore {
-  presentationVisuelle?: number
-  verbalCommunication?: number
-  voiceQuality?: number
-  score?: number
-  comments?: string
-}
-
+// ✅ CORRECTION : Interface mise à jour pour correspondre à l'utilisation
 interface JuryEvaluationFormProps {
-  candidateId: number
-  candidateName: string
-  existingScore?: ExistingScore
+  candidate: {
+    id: number
+    name: string
+    metier?: string
+  }
+  existingScore?: {
+    presentationVisuelle?: number
+    verbalCommunication?: number
+    voiceQuality?: number
+    score: number
+    comments?: string
+  }
 }
 
-export function JuryEvaluationForm({ 
-  candidateId, 
-  candidateName,
-  existingScore
-}: JuryEvaluationFormProps) {
-  const { toast } = useToast()
+export function JuryEvaluationForm({ candidate, existingScore }: JuryEvaluationFormProps) {
   const router = useRouter()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [decision, setDecision] = useState<FFDecision | null>(null)
+
   const [formData, setFormData] = useState({
-    presentationVisuelle: '',
-    verbalCommunication: '',
-    voiceQuality: '',
-    comments: ''
+    voiceQuality: existingScore?.voiceQuality?.toString() || "",
+    verbalCommunication: existingScore?.verbalCommunication?.toString() || "",
+    presentationVisuelle: existingScore?.presentationVisuelle?.toString() || "",
+    comments: existingScore?.comments || "",
   })
 
+  // Vérifier que le candidat a un ID
   useEffect(() => {
-    if (existingScore) {
-      setFormData({
-        presentationVisuelle: existingScore.presentationVisuelle?.toString() || '',
-        verbalCommunication: existingScore.verbalCommunication?.toString() || '',
-        voiceQuality: existingScore.voiceQuality?.toString() || '',
-        comments: existingScore.comments || ''
-      })
+    if (!candidate.id) {
+      console.error("❌ ERREUR CRITIQUE: candidate.id est undefined!")
+      setError("ID candidat manquant - Impossible de sauvegarder")
     }
-  }, [existingScore])
+  }, [candidate.id])
 
-  const calculateScore = () => {
-    const pres = parseFloat(formData.presentationVisuelle) || 0
-    const verbal = parseFloat(formData.verbalCommunication) || 0
-    const voice = parseFloat(formData.voiceQuality) || 0
-    
-    if (pres > 0 && verbal > 0 && voice > 0) {
-      return (pres + verbal + voice) / 3
+  // Validation en temps réel
+  useEffect(() => {
+    const voiceQuality = parseFloat(formData.voiceQuality) || 0
+    const verbalCommunication = parseFloat(formData.verbalCommunication) || 0
+    const presentationVisuelle = parseFloat(formData.presentationVisuelle) || 0
+
+    if (candidate.metier === 'AGENCES') {
+      // Pour AGENCES: 3 critères
+      if (voiceQuality >= 3 && verbalCommunication >= 3 && presentationVisuelle >= 3) {
+        setDecision('FAVORABLE')
+      } else {
+        setDecision('DEFAVORABLE')
+      }
+    } else {
+      // Pour autres métiers: 2 critères
+      if (voiceQuality >= 3 && verbalCommunication >= 3) {
+        setDecision('FAVORABLE')
+      } else {
+        setDecision('DEFAVORABLE')
+      }
     }
-    return 0
-  }
-
-  const getFFDecision = (score: number): 'FAVORABLE' | 'DEFAVORABLE' => {
-    return score >= 3 ? 'FAVORABLE' : 'DEFAVORABLE'
-  }
+  }, [formData.voiceQuality, formData.verbalCommunication, formData.presentationVisuelle, candidate.metier])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!formData.presentationVisuelle || !formData.verbalCommunication || 
-        !formData.voiceQuality) {
-      toast({
-        title: "⚠️ Champs manquants",
-        description: "Veuillez remplir tous les champs obligatoires",
-        variant: "destructive"
-      })
-      return
-    }
-
-    // Validation des notes (sur 5)
-    const fields = [
-      { value: formData.presentationVisuelle, name: 'Présentation visuelle' },
-      { value: formData.verbalCommunication, name: 'Communication verbale' },
-      { value: formData.voiceQuality, name: 'Qualité de la voix' }
-    ]
-
-    for (const field of fields) {
-      const val = parseFloat(field.value)
-      if (isNaN(val) || val < 0 || val > 5) {
-        toast({
-          title: "⚠️ Note invalide",
-          description: `${field.name} doit être entre 0 et 5`,
-          variant: "destructive"
-        })
-        return
-      }
-    }
-
-    setIsSubmitting(true)
+    setLoading(true)
+    setError("")
 
     try {
-      const score = calculateScore()
-      const decisionFF = getFFDecision(score)
-
-      console.log('Envoi des données:', {
-        candidate_id: candidateId,
-        presentation_visuelle: parseFloat(formData.presentationVisuelle),
-        verbal_communication: parseFloat(formData.verbalCommunication),
-        voice_quality: parseFloat(formData.voiceQuality),
-        score: score,
-        comments: formData.comments || null
-      })
-
-      const response = await fetch('/api/jury/scores', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          candidate_id: candidateId,
-          presentation_visuelle: parseFloat(formData.presentationVisuelle),
-          verbal_communication: parseFloat(formData.verbalCommunication),
-          voice_quality: parseFloat(formData.voiceQuality),
-          score: score,
-          comments: formData.comments || null
-        })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de l\'enregistrement')
+      // VÉRIFICATION CRITIQUE
+      if (!candidate.id) {
+        throw new Error("ID candidat manquant - Veuillez rafraîchir la page")
       }
 
-      toast({
-        title: "✅ Évaluation enregistrée",
-        description: `L'évaluation face-à-face de ${candidateName} a été enregistrée`,
+      // Convertir les données au FORMAT EXACT attendu par l'API
+      const formDataToSend = {
+        candidate_id: candidate.id, // ⭐ SNAKE_CASE obligatoire!
+        presentation_visuelle: parseFloat(formData.presentationVisuelle) || 0,
+        verbal_communication: parseFloat(formData.verbalCommunication) || 0,
+        voice_quality: parseFloat(formData.voiceQuality) || 0,
+        comments: formData.comments || ""
+      }
+
+      console.log("📤 Données envoyées à l'API:", formDataToSend)
+
+      // ENVOYER À LA BONNE ROUTE - SANS L'ID DANS L'URL!
+      const response = await fetch(`/api/jury/scores`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache"
+        },
+        body: JSON.stringify(formDataToSend),
       })
 
-      setTimeout(() => {
-        router.push('/jury/evaluations')
-        router.refresh()
-      }, 1500)
+      console.log("📥 Réponse HTTP:", response.status, response.statusText)
 
-    } catch (error) {
-      console.error('Error submitting evaluation:', error)
-      toast({
-        title: "❌ Erreur",
-        description: error instanceof Error ? error.message : "Impossible d'enregistrer l'évaluation",
-        variant: "destructive"
-      })
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("❌ Réponse API en erreur:", errorText)
+        
+        let errorMessage = "Erreur lors de l'enregistrement"
+        try {
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          errorMessage = errorText || errorMessage
+        }
+        
+        throw new Error(errorMessage)
+      }
+
+      const result = await response.json()
+      console.log("✅ Réponse API succès:", result)
+
+      // Redirection avec confirmation
+      alert("✅ Évaluation enregistrée avec succès")
+      router.push("/jury/evaluations")
+      router.refresh()
+      
+    } catch (err) {
+      console.error("❌ Erreur complète:", err)
+      setError(err instanceof Error ? err.message : "Une erreur est survenue")
     } finally {
-      setIsSubmitting(false)
+      setLoading(false)
     }
   }
 
-  const currentScore = calculateScore()
-  const currentDecision = getFFDecision(currentScore)
+  const handleChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const config = candidate.metier ? getMetierConfig(candidate.metier as Metier) : null
+  const showPresentationVisuelle = candidate.metier === 'AGENCES'
+
+  // Afficher un loader pendant l'enregistrement
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600">Enregistrement en cours...</p>
+          <p className="text-sm text-gray-500">Veuillez patienter</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
-        <p className="text-sm text-blue-700">
-          <strong>Évaluation Face-à-Face :</strong> Toutes les notes sont sur 5. 
-          Une moyenne ≥ 3/5 donne un avis FAVORABLE.
+    <Card className="border-2 border-blue-200 shadow-lg rounded-2xl overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b-2 border-blue-200">
+        <CardTitle className="flex items-center gap-2 text-blue-800">
+          Évaluation Face à Face
+        </CardTitle>
+        <p className="text-sm text-blue-600">
+          Candidat: {candidate.name} - {candidate.metier || 'N/A'}
         </p>
-      </div>
+        <p className="text-xs text-gray-500">
+          ID Candidat: {candidate.id || 'Non défini'}
+        </p>
+      </CardHeader>
+      
+      <CardContent className="p-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Afficher les erreurs critiques */}
+          {!candidate.id && (
+            <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+              <p className="text-red-700 font-medium">
+                ⚠️ ERREUR: ID candidat manquant. Veuillez rafraîchir la page.
+              </p>
+            </div>
+          )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Présentation Visuelle */}
-        <div className="bg-white border-2 border-gray-100 rounded-xl p-4">
-          <label className="block text-sm font-semibold text-gray-700 mb-3">
-            Présentation Visuelle <span className="text-red-500">*</span>
-          </label>
-          <div className="space-y-2 mb-3">
-            <p className="text-xs text-gray-600">• Tenue vestimentaire (propreté, élégance)</p>
-            <p className="text-xs text-gray-600">• Tenue corporelle (gestuelle, aisance)</p>
-          </div>
-          <input
-            type="number"
-            step="0.1"
-            min="0"
-            max="5"
-            value={formData.presentationVisuelle}
-            onChange={(e) => setFormData({...formData, presentationVisuelle: e.target.value})}
-            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors"
-            placeholder="0 - 5"
-            required
-            disabled={isSubmitting}
-          />
-        </div>
-
-        {/* Qualité de la Voix */}
-        <div className="bg-white border-2 border-gray-100 rounded-xl p-4">
-          <label className="block text-sm font-semibold text-gray-700 mb-3">
-            Qualité de la Voix <span className="text-red-500">*</span>
-          </label>
-          <div className="space-y-2 mb-3">
-            <p className="text-xs text-gray-600">• Expression claire et aisée</p>
-            <p className="text-xs text-gray-600">• Assurance dans la voix, débit normal</p>
-            <p className="text-xs text-gray-600">• Attitude aimable et disponible</p>
-          </div>
-          <input
-            type="number"
-            step="0.1"
-            min="0"
-            max="5"
-            value={formData.voiceQuality}
-            onChange={(e) => setFormData({...formData, voiceQuality: e.target.value})}
-            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors"
-            placeholder="0 - 5"
-            required
-            disabled={isSubmitting}
-          />
-        </div>
-
-        {/* Communication Verbale */}
-        <div className="bg-white border-2 border-gray-100 rounded-xl p-4">
-          <label className="block text-sm font-semibold text-gray-700 mb-3">
-            Communication Verbale <span className="text-red-500">*</span>
-          </label>
-          <div className="space-y-2 mb-3">
-            <p className="text-xs text-gray-600">• Écoute active sans interruption</p>
-            <p className="text-xs text-gray-600">• Capacité à poser des questions pertinentes</p>
-            <p className="text-xs text-gray-600">• Présentation assurée des idées</p>
-            <p className="text-xs text-gray-600">• Communication efficace avec le jury</p>
-          </div>
-          <input
-            type="number"
-            step="0.1"
-            min="0"
-            max="5"
-            value={formData.verbalCommunication}
-            onChange={(e) => setFormData({...formData, verbalCommunication: e.target.value})}
-            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors"
-            placeholder="0 - 5"
-            required
-            disabled={isSubmitting}
-          />
-        </div>
-      </div>
-
-      {/* Score et Décision Calculés */}
-      {formData.presentationVisuelle && formData.voiceQuality && formData.verbalCommunication && (
-        <div className={`p-4 rounded-xl border-2 ${
-          currentDecision === 'FAVORABLE' 
-            ? 'bg-green-50 border-green-200' 
-            : 'bg-red-50 border-red-200'
-        }`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold text-gray-700">Résultat de l'évaluation :</p>
-              <div className="flex items-center gap-6 mt-2">
-                <div>
-                  <p className="text-sm text-gray-600">Score moyen</p>
-                  <p className="text-2xl font-bold text-gray-800">{currentScore.toFixed(2)} / 5</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Décision</p>
-                  <p className={`text-xl font-bold ${
-                    currentDecision === 'FAVORABLE' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {currentDecision === 'FAVORABLE' ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
-                  </p>
-                </div>
-              </div>
+          {/* Qualité de la Voix */}
+          <div className="space-y-3">
+            <Label htmlFor="voiceQuality" className="text-gray-700 font-semibold">
+              Qualité de la Voix (1-5) *
+            </Label>
+            <div className="grid grid-cols-5 gap-2">
+              {[1, 2, 3, 4, 5].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => handleChange("voiceQuality", num.toString())}
+                  className={`py-3 rounded-lg border-2 font-bold transition-all ${
+                    parseFloat(formData.voiceQuality) === num
+                      ? num >= 3
+                        ? "bg-green-100 text-green-700 border-green-400"
+                        : "bg-red-100 text-red-700 border-red-400"
+                      : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
+                  }`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className={parseFloat(formData.voiceQuality) >= 3 ? "text-green-600 font-semibold" : "text-gray-600"}>
+                ≥ 3/5 requis
+              </span>
+              <span className="text-blue-600">
+                Saisie: {formData.voiceQuality || "0"}/5
+              </span>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Commentaires */}
-      <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Commentaires et Observations
-        </label>
-        <Textarea
-          value={formData.comments}
-          onChange={(e) => setFormData({...formData, comments: e.target.value})}
-          className="w-full min-h-[120px] border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:outline-none transition-colors"
-          placeholder="Ajoutez vos observations détaillées sur le candidat..."
-          disabled={isSubmitting}
-        />
-      </div>
+          {/* Communication Verbale */}
+          <div className="space-y-3">
+            <Label htmlFor="verbalCommunication" className="text-gray-700 font-semibold">
+              Communication Verbale (1-5) *
+            </Label>
+            <div className="grid grid-cols-5 gap-2">
+              {[1, 2, 3, 4, 5].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => handleChange("verbalCommunication", num.toString())}
+                  className={`py-3 rounded-lg border-2 font-bold transition-all ${
+                    parseFloat(formData.verbalCommunication) === num
+                      ? num >= 3
+                        ? "bg-green-100 text-green-700 border-green-400"
+                        : "bg-red-100 text-red-700 border-red-400"
+                      : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
+                  }`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className={parseFloat(formData.verbalCommunication) >= 3 ? "text-green-600 font-semibold" : "text-gray-600"}>
+                ≥ 3/5 requis
+              </span>
+              <span className="text-blue-600">
+                Saisie: {formData.verbalCommunication || "0"}/5
+              </span>
+            </div>
+          </div>
 
-      <div className="flex justify-end gap-4">
-        <Button
-          type="submit"
-          disabled={isSubmitting || !formData.presentationVisuelle || !formData.voiceQuality || !formData.verbalCommunication}
-          className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Enregistrement...
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4" />
-              {existingScore ? 'Mettre à jour l\'évaluation' : 'Enregistrer l\'évaluation'}
-            </>
+          {/* Présentation Visuelle (AGENCES seulement) */}
+          {showPresentationVisuelle && (
+            <div className="space-y-3">
+              <Label htmlFor="presentationVisuelle" className="text-gray-700 font-semibold">
+                Présentation Visuelle (1-5) * - AGENCES uniquement
+              </Label>
+              <div className="grid grid-cols-5 gap-2">
+                {[1, 2, 3, 4, 5].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => handleChange("presentationVisuelle", num.toString())}
+                    className={`py-3 rounded-lg border-2 font-bold transition-all ${
+                      parseFloat(formData.presentationVisuelle) === num
+                        ? num >= 3
+                          ? "bg-green-100 text-green-700 border-green-400"
+                          : "bg-red-100 text-red-700 border-red-400"
+                        : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className={parseFloat(formData.presentationVisuelle) >= 3 ? "text-green-600 font-semibold" : "text-gray-600"}>
+                  ≥ 3/5 requis
+                </span>
+                <span className="text-blue-600">
+                  Saisie: {formData.presentationVisuelle || "0"}/5
+                </span>
+              </div>
+            </div>
           )}
-        </Button>
-      </div>
-    </form>
+
+          {/* Décision en temps réel */}
+          <div className={`p-4 rounded-xl border-2 ${
+            decision === 'FAVORABLE' 
+              ? 'bg-green-50 border-green-200' 
+              : 'bg-red-50 border-red-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-gray-800">Décision Face à Face</h4>
+                <p className="text-sm text-gray-600">
+                  Basée sur vos notes
+                </p>
+              </div>
+              <div className={`px-4 py-2 rounded-lg font-bold text-lg ${
+                decision === 'FAVORABLE' 
+                  ? 'bg-green-100 text-green-700 border-2 border-green-300' 
+                  : 'bg-red-100 text-red-700 border-2 border-red-300'
+              }`}>
+                {decision === 'FAVORABLE' ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
+              </div>
+            </div>
+            
+            {/* Détails des critères */}
+            <div className="mt-3 space-y-1 text-sm">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  parseFloat(formData.voiceQuality) >= 3 ? 'bg-green-500' : 'bg-red-500'
+                }`}></div>
+                <span>Qualité voix: {formData.voiceQuality || "0"}/5 {parseFloat(formData.voiceQuality) >= 3 ? '✅' : '❌'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  parseFloat(formData.verbalCommunication) >= 3 ? 'bg-green-500' : 'bg-red-500'
+                }`}></div>
+                <span>Communication: {formData.verbalCommunication || "0"}/5 {parseFloat(formData.verbalCommunication) >= 3 ? '✅' : '❌'}</span>
+              </div>
+              {showPresentationVisuelle && (
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${
+                    parseFloat(formData.presentationVisuelle) >= 3 ? 'bg-green-500' : 'bg-red-500'
+                  }`}></div>
+                  <span>Présentation: {formData.presentationVisuelle || "0"}/5 {parseFloat(formData.presentationVisuelle) >= 3 ? '✅' : '❌'}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Commentaires */}
+          <div className="space-y-3">
+            <Label htmlFor="comments" className="text-gray-700 font-semibold">
+              Commentaires (optionnel)
+            </Label>
+            <Textarea
+              id="comments"
+              value={formData.comments}
+              onChange={(e) => handleChange("comments", e.target.value)}
+              rows={3}
+              className="border-2 border-blue-200 focus:border-blue-400 focus:ring-blue-200 rounded-xl p-3 bg-white transition-colors resize-none"
+              placeholder="Observations, points forts, points d'amélioration..."
+            />
+          </div>
+
+          {/* Message d'erreur */}
+          {error && (
+            <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+              <p className="text-red-700 font-medium flex items-center gap-2">
+                <span>❌</span>
+                {error}
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-4 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+              className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl px-6 py-3 font-semibold"
+              disabled={loading}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="submit"
+              className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white border-0 shadow-lg rounded-xl px-6 py-3 font-semibold disabled:opacity-50"
+              disabled={loading || !decision || !candidate.id}
+            >
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Enregistrement...
+                </div>
+              ) : (
+                `Valider - ${decision === 'FAVORABLE' ? 'Favorable' : 'Défavorable'}`
+              )}
+            </Button>
+          </div>
+
+          {/* Debug info (visible seulement en dev)
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-8 p-4 bg-gray-50 border border-gray-300 rounded-lg text-xs">
+              <p className="font-bold mb-2">🧪 DEBUG INFO:</p>
+              <pre className="whitespace-pre-wrap">
+                {JSON.stringify({
+                  candidateId: candidate.id,
+                  formData,
+                  decision,
+                  showPresentationVisuelle
+                }, null, 2)}
+              </pre>
+            </div>
+          )} */}
+        </form>
+      </CardContent>
+    </Card>
   )
 }

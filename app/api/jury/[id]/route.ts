@@ -251,7 +251,8 @@ export async function GET(request: Request, { params }: RouteParams) {
             evaluatedAt: true,
             candidate: {
               select: {
-                fullName: true,
+                nom: true,
+                prenom : true,
               }
             }
           },

@@ -5,32 +5,34 @@ import { headers } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { CandidateEditForm } from "@/components/candidate-edit-form"
-import { SessionStatus, Metier } from "@prisma/client"
 
-export default async function CandidateEditPage({ 
-  params 
-}: { 
-  params: Promise<{ id: string }> 
-}) {
-  const { id } = await params
+export default async function CandidateEditPage({ params }: { params: { id: string } }) {
   const session = await auth.api.getSession({
     headers: await headers(),
   })
 
-  if (!session || (session.user as any).role !== "WFM") {
+  if (!session) {
     redirect("/auth/login")
   }
 
-  // Récupérer le candidat avec les données de base
+  const userRole = (session.user as any).role || "JURY"
+  if (userRole !== "WFM") {
+    redirect("/auth/login")
+  }
+
+  const { id } = params
+
   const candidate = await prisma.candidate.findUnique({
     where: { id: parseInt(id) },
     select: {
       id: true,
-      fullName: true,
+      nom: true,
+      prenom: true,
       phone: true,
       birthDate: true,
       age: true,
       diploma: true,
+      niveauEtudes: true,
       institution: true,
       email: true,
       location: true,
@@ -39,18 +41,20 @@ export default async function CandidateEditPage({
       interviewDate: true,
       metier: true,
       sessionId: true,
-      notes: true
-    }
+      notes: true,
+    },
   })
 
   if (!candidate) {
     redirect("/wfm/candidates")
   }
 
-  // Récupérer les sessions de recrutement disponibles
-  const recruitmentSessions = await prisma.recruitmentSession.findMany({
+  const sessions = await prisma.recruitmentSession.findMany({
     where: {
-      status: SessionStatus.PLANIFIED // Utilisez PLANIFIED au lieu de ACTIVE
+      OR: [
+        { status: 'PLANIFIED' },
+        { status: 'IN_PROGRESS' }
+      ]
     },
     select: {
       id: true,
@@ -62,43 +66,59 @@ export default async function CandidateEditPage({
       location: true
     },
     orderBy: {
-      date: 'desc'
+      date: 'asc'
     }
   })
 
-  // Transformer les données pour le client
-  const candidateData = {
+  // CORRECTION: Sérialiser les dates en strings
+  const formattedCandidate = {
     id: candidate.id,
-    full_name: candidate.fullName,
+    nom: candidate.nom,
+    prenom: candidate.prenom,
     phone: candidate.phone,
-    birth_date: candidate.birthDate ? new Date(candidate.birthDate).toISOString().split('T')[0] : '',
+    birth_date: candidate.birthDate.toISOString().split('T')[0],
     age: candidate.age,
-    diploma: candidate.diploma || '',
-    institution: candidate.institution || '',
+    diploma: candidate.diploma,
+    niveau_etudes: candidate.niveauEtudes,
+    institution: candidate.institution,
     email: candidate.email,
     location: candidate.location,
-    sms_sent_date: candidate.smsSentDate ? new Date(candidate.smsSentDate).toISOString().split('T')[0] : '',
-    availability: candidate.availability || '',
-    interview_date: candidate.interviewDate ? new Date(candidate.interviewDate).toISOString().split('T')[0] : '',
+    sms_sent_date: candidate.smsSentDate ? candidate.smsSentDate.toISOString().split('T')[0] : '',
+    availability: candidate.availability,
+    interview_date: candidate.interviewDate ? candidate.interviewDate.toISOString().split('T')[0] : '',
     metier: candidate.metier,
-    session_id: candidate.sessionId || '',
-    notes: candidate.notes || ''
+    session_id: candidate.sessionId || 'none',
+    notes: candidate.notes,
   }
 
+  // CORRECTION: Sérialiser les sessions (convertir Date en string)
+  const serializedSessions = sessions.map(session => ({
+    id: session.id,
+    metier: session.metier,
+    date: session.date.toISOString(), // Convertir Date en string ISO
+    jour: session.jour,
+    status: session.status,
+    description: session.description,
+    location: session.location
+  }))
+
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardHeader user={session.user} role="WFM" />
-      <main className="container mx-auto p-6 max-w-4xl">
+    <div className="min-h-screen bg-gray-50">
+      <DashboardHeader user={session.user} role={userRole} />
+      
+      <main className="container mx-auto p-6 max-w-5xl">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold">Modifier le Candidat</h1>
-          <p className="text-muted-foreground">
-            Mettez à jour les informations de {candidate.fullName}
+          <h1 className="text-3xl font-bold text-gray-900">
+            Modifier le Candidat: {candidate.nom} {candidate.prenom}
+          </h1>
+          <p className="text-gray-600 mt-2">
+            Modifier les informations du candidat dans le système de recrutement
           </p>
         </div>
 
         <CandidateEditForm 
-          candidate={candidateData}
-          sessions={recruitmentSessions}
+          candidate={formattedCandidate} 
+          sessions={serializedSessions} 
         />
       </main>
     </div>

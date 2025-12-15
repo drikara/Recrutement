@@ -7,11 +7,11 @@ async function main() {
 
   // Vérifier si l'utilisateur existe
   const user = await prisma.user.findUnique({
-    where: { email: "admin@recruitment.com" }
+    where: { email: "wfm@recrutement.orange.com" }
   });
 
   if (!user) {
-    console.log("❌ Utilisateur admin@recruitment.com introuvable");
+    console.log("❌ Utilisateur wfm@recrutement.orange.com introuvable");
     
     // Lister tous les utilisateurs pour trouver le bon email
     const allUsers = await prisma.user.findMany({
@@ -25,7 +25,7 @@ async function main() {
 
   // Mettre à jour le rôle
   const updated = await prisma.user.update({
-    where: { email: "admin@recruitment.com" },
+    where: { email: "wfm@recrutement.orange.com" },
     data: { 
       role: "WFM",
       emailVerified: true 

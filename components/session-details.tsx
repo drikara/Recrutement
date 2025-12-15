@@ -75,84 +75,109 @@ export function SessionDetails({ session, availableJuryMembers = [] }: SessionDe
   const currentJuryIds = session.juryPresences.map(jp => jp.juryMember.id)
   const availableToAdd = availableJuryMembers.filter(j => !currentJuryIds.includes(j.id))
 
-  const handleAddJury = async () => {
-    if (!selectedJuryId) {
-      alert('Veuillez sélectionner un membre du jury')
-      return
-    }
+ // components/session-details.tsx
+// Remplacez la fonction handleAddJury par celle-ci :
 
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/sessions/${session.id}/jury`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          juryMemberId: selectedJuryId,
-          wasPresent,
-          absenceReason: !wasPresent ? absenceReason : null
-        })
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Erreur lors de l\'ajout')
-      }
-
-      setSelectedJuryId(null)
-      setWasPresent(true)
-      setAbsenceReason('')
-      setShowJuryForm(false)
-      router.refresh()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Erreur inconnue')
-    } finally {
-      setLoading(false)
-    }
+const handleAddJury = async () => {
+  if (!selectedJuryId) {
+    alert('Veuillez sélectionner un membre du jury')
+    return
   }
 
-  const handleRemoveJury = async (presenceId: number) => {
-    if (!confirm('Retirer ce membre du jury de cette session ?')) return
-
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/sessions/${session.id}/jury/${presenceId}`, {
-        method: 'DELETE'
+  setLoading(true)
+  try {
+    const response = await fetch(`/api/sessions/${session.id}/jury`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        juryMemberId: selectedJuryId, // ✅ Envoyer un seul ID
+        wasPresent: wasPresent,
+        absenceReason: !wasPresent ? absenceReason : null
       })
+    })
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Erreur')
-      }
-
-      router.refresh()
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Erreur')
-    } finally {
-      setLoading(false)
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.error || 'Erreur lors de l\'ajout')
     }
-  }
 
-  const handleTogglePresence = async (presenceId: number, currentPresent: boolean) => {
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/sessions/${session.id}/jury/${presenceId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          wasPresent: !currentPresent,
-          absenceReason: currentPresent ? 'Non précisée' : null
-        })
+    const result = await response.json()
+    
+    // Afficher le message de succès
+    alert(result.message || 'Jury ajouté avec succès!')
+    
+    // Réinitialiser le formulaire
+    setSelectedJuryId(null)
+    setWasPresent(true)
+    setAbsenceReason('')
+    setShowJuryForm(false)
+    
+    // Recharger la page pour voir les changements
+    router.refresh()
+  } catch (err) {
+    console.error('Erreur:', err)
+    alert(err instanceof Error ? err.message : 'Erreur inconnue')
+  } finally {
+    setLoading(false)
+  }
+}
+
+ // Remplacez ces deux fonctions dans session-details.tsx
+
+const handleRemoveJury = async (presenceId: number) => {
+  if (!confirm('Retirer ce membre du jury de cette session ?')) return
+
+  setLoading(true)
+  try {
+    // ✅ Utiliser la bonne route : /api/sessions/[id]/[presenceId]
+    const response = await fetch(`/api/sessions/${session.id}/${presenceId}`, {
+      method: 'DELETE'
+    })
+
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.error || 'Erreur lors de la suppression')
+    }
+
+    const result = await response.json()
+    alert(result.message || 'Jury retiré avec succès!')
+    router.refresh()
+  } catch (err) {
+    console.error('Erreur:', err)
+    alert(err instanceof Error ? err.message : 'Erreur lors de la suppression')
+  } finally {
+    setLoading(false)
+  }
+}
+
+const handleTogglePresence = async (presenceId: number, currentPresent: boolean) => {
+  setLoading(true)
+  try {
+    // ✅ Utiliser la bonne route : /api/sessions/[id]/[presenceId]
+    const response = await fetch(`/api/sessions/${session.id}/${presenceId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        wasPresent: !currentPresent,
+        absenceReason: currentPresent ? 'Non précisée' : null
       })
+    })
 
-      if (!response.ok) throw new Error('Erreur')
-
-      router.refresh()
-    } catch (err) {
-      alert('Erreur lors de la mise à jour')
-    } finally {
-      setLoading(false)
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.error || 'Erreur lors de la mise à jour')
     }
+
+    const result = await response.json()
+    alert('Statut de présence mis à jour avec succès!')
+    router.refresh()
+  } catch (err) {
+    console.error('Erreur:', err)
+    alert(err instanceof Error ? err.message : 'Erreur lors de la mise à jour')
+  } finally {
+    setLoading(false)
   }
+}
 
   const getStatusColor = (status: SessionStatus) => {
     switch (status) {
@@ -185,7 +210,8 @@ export function SessionDetails({ session, availableJuryMembers = [] }: SessionDe
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'DRH': return 'bg-orange-100 text-orange-700 border-orange-300'
-      case 'EPC': return 'bg-blue-100 text-blue-700 border-blue-300'
+      case 'EPC': return 'bg-blue-100 text-blue-700 border-blue-300' 
+      case 'FORMATEUR': return 'bg-'
       case 'REPRESENTANT_METIER': return 'bg-emerald-100 text-emerald-700 border-emerald-300'
       case 'WFM_JURY': return 'bg-purple-100 text-purple-700 border-purple-300'
       default: return 'bg-gray-100 text-gray-700 border-gray-300'
@@ -239,15 +265,7 @@ export function SessionDetails({ session, availableJuryMembers = [] }: SessionDe
                 </svg>
                 Modifier
               </Link>
-              {/* <Link
-                href={`/api/export/session/${session.id}`}
-                className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white px-4 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 font-semibold"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Exporter
-              </Link> */}
+            
             </div>
           </div>
         </div>
@@ -410,7 +428,7 @@ export function SessionDetails({ session, availableJuryMembers = [] }: SessionDe
                         Contact
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-orange-800 uppercase tracking-wider">
-                        Statut Appel
+                        Statut de Présence
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-orange-800 uppercase tracking-wider">
                         Décision
