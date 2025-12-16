@@ -1,3 +1,4 @@
+//components/wfm-score-form
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -1096,7 +1097,7 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
                 </label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0"
                   min="0"
                   max="5"
                   value={technicalScores.excel_test}
@@ -1124,7 +1125,7 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
                 </label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0"
                   min="0"
                   max="20"
                   value={technicalScores.dictation}
@@ -1153,7 +1154,7 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
                   </label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="0"
                     min="0"
                     max="5"
                     value={technicalScores.psycho_raisonnement}
@@ -1177,7 +1178,7 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
                   </label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="0"
                     min="0"
                     max="5"
                     value={technicalScores.psycho_attention}
@@ -1205,7 +1206,7 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
                 </label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0"
                   min="0"
                   max="5"
                   value={technicalScores.analysis_exercise}
@@ -1256,26 +1257,7 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
         </div>
       ) : null}
 
-      {/* Commentaires */}
-      <div className="bg-white border-2 border-gray-200 rounded-xl p-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Commentaires généraux
-        </label>
-        <textarea
-          value={technicalScores.comments}
-          onChange={(e) => setTechnicalScores(prev => ({ 
-            ...prev, 
-            comments: e.target.value 
-          }))}
-          rows={4}
-          className="w-full p-3 border border-gray-300 rounded-lg"
-          placeholder={
-            candidate.availability === 'NON' 
-              ? 'Observations sur le candidat non disponible...' 
-              : 'Observations générales sur le candidat...'
-          }
-        />
-      </div>
+     
 
       {/* 🎯 DÉCISION FINALE */}
       <div className={`border-4 rounded-xl p-6 ${

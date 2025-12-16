@@ -1,44 +1,73 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
-import { checkSimulationUnlockStatus } from '@/lib/simulation-unlock'
 
+// ========================================================================
+// 📁 FICHIER 2 : api/candidates/[id]/simulation-unlock/route.ts
+// ========================================================================
+
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { checkSimulationUnlockStatus } from '@/lib/simulation-unlock'
+import { Metier } from '@prisma/client'
+
+/**
+ * ⭐ API Route pour vérifier le déblocage de la simulation (Phase 2)
+ * 
+ * Cette route fait simplement appel à la fonction checkSimulationUnlockStatus
+ * du fichier lib/simulation-unlock.ts qui contient toute la logique.
+ * 
+ * IMPORTANT : La logique métier est centralisée dans lib/simulation-unlock.ts
+ * pour éviter toute duplication ou incohérence.
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    })
-
-    if (!session) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
     const { id } = await params
     const candidateId = parseInt(id)
 
     if (isNaN(candidateId)) {
-      return NextResponse.json({ error: 'ID candidat invalide' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'ID candidat invalide' },
+        { status: 400 }
+      )
     }
 
-    // Récupérer le métier du candidat
-    const { prisma } = await import('@/lib/prisma')
+    // Récupérer le candidat pour obtenir son métier
     const candidate = await prisma.candidate.findUnique({
       where: { id: candidateId },
       select: { metier: true }
     })
 
     if (!candidate) {
-      return NextResponse.json({ error: 'Candidat non trouvé' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Candidat non trouvé' },
+        { status: 404 }
+      )
     }
 
-    const unlockStatus = await checkSimulationUnlockStatus(candidateId, candidate.metier)
+    // ⭐ Appeler la fonction centralisée qui contient la BONNE logique
+    const unlockStatus = await checkSimulationUnlockStatus(
+      candidateId,
+      candidate.metier as Metier
+    )
+
+    console.log(`🔓 [API] Résultat déblocage simulation pour candidat ${candidateId}:`, {
+      unlocked: unlockStatus.unlocked,
+      allJurysEvaluated: unlockStatus.conditions.allJurysEvaluatedPhase1,
+      allAveragesAboveThreshold: unlockStatus.conditions.allAveragesAboveThreshold,
+      missingConditions: unlockStatus.missingConditions
+    })
 
     return NextResponse.json(unlockStatus)
 
   } catch (error) {
-    console.error('Erreur vérification déblocage:', error)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    console.error('❌ [API] Erreur vérification déblocage simulation:', error)
+    return NextResponse.json(
+      { 
+        error: 'Erreur serveur lors de la vérification du déblocage',
+        details: error instanceof Error ? error.message : 'Erreur inconnue'
+      },
+      { status: 500 }
+    )
   }
 }

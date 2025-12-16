@@ -275,6 +275,12 @@ export function JuryScoreForm({
   const handleSubmitPhase2 = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // VÉRIFICATION AJOUTÉE : Bloquer l'accès si canDoPhase2 = false
+    if (!canDoPhase2) {
+      alert('⚠️ La simulation n\'est pas encore débloquée. Tous les jurys doivent avoir évalué la Phase 1 avec des notes favorables.')
+      return
+    }
+    
     if (!isPhase2Complete()) {
       alert('Veuillez noter tous les critères')
       return
@@ -353,7 +359,14 @@ export function JuryScoreForm({
           </button>
           
           <button
-            onClick={() => setActivePhase(2)}
+            onClick={() => {
+              // VÉRIFICATION AJOUTÉE : Empêcher l'accès si canDoPhase2 = false
+              if (!canDoPhase2) {
+                alert('⚠️ La simulation sera débloquée une fois que tous les jurys auront évalué la Phase 1 avec des résultats favorables.')
+                return
+              }
+              setActivePhase(2)
+            }}
             disabled={!canDoPhase2}
             className={`flex-1 py-3 px-6 rounded-lg font-semibold transition-all ${
               activePhase === 2
@@ -364,7 +377,11 @@ export function JuryScoreForm({
             }`}
           >
             Phase 2 - Simulation 🎭
-            {!canDoPhase2 && <span className="ml-2 text-xs">(Validez Phase 1 d'abord)</span>}
+            {!canDoPhase2 && (
+              <div className="text-xs mt-1">
+                🔒 Débloquée après validation Phase 1 par tous les jurys
+              </div>
+            )}
           </button>
         </div>
       )}

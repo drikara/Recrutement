@@ -19,7 +19,7 @@ const metierTechnicalColumns: Record<Metier, string[]> = {
   [Metier.BO_RECLAM]: [
     'Raisonnement Logique (/5)',
     'Attention Concentration (/5)',
-    'Test Psychotechnique (/10)',
+   
     'Vitesse de Saisie (MPM)',
     'Précision de Saisie (%)',
     'Test Excel (/5)',
@@ -73,8 +73,7 @@ function getTechnicalColumnValue(candidate: any, columnName: string): string {
       return scores?.psychoRaisonnementLogique?.toString() || ''
     case 'Attention Concentration (/5)':
       return scores?.psychoAttentionConcentration?.toString() || ''
-    case 'Test Psychotechnique (/10)':
-      return scores?.psychotechnicalTest?.toString() || ''
+   
     
     // Tests de saisie
     case 'Vitesse de Saisie (MPM)':
@@ -87,7 +86,7 @@ function getTechnicalColumnValue(candidate: any, columnName: string): string {
       return scores?.excelTest?.toString() || ''
     case 'Dictée (/20)':
       return scores?.dictation?.toString() || ''
-    case 'Exercice d\'Analyse (/10)':
+    case 'Exercice d\'Analyse (/5)':
       return scores?.analysisExercise?.toString() || ''
     
     // Simulation (AGENCES et TELEVENTE)
@@ -142,7 +141,7 @@ export function generateSessionExport(session: any): { csv: string, filename: st
   // En-têtes de base
   const baseHeaders = [
     'N°',
-    'ID Candidat',
+   
     'Nom',
     'Prénom',
     'Email',
@@ -150,24 +149,24 @@ export function generateSessionExport(session: any): { csv: string, filename: st
     'Âge',
     'Diplôme',
     'Niveau d\'études',
-    'Institution',
-    'Localisation',
+    'Université',
+    'Lieu d\'habitation',
     'Date d\'entretien',
   ]
   
-  // En-têtes Face-à-Face (Phase 1)
+  // En-têtes Face-à-Face (Phase 1) avec décision juste après
   const faceToFaceHeaders = [
     'Présentation Visuelle (moyenne)',
     'Communication Verbale (moyenne)',
     'Qualité Vocale (moyenne)',
+    'Décision Face-à-Face',
   ]
   
   // En-têtes Tests Techniques (spécifiques au métier)
   const technicalHeaders = metierTechnicalColumns[metier as Metier] || []
   
-  // En-têtes Décisions
+  // En-têtes Décisions finales
   const decisionHeaders = [
-    'Décision Face-à-Face',
     'Décision Test',
     'Décision Finale',
   ]
@@ -189,7 +188,7 @@ export function generateSessionExport(session: any): { csv: string, filename: st
   const rows = recruitedCandidates.map((candidate: any, index: number) => {
     const baseRow = [
       (index + 1).toString(),
-      candidate.id.toString(),
+     
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -208,12 +207,12 @@ export function generateSessionExport(session: any): { csv: string, filename: st
       calculatePhase1Average(candidate.faceToFaceScores || [], 'presentationVisuelle'),
       calculatePhase1Average(candidate.faceToFaceScores || [], 'verbalCommunication'),
       calculatePhase1Average(candidate.faceToFaceScores || [], 'voiceQuality'),
+      candidate.scores?.phase1FfDecision || '',
     ]
     
     const technicalRow = technicalHeaders.map(col => getTechnicalColumnValue(candidate, col))
     
     const decisionRow = [
-      candidate.scores?.phase1FfDecision || '',
       candidate.scores?.decisionTest || '',
       candidate.scores?.finalDecision || '',
     ]
@@ -263,7 +262,7 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
   // En-têtes de base
   const baseHeaders = [
     'N°',
-    'ID Candidat',
+   
     'Nom',
     'Prénom',
     'Email',
@@ -271,21 +270,21 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
     'Âge',
     'Diplôme',
     'Niveau d\'études',
-    'Institution',
-    'Localisation',
+    'Université',
+    'Lieu d\'habitation',
     'Date d\'entretien',
   ]
   
-  // En-têtes Face-à-Face
+  // En-têtes Face-à-Face avec décision juste après
   const faceToFaceHeaders = [
     'Présentation Visuelle (moyenne)',
     'Communication Verbale (moyenne)',
     'Qualité Vocale (moyenne)',
+    'Décision Face-à-Face',
   ]
   
-  // En-têtes Décisions
+  // En-têtes Décisions finales
   const decisionHeaders = [
-    'Décision Face-à-Face',
     'Décision Test',
     'Décision Finale',
   ]
@@ -313,7 +312,7 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
     
     const baseRow = [
       candidateNumber.toString(),
-      candidate.id.toString(),
+   
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -332,6 +331,7 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
       calculatePhase1Average(candidate.faceToFaceScores || [], 'presentationVisuelle'),
       calculatePhase1Average(candidate.faceToFaceScores || [], 'verbalCommunication'),
       calculatePhase1Average(candidate.faceToFaceScores || [], 'voiceQuality'),
+      candidate.scores?.phase1FfDecision || '',
     ]
     
     // Pour chaque colonne technique globale, vérifier si elle existe pour ce métier
@@ -344,7 +344,6 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
     })
     
     const decisionRow = [
-      candidate.scores?.phase1FfDecision || '',
       candidate.scores?.decisionTest || '',
       candidate.scores?.finalDecision || '',
     ]
@@ -399,17 +398,18 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
   
   // En-têtes
   const baseHeaders = [
-    'N°', 'ID Candidat', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Âge',
-    'Diplôme', 'Niveau d\'études', 'Établissement', 'Lieu d'\habitation', 'Date d\'entretien',
+    'N°', 'Nom', 'Prénoms', 'Email', 'Téléphone', 'Âge',
+    'Diplôme', 'Niveau d\'études', 'Université', 'Lieu d\'habitation', 'Date d\'entretien',
   ]
   
   const faceToFaceHeaders = [
     'Présentation Visuelle (moyenne)', 'Communication Verbale (moyenne)', 'Qualité Vocale (moyenne)',
+    'Décision Face-à-Face',
   ]
   
   const technicalHeaders = metierTechnicalColumns[metier as Metier] || []
   
-  const decisionHeaders = ['Décision Face-à-Face', 'Décision Test', 'Décision Finale']
+  const decisionHeaders = ['Décision Test', 'Décision Finale']
   const commentHeaders = ['Commentaires Généraux']
   
   const headers = [
@@ -426,7 +426,7 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
   recruitedCandidates.forEach((candidate: any, index: number) => {
     const baseRow = [
       index + 1,
-      candidate.id,
+    
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -445,12 +445,12 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
       calculatePhase1Average(candidate.faceToFaceScores || [], 'presentationVisuelle'),
       calculatePhase1Average(candidate.faceToFaceScores || [], 'verbalCommunication'),
       calculatePhase1Average(candidate.faceToFaceScores || [], 'voiceQuality'),
+      candidate.scores?.phase1FfDecision || '',
     ]
     
     const technicalRow = technicalHeaders.map(col => getTechnicalColumnValue(candidate, col))
     
     const decisionRow = [
-      candidate.scores?.phase1FfDecision || '',
       candidate.scores?.decisionTest || '',
       candidate.scores?.finalDecision || '',
     ]
@@ -472,7 +472,7 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
   // Largeur des colonnes
   const colWidths = [
     { wch: 5 },  // N°
-    { wch: 10 }, // ID
+   
     { wch: 18 }, // Nom
     { wch: 18 }, // Prénom
     { wch: 25 }, // Email
@@ -533,15 +533,16 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
   
   // En-têtes
   const baseHeaders = [
-    'N°', 'ID Candidat', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Âge',
-    'Diplôme', 'Niveau d\'études', 'Institution', 'Localisation', 'Date d\'entretien',
+    'N°', 'Nom', 'Prénoms', 'Email', 'Téléphone', 'Âge',
+    'Diplôme', 'Niveau d\'études', 'Université', 'Lieu d\'habitation', 'Date d\'entretien',
   ]
   
   const faceToFaceHeaders = [
     'Présentation Visuelle (moyenne)', 'Communication Verbale (moyenne)', 'Qualité Vocale (moyenne)',
+    'Décision Face-à-Face',
   ]
   
-  const decisionHeaders = ['Décision Face-à-Face', 'Décision Test', 'Décision Finale']
+  const decisionHeaders = ['Décision Test', 'Décision Finale']
   const commentHeaders = ['Commentaires Généraux']
   
   const headers = [
@@ -564,7 +565,7 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     
     const baseRow = [
       candidateNumber,
-      candidate.id,
+     
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -583,6 +584,7 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
       calculatePhase1Average(candidate.faceToFaceScores || [], 'presentationVisuelle'),
       calculatePhase1Average(candidate.faceToFaceScores || [], 'verbalCommunication'),
       calculatePhase1Average(candidate.faceToFaceScores || [], 'voiceQuality'),
+      candidate.scores?.phase1FfDecision || '',
     ]
     
     const technicalRow = Array.from(allTechnicalColumns).map(col => {
@@ -594,7 +596,6 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     })
     
     const decisionRow = [
-      candidate.scores?.phase1FfDecision || '',
       candidate.scores?.decisionTest || '',
       candidate.scores?.finalDecision || '',
     ]

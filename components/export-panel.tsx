@@ -1,12 +1,62 @@
-//components/export-panel.tsx
+// components/export-panel.tsx
 'use client'
 
 import { useState, useMemo } from 'react'
 import { Metier, SessionStatus } from '@prisma/client'
-import { toast } from '@/lib/toast'
-import { toast as hotToast } from 'react-hot-toast'
+import { toast } from 'react-hot-toast'
 
-// Interfaces
+// ========================================
+// UTILITAIRE DE GESTION D'ERREURS
+// ========================================
+class ApiErrorHandler {
+  static getErrorMessage(status: number, defaultMessage?: string): string {
+    const errorMessages: Record<number, string> = {
+      400: "❌ Les données envoyées sont invalides. Veuillez vérifier votre saisie.",
+      401: "🔒 Vous n'êtes pas connecté. Veuillez vous reconnecter.",
+      403: "⛔ Vous n'avez pas les permissions nécessaires pour effectuer cette action.",
+      404: "🔍 Aucune donnée trouvée avec les critères sélectionnés.",
+      409: "⚠️ Un conflit s'est produit. Cette donnée existe déjà.",
+      422: "❌ Les données fournies ne sont pas valides.",
+      429: "⏳ Trop de requêtes. Veuillez patienter quelques instants.",
+      500: "🔧 Une erreur serveur s'est produite. Nos équipes ont été notifiées.",
+      502: "🌐 Le serveur est temporairement indisponible. Veuillez réessayer.",
+      503: "⚙️ Le service est en maintenance. Veuillez réessayer dans quelques minutes.",
+      504: "⏱️ Le serveur met trop de temps à répondre. Veuillez réessayer."
+    }
+
+    return errorMessages[status] || defaultMessage || "❌ Une erreur inattendue s'est produite."
+  }
+
+  static async handleResponse(response: Response): Promise<{ ok: boolean; data?: any; error?: string }> {
+    if (response.ok) {
+      return { ok: true }
+    }
+
+    let errorMessage: string
+
+    try {
+      const contentType = response.headers.get('content-type')
+      
+      if (contentType?.includes('application/json')) {
+        const errorData = await response.json()
+        errorMessage = this.getErrorMessage(response.status, errorData?.error || errorData?.message)
+      } else if (contentType?.includes('text/')) {
+        const textError = await response.text()
+        errorMessage = this.getErrorMessage(response.status, textError)
+      } else {
+        errorMessage = this.getErrorMessage(response.status)
+      }
+    } catch (e) {
+      errorMessage = this.getErrorMessage(response.status)
+    }
+
+    return { ok: false, error: errorMessage }
+  }
+}
+
+// ========================================
+// INTERFACES
+// ========================================
 interface Session {
   id: string
   metier: string
@@ -35,12 +85,12 @@ interface DateRange {
 }
 
 type ExportType = 'session' | 'metier' | 'month' | 'period' | 'all' | 'excel'
-
-// Type pour le métier sélectionné qui peut être "all"
 type SelectedMetier = Metier | 'all'
 
 export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
-  // États
+  // ========================================
+  // ÉTATS
+  // ========================================
   const [exportType, setExportType] = useState<ExportType>('session')
   const [loading, setLoading] = useState(false)
   const [selectedSession, setSelectedSession] = useState('')
@@ -49,7 +99,9 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
   const [selectedMonth, setSelectedMonth] = useState('')
   const [dateRange, setDateRange] = useState<DateRange>({ start: '', end: '' })
 
-  // Sessions filtrées
+  // ========================================
+  // SESSIONS FILTRÉES
+  // ========================================
   const filteredSessions = useMemo(() => {
     return sessions.filter(session => {
       if (selectedStatus !== 'all' && session.status !== selectedStatus) return false
@@ -57,7 +109,9 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
     })
   }, [sessions, selectedStatus])
 
-  // Mois disponibles
+  // ========================================
+  // MOIS DISPONIBLES
+  // ========================================
   const availableMonths = useMemo(() => {
     const months = Array.from(new Set(
       sessions.map(session => {
@@ -69,66 +123,12 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
     return months
   }, [sessions])
 
-  // Fonction d'export multiple
-  const handleMultipleSessionsExport = async () => {
-    setLoading(true)
-    const loadingToast = toast.loading('Export multiple en cours...')
-    
-    try {
-      const params = new URLSearchParams()
-      
-      // Ajouter les IDs des sessions sélectionnées
-      filteredSessions.forEach(session => {
-        params.append('sessionIds', session.id)
-      })
-      
-      if (selectedStatus !== 'all') {
-        params.append('status', selectedStatus)
-      }
-
-      const url = `/api/export/multiple?${params.toString()}`
-      console.log('🌐 URL export multiple:', url)
-
-      const response = await fetch(url)
-      
-      if (response.status === 404) {
-        const message = await response.text()
-        hotToast.dismiss(loadingToast)
-        toast.error(message || 'Aucune donnée trouvée avec les critères sélectionnés')
-        return
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }))
-        throw new Error(errorData.error || 'Erreur lors de l\'export multiple')
-      }
-      
-      const blob = await response.blob()
-      const downloadUrl = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = downloadUrl
-      a.download = 'sessions-export.zip'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(downloadUrl)
-
-      hotToast.dismiss(loadingToast)
-      toast.success(`Export multiple de ${filteredSessions.length} sessions terminé!`)
-
-    } catch (error) {
-      console.error('❌ Export multiple error:', error)
-      hotToast.dismiss(loadingToast)
-      toast.error(error instanceof Error ? error.message : 'Erreur lors de l\'export multiple')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Fonction d'export principal
+  // ========================================
+  // FONCTION D'EXPORT PRINCIPALE
+  // ========================================
   const handleExport = async () => {
     setLoading(true)
-    const loadingToast = toast.loading('Export en cours...')
+    const loadingToast = toast.loading('⏳ Préparation de l\'export...')
     
     try {
       const params = new URLSearchParams()
@@ -139,11 +139,14 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
         apiUrl = '/api/export/excel'
       }
 
+      // ========================================
+      // VALIDATION DES CHAMPS REQUIS
+      // ========================================
       switch (exportType) {
         case 'session':
           if (!selectedSession) {
-            hotToast.dismiss(loadingToast)
-            toast.error('Veuillez sélectionner une session')
+            toast.dismiss(loadingToast)
+            toast.error('⚠️ Veuillez sélectionner une session', { duration: 4000 })
             return
           }
           params.append('sessionId', selectedSession)
@@ -151,8 +154,8 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
         
         case 'metier':
           if (selectedMetier === 'all') {
-            hotToast.dismiss(loadingToast)
-            toast.error('Veuillez sélectionner un métier')
+            toast.dismiss(loadingToast)
+            toast.error('⚠️ Veuillez sélectionner un métier', { duration: 4000 })
             return
           }
           params.append('metier', selectedMetier)
@@ -163,8 +166,8 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
         
         case 'month':
           if (!selectedMonth) {
-            hotToast.dismiss(loadingToast)
-            toast.error('Veuillez sélectionner un mois')
+            toast.dismiss(loadingToast)
+            toast.error('⚠️ Veuillez sélectionner un mois', { duration: 4000 })
             return
           }
           params.append('month', selectedMonth)
@@ -175,8 +178,8 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
         
         case 'period':
           if (!dateRange.start && !dateRange.end) {
-            hotToast.dismiss(loadingToast)
-            toast.error('Veuillez sélectionner au moins une date')
+            toast.dismiss(loadingToast)
+            toast.error('⚠️ Veuillez sélectionner au moins une date', { duration: 4000 })
             return
           }
           if (dateRange.start) params.append('dateFrom', dateRange.start)
@@ -193,7 +196,6 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
           break
         
         case 'excel':
-          // Pour l'export Excel consolidé, on utilise les mêmes paramètres
           if (selectedStatus !== 'all') {
             params.append('status', selectedStatus)
           }
@@ -209,28 +211,48 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
       const url = `${apiUrl}?${params.toString()}`
       console.log('🌐 URL export:', url)
 
+      // ========================================
+      // APPEL API AVEC GESTION D'ERREURS
+      // ========================================
       const response = await fetch(url)
       
-      if (response.status === 404) {
-        const message = await response.text()
-        hotToast.dismiss(loadingToast)
-        toast.error(message || 'Aucune donnée trouvée avec les critères sélectionnés')
+      // Gérer les erreurs HTTP
+      const result = await ApiErrorHandler.handleResponse(response)
+      
+      if (!result.ok) {
+        toast.dismiss(loadingToast)
+        toast.error(result.error || 'Une erreur est survenue', { 
+          duration: 6000,
+          style: {
+            background: '#FEE2E2',
+            color: '#991B1B',
+            border: '2px solid #DC2626',
+            padding: '16px',
+            fontSize: '14px'
+          }
+        })
         return
       }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }))
-        throw new Error(errorData.error || 'Erreur lors de l\'export')
-      }
-      
+      // ========================================
+      // TÉLÉCHARGEMENT DU FICHIER
+      // ========================================
       const blob = await response.blob()
+      
+      // Vérifier que le blob n'est pas vide
+      if (blob.size === 0) {
+        toast.dismiss(loadingToast)
+        toast.error('❌ Le fichier généré est vide. Aucune donnée à exporter.', { duration: 5000 })
+        return
+      }
+
       const downloadUrl = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = downloadUrl
       
       // Récupérer le nom de fichier depuis les headers
       const contentDisposition = response.headers.get('Content-Disposition')
-      let filename = exportType === 'excel' ? 'export_consolide.csv' : 'export.csv'
+      let filename = exportType === 'excel' ? 'export_consolide.xlsx' : 'export.csv'
       
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="(.+)"/)
@@ -245,18 +267,44 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
       document.body.removeChild(a)
       window.URL.revokeObjectURL(downloadUrl)
 
-      hotToast.dismiss(loadingToast)
-      toast.success('Export terminé avec succès!')
+      toast.dismiss(loadingToast)
+      toast.success('✅ Export terminé avec succès !', { 
+        duration: 4000,
+        style: {
+          background: '#D1FAE5',
+          color: '#065F46',
+          border: '2px solid #10B981',
+          padding: '16px',
+          fontSize: '14px'
+        }
+      })
 
     } catch (error) {
       console.error('❌ Export error:', error)
-      hotToast.dismiss(loadingToast)
-      toast.error(error instanceof Error ? error.message : 'Erreur lors de l\'export')
+      toast.dismiss(loadingToast)
+      
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : '❌ Une erreur inattendue s\'est produite lors de l\'export.'
+      
+      toast.error(errorMessage, { 
+        duration: 6000,
+        style: {
+          background: '#FEE2E2',
+          color: '#991B1B',
+          border: '2px solid #DC2626',
+          padding: '16px',
+          fontSize: '14px'
+        }
+      })
     } finally {
       setLoading(false)
     }
   }
 
+  // ========================================
+  // RENDER
+  // ========================================
   return (
     <div className="bg-white rounded-2xl border-2 border-orange-100 p-6 shadow-lg space-y-6">
       {/* Sélection du type d'export */}
@@ -407,44 +455,8 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
         </div>
       )}
 
-      {/* Information sur l'export Excel consolidé */}
-      {/* {exportType === 'excel' && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">
-                Export Excel Consolidé
-              </h3>
-              <div className="mt-2 text-sm text-blue-700">
-                <p>
-                  • Inclut <strong>toutes les colonnes spécifiques à chaque métier</strong><br/>
-                  • Colonnes vides pour les tests non applicables au métier<br/>
-                  • Parfait pour l'analyse et les audits détaillés
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )} */}
-
-      {/* Boutons d'export */}
-      <div className="flex justify-between pt-4 border-t border-orange-200">
-        {/* <button
-          onClick={handleMultipleSessionsExport}
-          disabled={loading || filteredSessions.length === 0}
-          className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-          </svg>
-          Exporter {filteredSessions.length} sessions (ZIP)
-        </button> */}
-
+      {/* Bouton d'export */}
+      <div className="flex justify-end pt-4 border-t border-orange-200">
         <button
           onClick={handleExport}
           disabled={loading || 

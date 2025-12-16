@@ -1,4 +1,4 @@
-// app/jury/evaluations/[id]/page.tsx
+//app/jury/evaluations/[id]/page.tsx
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
@@ -19,6 +19,7 @@ import {
   Building2
 } from 'lucide-react'
 import { canJuryMemberAccessCandidate, isSessionActive } from "@/lib/permissions"
+import { checkSimulationUnlockStatus } from "@/lib/simulation-unlock"
 
 export default async function JuryEvaluationPage({ 
   params 
@@ -71,7 +72,9 @@ export default async function JuryEvaluationPage({
     redirect("/jury/evaluations")
   }
 
-  if (!canJuryMemberAccessCandidate(juryMember, candidate)) {
+  // ⭐⭐ CORRECTION: Appel asynchrone à canJuryMemberAccessCandidate
+  const hasAccess = await canJuryMemberAccessCandidate(juryMember, candidate)
+  if (!hasAccess) {
     redirect("/jury/evaluations")
   }
 
@@ -85,7 +88,17 @@ export default async function JuryEvaluationPage({
   
   const phase1Complete = !!phase1Score
   const needsSimulation = candidate.metier === 'AGENCES' || candidate.metier === 'TELEVENTE'
-  const canDoPhase2 = needsSimulation && phase1Complete && phase1Score?.decision === 'FAVORABLE'
+  
+  // ⭐ Vérifier si la Phase 2 est débloquée
+  let canDoPhase2 = false
+  let unlockStatus = null
+
+  if (needsSimulation && phase1Complete) {
+    // ⚠️ CHANGEMENT : On ne vérifie PLUS si la décision est FAVORABLE
+    // On vérifie directement le statut de déblocage basé sur les moyennes
+    unlockStatus = await checkSimulationUnlockStatus(candidate.id, candidate.metier)
+    canDoPhase2 = unlockStatus.unlocked
+  }
   
   const fullName = `${candidate.prenom} ${candidate.nom}`
 
@@ -203,7 +216,14 @@ export default async function JuryEvaluationPage({
                       <p className={`text-sm ${
                         canDoPhase2 ? 'text-green-700' : 'text-gray-500'
                       }`}>
-                        {canDoPhase2 ? 'Disponible' : 'Validez Phase 1 d\'abord'}
+                        {canDoPhase2 
+                          ? 'Disponible - Moyennes validées ✅' 
+                          : !phase1Complete
+                            ? 'Complétez Phase 1 d\'abord'
+                            : unlockStatus && unlockStatus.missingConditions && unlockStatus.missingConditions.length > 0
+                              ? 'Conditions de déblocage manquantes'
+                              : 'En attente de validation'
+                        }
                       </p>
                     </div>
                   </div>
@@ -213,6 +233,23 @@ export default async function JuryEvaluationPage({
                     </span>
                   )}
                 </div>
+                
+                {/* Affichage des conditions manquantes si la simulation n'est pas débloquée */}
+                {!canDoPhase2 && phase1Complete && unlockStatus && unlockStatus.missingConditions && unlockStatus.missingConditions.length > 0 && (
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm font-medium text-yellow-800 mb-1">
+                      ℹ️ Conditions pour débloquer la simulation :
+                    </p>
+                    <ul className="text-xs text-yellow-700 list-disc pl-4 space-y-1">
+                      {unlockStatus.missingConditions.map((condition, index) => (
+                        <li key={index}>{condition}</li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-yellow-600 mt-2 italic">
+                      Note : Seules les moyennes comptent pour le déblocage, pas les décisions individuelles.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -280,13 +317,18 @@ export default async function JuryEvaluationPage({
                     : 'bg-red-50 border-red-200'
                 }`}>
                   <div className="flex items-center justify-between">
-                    <p className="font-semibold text-gray-700">Décision</p>
+                    <p className="font-semibold text-gray-700">Votre décision</p>
                     <p className={`text-xl font-bold ${
                       phase1Score.decision === 'FAVORABLE' ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {phase1Score.decision === 'FAVORABLE' ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
                     </p>
                   </div>
+                  {needsSimulation && (
+                    <p className="text-xs text-gray-600 mt-2 italic">
+                      Note : Le déblocage de la Phase 2 dépend des moyennes, pas des décisions individuelles.
+                    </p>
+                  )}
                 </div>
 
                 {phase1Score.comments && (
@@ -384,4 +426,4 @@ export default async function JuryEvaluationPage({
       </footer>
     </div>
   )
-} 
+}

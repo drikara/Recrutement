@@ -97,8 +97,8 @@ export default async function JuryEvaluationsPage() {
 
   console.log(`📊 Jurys - Candidats disponibles: ${allCandidates.length} (filtrés availability='OUI')`)
 
-  // Filtrer pour les représentants métier
-  const candidates = filterCandidatesForJury(allCandidates, juryMember)
+  // ⭐⭐ CORRECTION : Appel asynchrone à filterCandidatesForJury
+  const candidates = await filterCandidatesForJury(allCandidates, juryMember)
 
   // Définir les types
   interface CandidateScore {

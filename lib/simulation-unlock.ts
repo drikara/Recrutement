@@ -1,113 +1,97 @@
-import { Metier, FFDecision } from '@prisma/client'
+// ========================================================================
+// 📁 FICHIER 1 : lib/simulation-unlock.ts (LOGIQUE CORRECTE)
+// ========================================================================
+
 import { prisma } from '@/lib/prisma'
+import { Metier } from '@prisma/client'
 
 export interface SimulationUnlockStatus {
   unlocked: boolean
-  unlockedPhase2: boolean
   conditions: {
     allJurysEvaluatedPhase1: boolean
     allAveragesAboveThreshold: boolean
-    allDecisionsFavorable: boolean
     isCorrectMetier: boolean
   }
-  missingJurys: Array<{
-    juryMemberId: number
-    fullName: string
-    roleType: string
-  }>
   phase1Averages: {
-    presentationVisuelle?: number
+    presentationVisuelle: number | null
     verbalCommunication: number
     voiceQuality: number
   }
   phase1Decisions: Array<{
     juryMemberId: number
+    juryMemberName: string
+    decision: string
+  }>
+  missingJurys: Array<{
+    id: number
     fullName: string
-    decision: FFDecision
   }>
   missingConditions: string[]
 }
 
 /**
- * Vérifie si la simulation (Phase 2) peut être débloquée pour un candidat
+ * ⭐ Vérifie si la simulation (Phase 2) peut être débloquée pour un candidat
+ * 
+ * CONDITIONS REQUISES:
+ * 1. Tous les jurys assignés à la session ont noté la Phase 1
+ * 2. Toutes les moyennes Phase 1 sont ≥ 3/5 (CRITÈRE DÉCISIF)
+ * 3. Le métier est AGENCES ou TELEVENTE
+ * 
+ * ⚠️ IMPORTANT : Les décisions individuelles des jurys (FAVORABLE/DÉFAVORABLE)
+ * ne sont PAS prises en compte. Seules les MOYENNES comptent.
+ * 
+ * Exemple : Si 3 jurys donnent FAVORABLE et 1 jury donne DÉFAVORABLE,
+ * mais que les moyennes sont ≥ 3/5 → La simulation est DÉBLOQUÉE ✅
  */
 export async function checkSimulationUnlockStatus(
   candidateId: number,
   metier: Metier
 ): Promise<SimulationUnlockStatus> {
-  // Par défaut, non débloqué
-  const defaultStatus: SimulationUnlockStatus = {
-    unlocked: false,
-    unlockedPhase2: false,
-    conditions: {
-      allJurysEvaluatedPhase1: false,
-      allAveragesAboveThreshold: false,
-      allDecisionsFavorable: false,
-      isCorrectMetier: false
-    },
-    missingJurys: [],
-    phase1Averages: {
-      verbalCommunication: 0,
-      voiceQuality: 0
-    },
-    phase1Decisions: [],
-    missingConditions: []
+  
+  console.log(`🔍 [SIMULATION-UNLOCK] Vérification pour Candidat ${candidateId}, Métier: ${metier}`)
+
+  // 📌 CONDITION 1: Vérifier que le métier nécessite une simulation
+  const needsSimulation = metier === 'AGENCES' || metier === 'TELEVENTE'
+  
+  if (!needsSimulation) {
+    console.log(`❌ [SIMULATION-UNLOCK] Métier ${metier} ne nécessite pas de simulation`)
+    return {
+      unlocked: false,
+      conditions: {
+        allJurysEvaluatedPhase1: false,
+        allAveragesAboveThreshold: false,
+        isCorrectMetier: false
+      },
+      phase1Averages: { presentationVisuelle: null, verbalCommunication: 0, voiceQuality: 0 },
+      phase1Decisions: [],
+      missingJurys: [],
+      missingConditions: ['Métier ne nécessite pas de simulation']
+    }
   }
 
-  try {
-    // Vérifier si le métier nécessite une simulation
-    const needsSimulation = metier === 'AGENCES' || metier === 'TELEVENTE'
-    
-    if (!needsSimulation) {
-      return {
-        ...defaultStatus,
-        conditions: {
-          ...defaultStatus.conditions,
-          isCorrectMetier: false
-        },
-        missingConditions: [`Le métier ${metier} ne nécessite pas de simulation`]
-      }
-    }
-
-    // Récupérer tous les scores des jurys pour la phase 1
-    const juryScores = await prisma.faceToFaceScore.findMany({
-      where: {
-        candidateId,
-        phase: 1
-      },
-      include: {
-        juryMember: {
-          select: {
-            id: true,
-            fullName: true,
-            roleType: true
+  // Récupérer le candidat avec sa session
+  const candidate = await prisma.candidate.findUnique({
+    where: { id: candidateId },
+    include: {
+      session: {
+        include: {
+          juryPresences: {
+            where: { wasPresent: true },
+            include: {
+              juryMember: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  roleType: true,
+                  specialite: true
+                }
+              }
+            }
           }
         }
-      }
-    })
-
-    // Si aucun jury n'a noté
-    if (juryScores.length === 0) {
-      return {
-        ...defaultStatus,
-        conditions: {
-          ...defaultStatus.conditions,
-          isCorrectMetier: true
-        },
-        missingConditions: ['Aucun jury n\'a noté la phase 1']
-      }
-    }
-
-    // Récupérer tous les jurys assignés à la session
-    const candidate = await prisma.candidate.findUnique({
-      where: { id: candidateId },
-      select: { sessionId: true }
-    })
-
-    let totalAssignedJurys = 0
-    if (candidate?.sessionId) {
-      const assignedJurys = await prisma.juryPresence.findMany({
-        where: { sessionId: candidate.sessionId },
+      },
+      faceToFaceScores: {
+        where: { phase: 1 },
         include: {
           juryMember: {
             select: {
@@ -117,155 +101,143 @@ export async function checkSimulationUnlockStatus(
             }
           }
         }
-      })
-      totalAssignedJurys = assignedJurys.length
-      
-      // Trouver les jurys manquants (assignés mais n'ayant pas noté)
-      const evaluatedJuryIds = juryScores.map(s => s.juryMemberId)
-      const missingJurys = assignedJurys
-        .filter(jp => !evaluatedJuryIds.includes(jp.juryMemberId))
-        .map(jp => ({
-          juryMemberId: jp.juryMemberId,
-          fullName: jp.juryMember.fullName,
-          roleType: jp.juryMember.roleType
-        }))
-      
-      defaultStatus.missingJurys = missingJurys
+      }
     }
+  })
 
-    // Calculer les moyennes
-    const totalScores = {
-      presentationVisuelle: 0,
-      verbalCommunication: 0,
-      voiceQuality: 0
-    }
+  if (!candidate || !candidate.session) {
+    throw new Error('Candidat ou session non trouvée')
+  }
 
-    let count = 0
-    const decisions: Array<{
-      juryMemberId: number
-      fullName: string
-      decision: FFDecision
-    }> = []
-
-    juryScores.forEach(score => {
-      if (score.presentationVisuelle) {
-        totalScores.presentationVisuelle += Number(score.presentationVisuelle)
+  // 📌 CONDITION 2: Récupérer les jurys qui DOIVENT évaluer ce candidat
+  const expectedJurys = candidate.session.juryPresences
+    .filter(jp => {
+      const jm = jp.juryMember
+      // Les représentants métier n'évaluent que leur spécialité
+      if (jm.roleType === 'REPRESENTANT_METIER') {
+        return jm.specialite === candidate.metier
       }
-      if (score.verbalCommunication) {
-        totalScores.verbalCommunication += Number(score.verbalCommunication)
-      }
-      if (score.voiceQuality) {
-        totalScores.voiceQuality += Number(score.voiceQuality)
-      }
-      
-      if (score.decision) {
-        decisions.push({
-          juryMemberId: score.juryMemberId,
-          fullName: score.juryMember.fullName,
-          decision: score.decision
-        })
-      }
-      
-      count++
+      // Les autres jurys évaluent tous les candidats
+      return true
     })
+    .map(jp => jp.juryMember)
 
-    // Calcul des moyennes
-    const averages = {
-      presentationVisuelle: metier === 'AGENCES' ? 
-        totalScores.presentationVisuelle / count : undefined,
-      verbalCommunication: totalScores.verbalCommunication / count,
-      voiceQuality: totalScores.voiceQuality / count
-    }
+  console.log(`📊 [SIMULATION-UNLOCK] Jurys attendus: ${expectedJurys.length}`)
+  console.log(`📊 [SIMULATION-UNLOCK] Liste des jurys:`, expectedJurys.map(j => j.fullName))
 
-    // Vérifier les conditions
-    const allJurysEvaluatedPhase1 = totalAssignedJurys > 0 && count === totalAssignedJurys
-    const allAveragesAboveThreshold = (
-      (metier !== 'AGENCES' || (averages.presentationVisuelle || 0) >= 3) &&
-      averages.verbalCommunication >= 3 &&
-      averages.voiceQuality >= 3
-    )
-    const allDecisionsFavorable = decisions.length > 0 && decisions.every(d => d.decision === 'FAVORABLE')
-    const isCorrectMetier = needsSimulation
+  // 📌 CONDITION 3: Vérifier qui a déjà noté la Phase 1
+  const phase1Scores = candidate.faceToFaceScores
+  const evaluatedJuryIds = new Set(phase1Scores.map(s => s.juryMemberId))
 
-    // Vérifier si la simulation est débloquée
-    const unlocked = allJurysEvaluatedPhase1 && 
-                    allAveragesAboveThreshold && 
-                    allDecisionsFavorable && 
-                    isCorrectMetier
+  console.log(`📊 [SIMULATION-UNLOCK] Jurys ayant noté Phase 1: ${evaluatedJuryIds.size}/${expectedJurys.length}`)
 
-    // Identifier les conditions manquantes
-    const missingConditions: string[] = []
-    
-    if (!allJurysEvaluatedPhase1) {
-      if (totalAssignedJurys === 0) {
-        missingConditions.push('Aucun jury assigné à la session')
-      } else {
-        missingConditions.push(`${count}/${totalAssignedJurys} jurys ont noté`)
+  // Jurys manquants
+  const missingJurys = expectedJurys.filter(j => !evaluatedJuryIds.has(j.id))
+
+  if (missingJurys.length > 0) {
+    console.log(`⚠️ [SIMULATION-UNLOCK] Jurys manquants:`, missingJurys.map(j => j.fullName))
+  }
+
+  // 📌 CONDITION 4: Tous les jurys ont-ils noté ?
+  const allJurysEvaluatedPhase1 = missingJurys.length === 0 && expectedJurys.length > 0
+
+  console.log(`${allJurysEvaluatedPhase1 ? '✅' : '❌'} [SIMULATION-UNLOCK] Tous les jurys ont noté ? ${allJurysEvaluatedPhase1}`)
+
+  // 📌 CONDITION 5: Calculer les moyennes Phase 1
+  const isAgences = candidate.metier === 'AGENCES'
+  
+  let avgPresentation: number | null = null
+  let avgVerbal = 0
+  let avgVoice = 0
+
+  if (phase1Scores.length > 0) {
+    if (isAgences) {
+      const presentationScores = phase1Scores
+        .map(s => Number(s.presentationVisuelle || 0))
+        .filter(score => score > 0)
+      
+      if (presentationScores.length > 0) {
+        avgPresentation = presentationScores.reduce((sum, score) => sum + score, 0) / presentationScores.length
       }
     }
-    
-    if (!allAveragesAboveThreshold) {
-      const failedCriteria: string[] = []
-      if (metier === 'AGENCES' && (averages.presentationVisuelle || 0) < 3) {
-        failedCriteria.push(`Présentation visuelle (${(averages.presentationVisuelle || 0).toFixed(2)}/5)`)
-      }
-      if (averages.verbalCommunication < 3) {
-        failedCriteria.push(`Communication verbale (${averages.verbalCommunication.toFixed(2)}/5)`)
-      }
-      if (averages.voiceQuality < 3) {
-        failedCriteria.push(`Qualité vocale (${averages.voiceQuality.toFixed(2)}/5)`)
-      }
-      missingConditions.push(`Moyennes insuffisantes: ${failedCriteria.join(', ')}`)
-    }
-    
-    if (!allDecisionsFavorable) {
-      const unfavorableJurys = decisions
-        .filter(d => d.decision !== 'FAVORABLE')
-        .map(d => d.fullName)
-      missingConditions.push(`Décisions défavorables: ${unfavorableJurys.join(', ')}`)
-    }
+    avgVerbal = phase1Scores.reduce((sum, s) => sum + Number(s.verbalCommunication || 0), 0) / phase1Scores.length
+    avgVoice = phase1Scores.reduce((sum, s) => sum + Number(s.voiceQuality || 0), 0) / phase1Scores.length
+  }
 
-    return {
-      unlocked,
-      unlockedPhase2: unlocked,
-      conditions: {
-        allJurysEvaluatedPhase1,
-        allAveragesAboveThreshold,
-        allDecisionsFavorable,
-        isCorrectMetier
-      },
-      missingJurys: defaultStatus.missingJurys,
-      phase1Averages: averages,
-      phase1Decisions: decisions,
-      missingConditions
-    }
+  console.log(`📊 [SIMULATION-UNLOCK] Moyennes Phase 1:`)
+  if (isAgences && avgPresentation !== null) {
+    console.log(`   - Présentation visuelle: ${avgPresentation.toFixed(2)}/5 ${avgPresentation >= 3 ? '✅' : '❌'}`)
+  }
+  console.log(`   - Communication verbale: ${avgVerbal.toFixed(2)}/5 ${avgVerbal >= 3 ? '✅' : '❌'}`)
+  console.log(`   - Qualité de la voix: ${avgVoice.toFixed(2)}/5 ${avgVoice >= 3 ? '✅' : '❌'}`)
 
-  } catch (error) {
-    console.error('Erreur lors de la vérification du déblocage:', error)
-    return {
-      ...defaultStatus,
-      missingConditions: ['Erreur technique lors de la vérification']
+  // 📌 CONDITION 6: Toutes les moyennes ≥ 3 ?
+  // ⭐⭐⭐ C'EST LE SEUL CRITÈRE DÉCISIF POUR LE DÉBLOCAGE ⭐⭐⭐
+  const allAveragesAboveThreshold = 
+    avgVerbal >= 3 && 
+    avgVoice >= 3 && 
+    (isAgences ? (avgPresentation || 0) >= 3 : true)
+
+  console.log(`${allAveragesAboveThreshold ? '✅' : '❌'} [SIMULATION-UNLOCK] Toutes les moyennes ≥ 3 ? ${allAveragesAboveThreshold}`)
+
+  // 📊 Récupérer les décisions (uniquement pour information, pas pour le déblocage)
+  const phase1Decisions = phase1Scores.map(s => ({
+    juryMemberId: s.juryMemberId,
+    juryMemberName: s.juryMember.fullName,
+    decision: s.decision || 'PENDING'
+  }))
+
+  console.log(`📊 [SIMULATION-UNLOCK] Décisions individuelles (informatif uniquement):`)
+  phase1Decisions.forEach(d => {
+    console.log(`   - ${d.juryMemberName}: ${d.decision}`)
+  })
+
+  // 📌 RÉSULTAT FINAL
+  // ⚠️ LOGIQUE FINALE : On ignore complètement les décisions individuelles
+  // Seules les moyennes comptent !
+  const unlocked = 
+    allJurysEvaluatedPhase1 && 
+    allAveragesAboveThreshold &&
+    needsSimulation
+
+  console.log(`${unlocked ? '🔓' : '🔒'} [SIMULATION-UNLOCK] Simulation ${unlocked ? 'DÉBLOQUÉE' : 'BLOQUÉE'}`)
+
+  // Construire la liste des conditions manquantes
+  const missingConditions: string[] = []
+  
+  if (!allJurysEvaluatedPhase1) {
+    missingConditions.push(`${missingJurys.length} jury(s) n'ont pas encore noté la Phase 1`)
+  }
+  
+  if (!allAveragesAboveThreshold) {
+    const failedCriteria: string[] = []
+    if (isAgences && (avgPresentation || 0) < 3) {
+      failedCriteria.push(`Présentation visuelle: ${(avgPresentation || 0).toFixed(2)}/5 < 3/5`)
     }
+    if (avgVerbal < 3) {
+      failedCriteria.push(`Communication verbale: ${avgVerbal.toFixed(2)}/5 < 3/5`)
+    }
+    if (avgVoice < 3) {
+      failedCriteria.push(`Qualité de la voix: ${avgVoice.toFixed(2)}/5 < 3/5`)
+    }
+    missingConditions.push(`Moyennes insuffisantes: ${failedCriteria.join(', ')}`)
+  }
+
+  return {
+    unlocked,
+    conditions: {
+      allJurysEvaluatedPhase1,
+      allAveragesAboveThreshold,
+      isCorrectMetier: needsSimulation
+    },
+    phase1Averages: {
+      presentationVisuelle: avgPresentation,
+      verbalCommunication: avgVerbal,
+      voiceQuality: avgVoice
+    },
+    phase1Decisions, // Gardé pour information uniquement
+    missingJurys,
+    missingConditions
   }
 }
 
-/**
- * Formate le statut de déblocage pour l'affichage
- */
-export function formatUnlockStatus(status: SimulationUnlockStatus) {
-  if (status.unlocked) {
-    return {
-      icon: '🔓',
-      color: 'green',
-      message: 'SIMULATION DÉBLOQUÉE',
-      details: 'Toutes les conditions sont remplies. La phase 2 (simulation) est accessible.'
-    }
-  } else {
-    return {
-      icon: '🔒',
-      color: 'orange',
-      message: 'SIMULATION VERROUILLÉE',
-      details: status.missingConditions.join('\n• ')
-    }
-  }
-}

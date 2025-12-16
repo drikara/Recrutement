@@ -50,6 +50,32 @@ export async function GET(request: NextRequest) {
       }, { status: 403 })
     }
 
+    // ⭐⭐ VÉRIFICATION CRITIQUE : Le juré doit être assigné à la session du candidat
+    if (candidate.sessionId) {
+      const juryAssignedToSession = await prisma.juryPresence.findUnique({
+        where: {
+          juryMemberId_sessionId: {
+            juryMemberId: juryMember.id,
+            sessionId: candidate.sessionId
+          },
+          wasPresent: true
+        }
+      })
+
+      if (!juryAssignedToSession) {
+        console.log(`🚫 Jury ${juryMember.id} n'est pas assigné à la session ${candidate.sessionId}`)
+        return NextResponse.json({ 
+          error: 'Vous n\'êtes pas assigné à cette session de recrutement' 
+        }, { status: 403 })
+      }
+      console.log('✅ Jury assigné à la session vérifié')
+    } else {
+      console.log(`⚠️ Candidat ${candidate.id} n'a pas de session`)
+      return NextResponse.json({ 
+        error: 'Le candidat n\'est pas assigné à une session' 
+      }, { status: 400 })
+    }
+
     // Récupérer tous les scores du candidat pour ce jury member
     const scores = await prisma.faceToFaceScore.findMany({
       where: {
@@ -143,6 +169,32 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
+    // ⭐⭐ VÉRIFICATION CRITIQUE : Le juré doit être assigné à la session du candidat
+    if (candidate.sessionId) {
+      const juryAssignedToSession = await prisma.juryPresence.findUnique({
+        where: {
+          juryMemberId_sessionId: {
+            juryMemberId: juryMember.id,
+            sessionId: candidate.sessionId
+          },
+          wasPresent: true
+        }
+      })
+
+      if (!juryAssignedToSession) {
+        console.log(`🚫 Jury ${juryMember.id} n'est pas assigné à la session ${candidate.sessionId}`)
+        return NextResponse.json({ 
+          error: 'Vous n\'êtes pas assigné à cette session de recrutement' 
+        }, { status: 403 })
+      }
+      console.log('✅ Jury assigné à la session vérifié')
+    } else {
+      console.log(`⚠️ Candidat ${candidate.id} n'a pas de session`)
+      return NextResponse.json({ 
+        error: 'Le candidat n\'est pas assigné à une session' 
+      }, { status: 400 })
+    }
+
     // Vérifier si la session est active
     if (!candidate.session) {
       return NextResponse.json({ error: 'Le candidat n\'est pas assigné à une session' }, { status: 400 })
@@ -230,6 +282,26 @@ export async function POST(request: NextRequest) {
           error: `La simulation n'est pas disponible pour le métier ${candidate.metier}` 
         }, { status: 400 })
       }
+
+      // ⭐⭐ VÉRIFICATION CRITIQUE : Phase 2 nécessite validation Phase 1
+      console.log('🎭 Phase 2 - Vérification déblocage simulation')
+
+      // ⭐ Vérifier que la simulation est débloquée
+      const { checkSimulationUnlockStatus } = await import('@/lib/simulation-unlock')
+      const unlockStatus = await checkSimulationUnlockStatus(candidate_id, candidate.metier)
+
+      if (!unlockStatus.unlocked) {
+        console.log(`🚫 Simulation verrouillée pour candidat ${candidate_id}`)
+        console.log('Conditions manquantes:', unlockStatus.missingConditions)
+        
+        return NextResponse.json({ 
+          error: 'La simulation n\'est pas encore débloquée',
+          details: unlockStatus.missingConditions,
+          unlockStatus
+        }, { status: 403 })
+      }
+
+      console.log('✅ Simulation débloquée - Autorisation accordée')
 
       if (simulation_sens_negociation === undefined || 
           simulation_capacite_persuasion === undefined || 

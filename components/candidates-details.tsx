@@ -365,11 +365,7 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
                     <span className="text-amber-700 font-bold text-sm">1</span>
                   </div>
                   Phase 1 - Jury
-                  {phase1Scores.length > 0 && (
-                    <span className="ml-auto bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-sm font-bold">
-                      Moyenne: {avgPhase1.toFixed(2)}/5
-                    </span>
-                  )}
+                  
                 </h4>
                 {phase1Scores.length > 0 ? (
                   <div className="space-y-3">

@@ -1,4 +1,3 @@
-// app/jury/dashboard/page.tsx
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
@@ -86,7 +85,8 @@ export default async function JuryDashboard() {
           status: {
             in: ["PLANIFIED", "IN_PROGRESS"]
           }
-        }
+        },
+        availability: 'OUI' // ⭐⭐ AJOUT: Filtrer par disponibilité
       }
     },
     _count: {
@@ -101,7 +101,8 @@ export default async function JuryDashboard() {
         status: {
           in: ["PLANIFIED", "IN_PROGRESS"]
         }
-      }
+      },
+      availability: 'OUI' // ⭐⭐ AJOUT: Filtrer par disponibilité
     },
     include: {
       session: {
@@ -132,8 +133,8 @@ export default async function JuryDashboard() {
     }
   })
 
-  // Filtrer selon les permissions du jury
-  const accessibleCandidates = filterCandidatesForJury(allCandidates, juryMember)
+  // ⭐⭐ CORRECTION: Appel asynchrone à filterCandidatesForJury
+  const accessibleCandidates = await filterCandidatesForJury(allCandidates, juryMember)
   
   // Candidats déjà évalués par ce jury (phase 1 uniquement)
   const evaluatedCandidateIds = new Set(
