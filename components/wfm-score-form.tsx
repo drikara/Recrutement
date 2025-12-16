@@ -1,4 +1,4 @@
-//components/wfm-score-form
+// components/wfm-score-form
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -654,8 +654,9 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
                 </div>
               </div>
 
-              {/* Conditions */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Conditions - SEULEMENT 3 MAINTENANT (sans allDecisionsFavorable) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Condition 1 : Tous les jurys ont noté */}
                 <div className={`p-3 rounded-lg border ${
                   unlockStatus.conditions.allJurysEvaluatedPhase1 
                     ? 'bg-green-50 border-green-200' 
@@ -678,6 +679,7 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
                   </p>
                 </div>
 
+                {/* Condition 2 : Moyennes ≥ 3/5 */}
                 <div className={`p-3 rounded-lg border ${
                   unlockStatus.conditions.allAveragesAboveThreshold 
                     ? 'bg-green-50 border-green-200' 
@@ -692,37 +694,14 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
                   </div>
                   <p className="text-sm text-gray-600">
                     {unlockStatus.conditions.allAveragesAboveThreshold ? 
-                      '✅ Validé' : 
-                      'Moyennes insuffisantes'
+                      '✅ Toutes les moyennes validées' : 
+                      'Une ou plusieurs moyennes < 3/5'
                     }
                   </p>
                 </div>
 
-                <div className={`p-3 rounded-lg border ${
-                  unlockStatus.conditions.allDecisionsFavorable 
-                    ? 'bg-green-50 border-green-200' 
-                    : 'bg-orange-50 border-orange-200'
-                }`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    {unlockStatus.conditions.allDecisionsFavorable ? 
-                      <CheckCircle className="w-4 h-4 text-green-600" /> : 
-                      <XCircle className="w-4 h-4 text-orange-600" />
-                    }
-                    <span className="font-semibold">Décisions favorables</span>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    {unlockStatus.conditions.allDecisionsFavorable ? 
-                      '✅ Validé' : 
-                      'Décisions défavorables détectées'
-                    }
-                  </p>
-                </div>
-
-                <div className={`p-3 rounded-lg border ${
-                  unlockStatus.conditions.isCorrectMetier 
-                    ? 'bg-green-50 border-green-200' 
-                    : 'bg-orange-50 border-orange-200'
-                }`}>
+                {/* Condition 3 : Métier compatible */}
+                <div className={`p-3 rounded-lg border bg-green-50 border-green-200`}>
                   <div className="flex items-center gap-2 mb-1">
                     <CheckCircle className="w-4 h-4 text-green-600" />
                     <span className="font-semibold">Métier compatible</span>
@@ -733,45 +712,75 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
                 </div>
               </div>
 
-              {/* Détails des moyennes */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-700 mb-3">Moyennes actuelles Phase 1</h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {candidate.metier === 'AGENCES' && (
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">Présentation Visuelle</p>
+              {/* Détails des moyennes Phase 1 */}
+              <div className="bg-white rounded-lg p-4 border border-gray-200">
+                <h3 className="font-semibold text-gray-700 mb-3">
+                  📊 Moyennes Phase 1 (critère décisif)
+                </h3>
+                <div className={`grid ${candidate.metier === 'AGENCES' ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
+                  {candidate.metier === 'AGENCES' && unlockStatus.phase1Averages.presentationVisuelle !== null && (
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600 mb-1">Présentation Visuelle</p>
                       <p className={`text-2xl font-bold ${
-                        (unlockStatus.phase1Averages.presentationVisuelle || 0) >= 3 ? 'text-green-600' : 'text-red-600'
+                        unlockStatus.phase1Averages.presentationVisuelle >= 3 ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        {(unlockStatus.phase1Averages.presentationVisuelle || 0).toFixed(2)}/5
+                        {unlockStatus.phase1Averages.presentationVisuelle.toFixed(2)}/5
                       </p>
+                      <p className="text-xs text-gray-500">Seuil: ≥ 3/5</p>
                     </div>
                   )}
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600">Communication Verbale</p>
+                  <div className="text-center p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Communication Verbale</p>
                     <p className={`text-2xl font-bold ${
                       unlockStatus.phase1Averages.verbalCommunication >= 3 ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {unlockStatus.phase1Averages.verbalCommunication.toFixed(2)}/5
                     </p>
+                    <p className="text-xs text-gray-500">Seuil: ≥ 3/5</p>
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600">Qualité Vocale</p>
+                  <div className="text-center p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Qualité Vocale</p>
                     <p className={`text-2xl font-bold ${
                       unlockStatus.phase1Averages.voiceQuality >= 3 ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {unlockStatus.phase1Averages.voiceQuality.toFixed(2)}/5
                     </p>
+                    <p className="text-xs text-gray-500">Seuil: ≥ 3/5</p>
                   </div>
                 </div>
               </div>
 
+              {/* Décisions individuelles des jurys (INFORMATIF UNIQUEMENT) */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Décisions individuelles (informatif uniquement)
+                </h3>
+                <p className="text-xs text-blue-700 mb-3">
+                  ℹ️ Ces décisions n'affectent PAS le déblocage de la simulation. Seules les moyennes comptent.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {unlockStatus.phase1Decisions.map((decision: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between bg-white rounded p-2 text-sm">
+                      <span className="text-gray-700">{decision.juryMemberName}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                        decision.decision === 'FAVORABLE' 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {decision.decision}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Conditions manquantes */}
-              {!unlockStatus.unlocked && (
+              {!unlockStatus.unlocked && unlockStatus.missingConditions.length > 0 && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <AlertCircle className="w-5 h-5 text-red-600" />
-                    <h3 className="font-bold text-red-900">Conditions manquantes</h3>
+                    <h3 className="font-bold text-red-900">Conditions manquantes pour débloquer</h3>
                   </div>
                   <ul className="space-y-1">
                     {unlockStatus.missingConditions.map((condition: string, index: number) => (
@@ -781,6 +790,21 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {/* Message de succès */}
+              {unlockStatus.unlocked && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <div>
+                      <h3 className="font-bold text-green-900">Simulation débloquée avec succès ! 🎉</h3>
+                      <p className="text-sm text-green-700 mt-1">
+                        Les jurys peuvent maintenant évaluer ce candidat en Phase 2 (Simulation).
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
