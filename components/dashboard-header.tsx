@@ -20,7 +20,8 @@ import {
   ChevronDown,
   Menu,
   X,
-  ClipboardList
+  ClipboardList,
+  UserCog
 } from 'lucide-react'
 
 interface DashboardHeaderProps {
@@ -77,16 +78,15 @@ export function DashboardHeader({ user, role }: DashboardHeaderProps) {
     const baseLinks = [
       { 
         href: '/wfm/dashboard', 
-        label: 'Tableau de bord', 
+        label: 'Dashboard', 
         icon: <LayoutDashboard className="w-4 h-4" />
       },
-      
     ]
 
     if (displayRole === 'WFM') {
       return [
         ...baseLinks,
-         { 
+        { 
           href: '/wfm/sessions', 
           label: 'Sessions', 
           icon: <Calendar className="w-4 h-4" />
@@ -96,26 +96,26 @@ export function DashboardHeader({ user, role }: DashboardHeaderProps) {
           label: 'Jury', 
           icon: <Target className="w-4 h-4" />
         },
-          { 
-        href: '/wfm/candidates', 
-        label: 'Candidats', 
-        icon: <Users className="w-4 h-4" />
-      },
-       
-
+        { 
+          href: '/wfm/candidates', 
+          label: 'Candidats', 
+          icon: <Users className="w-4 h-4" />
+        },
         { 
           href: '/wfm/scores', 
           label: 'Notes', 
           icon: <ClipboardList className="w-4 h-4" />
         },
-        
         { 
           href: '/wfm/export', 
           label: 'Exports', 
           icon: <Download className="w-4 h-4" />
         },
-     
-
+        { 
+          href: '/wfm/users', 
+          label: 'Utilisateurs', 
+          icon: <UserCog className="w-4 h-4" />
+        },
       ]
     }
 
@@ -127,8 +127,6 @@ export function DashboardHeader({ user, role }: DashboardHeaderProps) {
           label: 'Évaluations', 
           icon: <Star className="w-4 h-4" />
         },
-        
-       
       ]
     }
 
@@ -254,6 +252,16 @@ export function DashboardHeader({ user, role }: DashboardHeaderProps) {
                         </div>
                       </div>
                     </div>
+
+                    {/* Paramètres du profil */}
+                    <Link
+                      href="/settings/profile"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors w-full group"
+                    >
+                      <Settings className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                      <span>Paramètres du profil</span>
+                    </Link>
 
                     {/* Déconnexion */}
                     <button
