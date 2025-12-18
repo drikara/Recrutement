@@ -237,7 +237,7 @@ export function JuryScoreForm({
       comments: phase1Scores.comments || null
     }
 
-    console.log('📤 Envoi Phase 1:', scoreData)
+    console.log('📤 Envoi Phase face à face:', scoreData)
 
     try {
       const response = await fetch('/api/jury/scores', {
@@ -248,13 +248,13 @@ export function JuryScoreForm({
 
       if (response.ok) {
         const result = await response.json()
-        console.log('✅ Phase 1 sauvegardée:', result)
+        console.log('✅ Phase Face à Face sauvegardée:', result)
         
-        alert(`Phase 1 sauvegardée avec succès!\nDécision: ${decision}`)
+        alert(`Phase Face à Face sauvegardée avec succès!\nDécision: ${decision}`)
         router.refresh()
         
         if (needsSimulation && decision === 'FAVORABLE') {
-          const goToPhase2 = confirm('Phase 1 validée ! Voulez-vous passer à la Phase 2 (Simulation) ?')
+          const goToPhase2 = confirm('Phase Face à Face ! Voulez-vous passer à la Phase Simulation ?')
           if (goToPhase2) {
             setActivePhase(2)
           }
@@ -300,7 +300,7 @@ export function JuryScoreForm({
       comments: phase2Scores.comments || null
     }
 
-    console.log('📤 Envoi Phase 2:', scoreData)
+    console.log('📤 Envoi Phase Simulation:', scoreData)
 
     try {
       const response = await fetch('/api/jury/scores', {
@@ -311,8 +311,8 @@ export function JuryScoreForm({
 
       if (response.ok) {
         const result = await response.json()
-        console.log('✅ Phase 2 sauvegardée:', result)
-        alert(`Phase 2 sauvegardée avec succès!\nDécision: ${decision}`)
+        console.log('✅ Phase Simulation sauvegardée:', result)
+        alert(`Phase Simulation sauvegardée avec succès!\nDécision: ${decision}`)
         router.refresh()
         router.push('/jury/evaluations')
       } else {
@@ -393,7 +393,7 @@ export function JuryScoreForm({
             <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
               <span className="text-blue-700 font-bold text-sm">1</span>
             </div>
-            <h2 className="text-xl font-semibold text-gray-900">Phase 1 - Face à Face</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Phase Face à Face</h2>
           </div>
           
           <form onSubmit={handleSubmitPhase1} className="space-y-6">
@@ -469,7 +469,7 @@ export function JuryScoreForm({
             <button
               type="submit"
               disabled={loading || !isPhase1Complete()}
-              className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               {loading ? (
                 <>

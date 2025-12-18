@@ -364,7 +364,7 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
                   <div className="w-6 h-6 bg-amber-100 rounded-lg flex items-center justify-center">
                     <span className="text-amber-700 font-bold text-sm">1</span>
                   </div>
-                  Phase 1 - Jury
+                  Face à Face - Jury
                   
                 </h4>
                 {phase1Scores.length > 0 ? (
@@ -406,7 +406,7 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
                     <div className="w-6 h-6 bg-amber-100 rounded-lg flex items-center justify-center">
                       <span className="text-amber-700 font-bold text-sm">2</span>
                     </div>
-                    Phase 2 - Jury
+                    Simulation - Jury
                     <span className="ml-auto bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-sm font-bold">
                       Moyenne: {avgPhase2.toFixed(2)}/5
                     </span>
@@ -437,7 +437,7 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
               </svg>
-              Tests Techniques Phase 2
+              Tests Techniques 
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
@@ -537,7 +537,7 @@ export function CandidateDetails({ candidate }: CandidateDetailsProps) {
             
             {scores.phase2Date && (
               <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
-                <span className="font-semibold text-purple-700">Date Phase 2:</span>
+                <span className="font-semibold text-purple-700">Date Simulation:</span>
                 <span className="text-gray-900 font-medium">{formatDate(scores.phase2Date)}</span>
               </div>
             )}

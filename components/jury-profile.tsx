@@ -185,20 +185,7 @@ export function JuryProfile({ juryMember, stats }: JuryProfileProps) {
                 </Badge>
               </div>
               
-              <div className="flex justify-between">
-                <span className="text-gray-600">Dernière connexion:</span>
-                <span className="text-sm text-gray-600 text-right">
-                  {juryMember.user.lastLogin ? (
-                    <div>
-                      <div className="font-medium">{getRelativeTime(juryMember.user.lastLogin)}</div>
-                      <div className="text-xs text-gray-500">{formatDateTime(juryMember.user.lastLogin)}</div>
-                    </div>
-                  ) : (
-                    <span className="text-amber-600 font-medium">Première connexion en attente</span>
-                  )}
-                </span>
-              </div>
-              
+             
               {stats.lastActivity && (
                 <div className="flex justify-between">
                   <span className="text-gray-600">Dernière évaluation:</span>

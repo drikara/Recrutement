@@ -158,16 +158,7 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Comptes de test pour le développement */}
-          {process.env.NODE_ENV === "development" && (
-            <div className="mt-6 p-4 bg-muted rounded-lg">
-              <h4 className="text-sm font-medium mb-2">Comptes de test :</h4>
-              <div className="text-xs space-y-1">
-                <div><strong>Admin:</strong> wfm@recruitment.com / Admin123</div>
-                <div><strong>Jury:</strong> rep@recruitment.com / jury123</div>
-              </div>
-            </div>
-          )}
+         
 
           <div className="mt-4 text-center text-sm text-muted-foreground">
             Pas encore de compte ?{" "}

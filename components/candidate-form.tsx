@@ -219,7 +219,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     value={formData.nom}
                     onChange={(e) => handleNomChange(e.target.value)}
                     placeholder="Saisi en MAJUSCULES automatiquement"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
+                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer"
                     required
                   />
                  
@@ -234,7 +234,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     value={formData.prenom}
                     onChange={(e) => handlePrenomChange(e.target.value)}
                     placeholder="Première lettre en majuscule"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
+                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer"
                     required
                   />
                   
@@ -250,7 +250,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     value={formData.phone}
                     onChange={(e) => handleChange("phone", e.target.value)}
                     placeholder="0707070707"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
+                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer"
                     required
                   />
                 </div>
@@ -269,7 +269,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     type="date"
                     value={formData.birthDate}
                     onChange={(e) => handleChange("birthDate", e.target.value)}
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
+                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer"
                     required
                   />
                 </div>
@@ -284,7 +284,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     value={formData.email}
                     onChange={(e) => handleChange("email", e.target.value)}
                     placeholder="email@exemple.com"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
+                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer"
                   />
                  
                 </div>
@@ -298,7 +298,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     value={formData.location}
                     onChange={(e) => handleChange("location", e.target.value)}
                     placeholder="Orange village"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
+                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer"
                     required
                   />
                 </div>
@@ -321,7 +321,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     value={formData.diploma}
                     onChange={(e) => handleChange("diploma", e.target.value)}
                     placeholder="Ex: Licence en Informatique"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
+                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer"
                     required
                   />
                 </div>
@@ -349,14 +349,14 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
 
                 <div className="space-y-2">
                   <Label htmlFor="institution" className="text-gray-700 font-medium">
-                    Établissement *
+                    Université *
                   </Label>
                   <Input
                     id="institution"
                     value={formData.institution}
                     onChange={(e) => handleChange("institution", e.target.value)}
                     placeholder="Ex: Université Paris-Saclay"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
+                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer"
                     required
                   />
                 </div>
@@ -378,7 +378,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     value={formData.metier}
                     onValueChange={(value) => handleChange("metier", value)}
                   >
-                    <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3">
+                    <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer">
                       <SelectValue placeholder="Sélectionner un métier" />
                     </SelectTrigger>
                     <SelectContent>
@@ -399,7 +399,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     value={formData.availability}
                     onValueChange={(value) => handleChange("availability", value)}
                   >
-                    <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3">
+                    <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer">
                       <SelectValue placeholder="OUI ou NON" />
                     </SelectTrigger>
                     <SelectContent>
@@ -412,7 +412,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                   </Select>
                   {formData.availability === "NON" && (
                     <p className="text-xs text-red-600 font-medium">
-                      ⚠️ Le candidat sera automatiquement non recruté
+                       Le candidat sera automatiquement non recruté
                     </p>
                   )}
                 </div>
@@ -426,7 +426,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     type="date"
                     value={formData.smsSentDate}
                     onChange={(e) => handleChange("smsSentDate", e.target.value)}
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
+                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer"
                     required
                   />
                 </div>
@@ -440,7 +440,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     type="date"
                     value={formData.interviewDate}
                     onChange={(e) => handleChange("interviewDate", e.target.value)}
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
+                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer"
                     required
                   />
                 </div>
@@ -454,7 +454,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                   value={formData.sessionId}
                   onValueChange={(value) => handleChange("sessionId", value)}
                 >
-                  <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3">
+                  <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer">
                     <SelectValue placeholder="Sélectionner une session" />
                   </SelectTrigger>
                   <SelectContent>
@@ -495,7 +495,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
               </Button>
               <Button
                 type="submit"
-                className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white border-0 shadow-lg rounded-xl px-6 py-3 font-semibold"
+                className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white border-0 shadow-lg rounded-xl px-6 py-3 font-semibold cursor-pointer"
                 disabled={loading}
               >
                 {loading ? (

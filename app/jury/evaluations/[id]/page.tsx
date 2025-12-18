@@ -322,11 +322,7 @@ export default async function JuryEvaluationPage({
                       {phase1Score.decision === 'FAVORABLE' ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
                     </p>
                   </div>
-                  {needsSimulation && (
-                    <p className="text-xs text-gray-600 mt-2 italic">
-                      Note : Le déblocage de la Phase Simulation dépend des moyennes, pas des décisions individuelles.
-                    </p>
-                  )}
+                  
                 </div>
 
                 {phase1Score.comments && (

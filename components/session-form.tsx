@@ -238,14 +238,7 @@ export function SessionForm({ session }: SessionFormProps) {
           />
         </div>
 
-        {/* Validation */}
-        {(!formData.metier || !formData.date) && (
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-4 border-2 border-amber-200">
-            <p className="text-sm text-amber-700 font-medium">
-              <strong>Champs obligatoires :</strong> Métier et Date
-            </p>
-          </div>
-        )}
+       
 
         {/* Boutons */}
         <div className="flex gap-4 justify-end pt-6 border-t border-orange-100">

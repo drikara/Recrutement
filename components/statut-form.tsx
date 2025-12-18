@@ -88,17 +88,17 @@ export function StatutForm({ candidateId, currentStatut, currentComment, onSucce
               Statut du candidat *
             </Label>
             <Select value={statut} onValueChange={(value) => setStatut(value as Statut)}>
-              <SelectTrigger className="border-2 border-indigo-200 focus:border-indigo-400 focus:ring-indigo-200 rounded-xl p-3">
+              <SelectTrigger className="border-2 border-indigo-200 focus:border-indigo-400 focus:ring-indigo-200 rounded-xl p-3 cursor-pointer">
                 <SelectValue placeholder="Sélectionner un statut" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="PRESENT" className="rounded-lg">
+                <SelectItem value="PRESENT" className="rounded-lg cursor-pointer">
                   <div className="flex items-center gap-2">
-                    <UserCheck className="w-4 h-4 text-green-600" />
+                    <UserCheck className="w-4 h-4 text-green-600 " />
                     <span>PRÉSENT</span>
                   </div>
                 </SelectItem>
-                <SelectItem value="ABSENT" className="rounded-lg">
+                <SelectItem value="ABSENT" className="rounded-lg cursor-pointer">
                   <div className="flex items-center gap-2">
                     <UserX className="w-4 h-4 text-red-600" />
                     <span>ABSENT</span>
@@ -119,7 +119,7 @@ export function StatutForm({ candidateId, currentStatut, currentComment, onSucce
               placeholder={
                 statut === 'ABSENT' 
                   ? "Veuillez justifier l'absence (obligatoire)..." 
-                  : "Commentaire optionnel pour la présence..."
+                  : "Commentaire optionnelÉtablissement pour la présence..."
               }
               className="border-2 border-indigo-200 focus:border-indigo-400 focus:ring-indigo-200 rounded-xl p-3 resize-none"
               rows={4}
@@ -150,19 +150,19 @@ export function StatutForm({ candidateId, currentStatut, currentComment, onSucce
               type="button"
               variant="outline"
               onClick={() => router.back()}
-              className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl px-6 py-3 font-semibold"
+              className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl px-6 py-3 font-semibold cursor-pointer"
               disabled={loading}
             >
               Annuler
             </Button>
             <Button
               type="submit"
-              className="bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white border-0 shadow-lg rounded-xl px-6 py-3 font-semibold"
+              className="bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white border-0 shadow-lg rounded-xl px-6 py-3 font-semibold cursor-pointer"
               disabled={loading}
             >
               {loading ? (
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin cursor-pointer" />
                   Enregistrement...
                 </div>
               ) : (

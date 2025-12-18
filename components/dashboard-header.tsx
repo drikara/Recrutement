@@ -113,7 +113,7 @@ export function DashboardHeader({ user, role }: DashboardHeaderProps) {
         },
         { 
           href: '/wfm/users', 
-          label: 'Utilisateurs', 
+          label: 'Users', 
           icon: <UserCog className="w-4 h-4" />
         },
       ]
