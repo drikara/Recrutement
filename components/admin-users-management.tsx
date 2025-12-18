@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'react-hot-toast'
-import { Users, Key, Eye, EyeOff, Shield, Mail, UserPlus, Trash2, Edit, AlertTriangle } from 'lucide-react'
+import { Users, Key, Eye, EyeOff, Shield, Mail, UserPlus, Trash2, Edit, AlertTriangle, Info } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -44,6 +44,7 @@ export function AdminUsersManagement({ users, currentUserId }: AdminUsersManagem
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // États pour réinitialiser le mot de passe
   const [newPassword, setNewPassword] = useState('')
@@ -191,8 +192,11 @@ export function AdminUsersManagement({ users, currentUserId }: AdminUsersManagem
     if (!selectedUser) return
 
     setIsLoading(true)
+    setDeleteError(null)
 
     try {
+      console.log('🗑️ Tentative de suppression de:', selectedUser.id)
+      
       const response = await fetch('/api/admin/delete-user', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -202,17 +206,24 @@ export function AdminUsersManagement({ users, currentUserId }: AdminUsersManagem
       })
 
       const data = await response.json()
+      
+      console.log('📥 Réponse du serveur:', { status: response.status, data })
 
       if (!response.ok) {
+        // Afficher un message d'erreur détaillé
+        setDeleteError(data.error || 'Erreur lors de la suppression')
         throw new Error(data.error || 'Erreur lors de la suppression')
       }
 
       toast.success(`Utilisateur ${selectedUser.email} supprimé avec succès`)
       setIsDeleteOpen(false)
       setSelectedUser(null)
+      setDeleteError(null)
       router.refresh()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Une erreur est survenue')
+      console.error('❌ Erreur de suppression:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Une erreur est survenue'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -537,13 +548,19 @@ export function AdminUsersManagement({ users, currentUserId }: AdminUsersManagem
                     {/* Supprimer */}
                     <Dialog open={isDeleteOpen && selectedUser?.id === user.id} onOpenChange={(open) => {
                       setIsDeleteOpen(open)
-                      if (!open) setSelectedUser(null)
+                      if (!open) {
+                        setSelectedUser(null)
+                        setDeleteError(null)
+                      }
                     }}>
                       <DialogTrigger asChild>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setSelectedUser(user)}
+                          onClick={() => {
+                            setSelectedUser(user)
+                            setDeleteError(null)
+                          }}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50 cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -561,6 +578,22 @@ export function AdminUsersManagement({ users, currentUserId }: AdminUsersManagem
                         </DialogHeader>
 
                         <div className="space-y-4 py-4">
+                          {deleteError && (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                              <div className="flex items-start space-x-3">
+                                <Info className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-sm font-medium text-yellow-800">
+                                    Impossible de supprimer
+                                  </p>
+                                  <p className="text-sm text-yellow-700 mt-1">
+                                    {deleteError}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                             <p className="text-sm text-red-800">
                               <strong>Attention :</strong> Toutes les données associées à cet utilisateur seront supprimées.
@@ -577,7 +610,10 @@ export function AdminUsersManagement({ users, currentUserId }: AdminUsersManagem
                             </Button>
                             <Button
                               variant="outline"
-                              onClick={() => setIsDeleteOpen(false)}
+                              onClick={() => {
+                                setIsDeleteOpen(false)
+                                setDeleteError(null)
+                              }}
                               disabled={isLoading}
                             >
                               Annuler
