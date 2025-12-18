@@ -87,10 +87,13 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
     // Sérialiser les données
     const serializedCandidate = serializeForClient(candidate)
 
-    // Récupérer les scores existants
+    // Récupérer les scores existants et les sérialiser
     const existingScores = await prisma.score.findUnique({
       where: { candidateId: parseInt(id) }
     })
+
+    // ⭐ CORRECTION: Sérialiser existingScores aussi
+    const serializedExistingScores = existingScores ? serializeForClient(existingScores) : null
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20">
@@ -101,7 +104,7 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
             candidate={serializedCandidate} 
             expectedJuryCount={expectedJuryCount}
             hasAllJuryScores={hasAllJuryScores}
-            existingScores={existingScores}
+            existingScores={serializedExistingScores}
           />
         </main>
       </div>

@@ -6,7 +6,13 @@ import { prisma } from "@/lib/prisma"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { CandidateEditForm } from "@/components/candidate-edit-form"
 
-export default async function CandidateEditPage({ params }: { params: { id: string } }) {
+interface CandidateEditPageProps {
+  params: Promise<{
+    id: string
+  }>
+}
+
+export default async function CandidateEditPage({ params }: CandidateEditPageProps) {
   const session = await auth.api.getSession({
     headers: await headers(),
   })
@@ -20,7 +26,7 @@ export default async function CandidateEditPage({ params }: { params: { id: stri
     redirect("/auth/login")
   }
 
-  const { id } = params
+  const { id } = await params  // ⭐ AJOUT de await
 
   const candidate = await prisma.candidate.findUnique({
     where: { id: parseInt(id) },
@@ -70,7 +76,7 @@ export default async function CandidateEditPage({ params }: { params: { id: stri
     }
   })
 
-  // CORRECTION: Sérialiser les dates en strings
+  // CORRECTION: Sérialiser les dates en strings et gérer null/undefined
   const formattedCandidate = {
     id: candidate.id,
     nom: candidate.nom,
@@ -81,21 +87,21 @@ export default async function CandidateEditPage({ params }: { params: { id: stri
     diploma: candidate.diploma,
     niveau_etudes: candidate.niveauEtudes,
     institution: candidate.institution,
-    email: candidate.email,
+    email: candidate.email ?? undefined,  // ⭐ Convertir null en undefined
     location: candidate.location,
     sms_sent_date: candidate.smsSentDate ? candidate.smsSentDate.toISOString().split('T')[0] : '',
     availability: candidate.availability,
     interview_date: candidate.interviewDate ? candidate.interviewDate.toISOString().split('T')[0] : '',
     metier: candidate.metier,
     session_id: candidate.sessionId || 'none',
-    notes: candidate.notes,
+    notes: candidate.notes ?? undefined,  // ⭐ Convertir null en undefined
   }
 
   // CORRECTION: Sérialiser les sessions (convertir Date en string)
   const serializedSessions = sessions.map(session => ({
     id: session.id,
     metier: session.metier,
-    date: session.date.toISOString(), // Convertir Date en string ISO
+    date: session.date.toISOString(),
     jour: session.jour,
     status: session.status,
     description: session.description,
