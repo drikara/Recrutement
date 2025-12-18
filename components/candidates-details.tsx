@@ -15,6 +15,13 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
     }
   } 
 
+  // Fonction pour formater les scores en nombre avec gestion des valeurs nulles
+  const formatScore = (value: any): number => {
+    if (value == null) return 0
+    const num = typeof value === 'string' ? parseFloat(value) : Number(value)
+    return isNaN(num) ? 0 : num
+  }
+
   // Si pas de candidat, afficher un message
   if (!candidate) {
     return (
@@ -162,36 +169,10 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
               <Phone className="w-6 h-6" />
               Suivi des Relances
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {scores.callAttempts != null && (
-                <div className="bg-white rounded-xl p-4 border border-blue-200">
-                  <p className="text-sm text-blue-600 mb-1">Tentatives d'appel</p>
-                  <p className="text-2xl font-bold text-blue-900">{scores.callAttempts || 0}</p>
-                </div>
-              )}
-              {scores.lastCallDate && (
-                <div className="bg-white rounded-xl p-4 border border-blue-200">
-                  <p className="text-sm text-blue-600 mb-1">Dernier appel</p>
-                  <p className="text-lg font-bold text-blue-900">{formatDate(scores.lastCallDate)}</p>
-                </div>
-              )}
-              {scores.statut && (
-                <div className="bg-white rounded-xl p-4 border border-blue-200">
-                  <p className="text-sm text-blue-600 mb-1">Statut</p>
-                  <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg font-bold ${
-                    scores.statut === 'PRESENT' 
-                      ? 'bg-green-100 text-green-700' 
-                      : 'bg-red-100 text-red-700'
-                  }`}>
-                    {scores.statut === 'PRESENT' ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
-                    {scores.statut}
-                  </div>
-                </div>
-              )}
-            </div>
+            
             {scores.callNotes && (
               <div className="mt-4 bg-white rounded-xl p-4 border border-blue-200">
-                <p className="text-sm text-blue-600 mb-2">Notes d'appel</p>
+                <p className="text-sm text-blue-600 mb-2">Notes Présence</p>
                 <p className="text-gray-700">{scores.callNotes}</p>
               </div>
             )}
@@ -241,9 +222,9 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                 <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                   <p className="text-sm text-blue-600 mb-1">Présentation Visuelle</p>
                   <p className={`text-3xl font-bold ${
-                    scores.presentationVisuelle >= 3 ? 'text-green-600' : 'text-red-600'
+                    formatScore(scores.presentationVisuelle) >= 3 ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    {scores.presentationVisuelle.toFixed(2)}/5
+                    {formatScore(scores.presentationVisuelle).toFixed(2)}/5
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Seuil: ≥ 3/5</p>
                 </div>
@@ -252,9 +233,9 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                 <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                   <p className="text-sm text-blue-600 mb-1">Communication Verbale</p>
                   <p className={`text-3xl font-bold ${
-                    scores.verbalCommunication >= 3 ? 'text-green-600' : 'text-red-600'
+                    formatScore(scores.verbalCommunication) >= 3 ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    {scores.verbalCommunication.toFixed(2)}/5
+                    {formatScore(scores.verbalCommunication).toFixed(2)}/5
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Seuil: ≥ 3/5</p>
                 </div>
@@ -263,9 +244,9 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                 <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                   <p className="text-sm text-blue-600 mb-1">Qualité de la Voix</p>
                   <p className={`text-3xl font-bold ${
-                    scores.voiceQuality >= 3 ? 'text-green-600' : 'text-red-600'
+                    formatScore(scores.voiceQuality) >= 3 ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    {scores.voiceQuality.toFixed(2)}/5
+                    {formatScore(scores.voiceQuality).toFixed(2)}/5
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Seuil: ≥ 3/5</p>
                 </div>
@@ -341,15 +322,15 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
               )}
             </div>
 
-            {/* Moyennes Phase 2 */}
+            {/* Moyennes Phase Simulation */}
             <div className="grid grid-cols-3 gap-4 mb-6">
               {scores.simulationSensNegociation != null && (
                 <div className="bg-green-50 rounded-xl p-4 border border-green-200">
                   <p className="text-sm text-green-600 mb-1">Sens de Négociation</p>
                   <p className={`text-3xl font-bold ${
-                    scores.simulationSensNegociation >= 3 ? 'text-green-600' : 'text-red-600'
+                    formatScore(scores.simulationSensNegociation) >= 3 ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    {scores.simulationSensNegociation.toFixed(2)}/5
+                    {formatScore(scores.simulationSensNegociation).toFixed(2)}/5
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Seuil: ≥ 3/5</p>
                 </div>
@@ -358,9 +339,9 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                 <div className="bg-green-50 rounded-xl p-4 border border-green-200">
                   <p className="text-sm text-green-600 mb-1">Capacité de Persuasion</p>
                   <p className={`text-3xl font-bold ${
-                    scores.simulationCapacitePersuasion >= 3 ? 'text-green-600' : 'text-red-600'
+                    formatScore(scores.simulationCapacitePersuasion) >= 3 ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    {scores.simulationCapacitePersuasion.toFixed(2)}/5
+                    {formatScore(scores.simulationCapacitePersuasion).toFixed(2)}/5
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Seuil: ≥ 3/5</p>
                 </div>
@@ -369,16 +350,16 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                 <div className="bg-green-50 rounded-xl p-4 border border-green-200">
                   <p className="text-sm text-green-600 mb-1">Sens de Combativité</p>
                   <p className={`text-3xl font-bold ${
-                    scores.simulationSensCombativite >= 3 ? 'text-green-600' : 'text-red-600'
+                    formatScore(scores.simulationSensCombativite) >= 3 ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    {scores.simulationSensCombativite.toFixed(2)}/5
+                    {formatScore(scores.simulationSensCombativite).toFixed(2)}/5
                   </p>
                   <p className="text-xs text-gray-500 mt-1">Seuil: ≥ 3/5</p>
                 </div>
               )}
             </div>
 
-            {/* Évaluations individuelles Phase 2 */}
+            {/* Évaluations individuelles Simulation */}
             {candidate.faceToFaceScores && candidate.faceToFaceScores.filter((s: any) => s.phase === 2).length > 0 && (
               <div className="bg-gray-50 rounded-xl p-4">
                 <h3 className="font-semibold text-gray-700 mb-3">Évaluations individuelles des jurys</h3>
@@ -466,7 +447,7 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
               )}
               {scores.analysisExercise != null && (
                 <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
-                  <p className="text-sm text-purple-600 mb-1">Exercice d'Analyse</p>
+                  <p className="text-sm text-purple-600 mb-1">Capacité d'Analyse</p>
                   <p className="text-2xl font-bold text-purple-900">{scores.analysisExercise}/5</p>
                 </div>
               )}
