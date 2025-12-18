@@ -1,3 +1,5 @@
+'use client'
+
 import { ArrowLeft, UserCheck, UserX, CheckCircle, XCircle, AlertTriangle, Phone, MessageSquare } from 'lucide-react'
 
 export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScores, existingScores }: any) {
@@ -455,16 +457,6 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
           </div>
         )}
 
-        {/* Commentaires généraux */}
-        {scores.comments && (
-          <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-amber-900 mb-3 flex items-center gap-2">
-              <MessageSquare className="w-6 h-6" />
-              Commentaires WFM
-            </h2>
-            <p className="text-gray-700 leading-relaxed">{scores.comments}</p>
-          </div>
-        )}
       </div>
     </div>
   )
