@@ -1,4 +1,4 @@
-// components/recent-candidates.tsx (VERSION PRISMA - SANS SQL DIRECT)
+// components/recent-candidates.tsx (VERSION PRISMA - PAGINATION 5 PAR PAGE)
 import { prisma } from "@/lib/prisma"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -11,10 +11,12 @@ interface RecentCandidatesProps {
     search?: string
     status?: string
     dateRange?: string
+    page?: string
   }
+ 
 }
 
-// Configuration des critères par métier (identique à avant)
+// Configuration des critères par métier
 const metierCriteria: Record<string, any> = {
   "CALL_CENTER": {
     requiredTests: ["Face à Face", "Saisie", "Excel", "Dictée"],
@@ -108,16 +110,42 @@ const metierCriteria: Record<string, any> = {
 }
 
 export async function RecentCandidates({ filters }: RecentCandidatesProps) {
-  // Pagination
-  const itemsPerPage = 10
-  const currentPage = 1 // Tu peux le rendre dynamique avec searchParams
+  // Pagination - 5 éléments par page
+  const itemsPerPage = 5
+  const currentPage = filters?.page ? parseInt(filters.page) : 1
   
-  // Récupérer le nombre total de candidats
-  const totalCandidates = await prisma.candidate.count()
+  // Construire les filtres pour where clause
+  const startDate = filters?.year 
+    ? new Date(parseInt(filters.year), filters?.month ? parseInt(filters.month) - 1 : 0, 1)
+    : undefined
+  const endDate = filters?.year
+    ? filters?.month 
+      ? new Date(parseInt(filters.year), parseInt(filters.month), 0, 23, 59, 59)
+      : new Date(parseInt(filters.year), 11, 31, 23, 59, 59)
+    : undefined
+
+  const whereClause: any = {}
+  
+  if (startDate && endDate) {
+    whereClause.createdAt = {
+      gte: startDate,
+      lte: endDate
+    }
+  }
+  
+  if (filters?.metier) {
+    whereClause.metier = filters.metier
+  }
+  
+  // Récupérer le nombre total de candidats avec filtres
+  const totalCandidates = await prisma.candidate.count({
+    where: whereClause
+  })
   const totalPages = Math.ceil(totalCandidates / itemsPerPage)
   
   // Récupérer les candidats avec Prisma
   const candidates = await prisma.candidate.findMany({
+    where: whereClause,
     skip: (currentPage - 1) * itemsPerPage,
     take: itemsPerPage,
     orderBy: {
@@ -146,7 +174,6 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
   // Fonction pour formater les nombres
   const formatNumber = (value: any): string => {
     if (value === null || value === undefined) return 'N/A'
-    // Convertir Decimal en number
     const numValue = typeof value === 'object' && 'toNumber' in value ? value.toNumber() : Number(value)
     return numValue.toFixed(2)
   }
@@ -169,10 +196,6 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
 
     switch (testName) {
       case "Face à Face":
-        // Vérifier les sous-critères individuellement
-        const scores = candidate.scores
-        if (!scores) return null
-        
         const voiceOk = (Number(scores.voiceQuality) || 0) >= 3
         const verbalOk = (Number(scores.verbalCommunication) || 0) >= 3
         const presOk = candidate.metier === 'AGENCES' 
@@ -192,14 +215,12 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
         return Number(scores.dictation) >= thresholds.dictation
       
       case "Simulation Vente":
-        // Vérifier les sous-critères
         const simNeg = Number(scores.simulationSensNegociation) || 0
         const simPers = Number(scores.simulationCapacitePersuasion) || 0
         const simComb = Number(scores.simulationSensCombativite) || 0
         return simNeg >= 3 && simPers >= 3 && simComb >= 3
       
       case "Test Psychotechnique":
-        // Vérifier les sous-critères
         const psychoRais = Number(scores.psychoRaisonnementLogique) || 0
         const psychoAtt = Number(scores.psychoAttentionConcentration) || 0
         return psychoRais >= 3 && psychoAtt >= 3
@@ -212,40 +233,14 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
     }
   }
 
-  // Fonction pour obtenir le statut d'un test
-  const getTestStatus = (candidate: any, testName: string) => {
-    const required = isTestRequired(candidate.metier, testName)
-    if (!required) return { required: false, passed: null }
-
-    const passed = isTestPassed(candidate, testName)
-    return { required: true, passed }
-  }
-
-  // Fonction pour obtenir le seuil d'un test
-  const getTestThreshold = (metier: string, testName: string): string => {
-    const criteria = metierCriteria[metier]
-    if (!criteria) return ""
-
-    const thresholds = criteria.thresholds
-
-    switch (testName) {
-      case "Face à Face":
-        return `≥ ${thresholds.faceToFace}/5`
-      case "Saisie":
-        return `≥ ${thresholds.typingSpeed} MPM + ${thresholds.typingAccuracy}%`
-      case "Excel":
-        return `≥ ${thresholds.excel}/5`
-      case "Dictée":
-        return `≥ ${thresholds.dictation}/20`
-      case "Simulation Vente":
-        return `≥ 3/5 (tous critères)`
-      case "Test Psychotechnique":
-        return `≥ 3/5 (tous critères)`
-      case "Exercice Analyse":
-        return `≥ ${thresholds.analysisExercise}/5`
-      default:
-        return ""
-    }
+  // Fonction pour construire l'URL avec les filtres
+  const buildUrl = (page: number) => {
+    const params = new URLSearchParams()
+    if (filters?.year) params.set('year', filters.year)
+    if (filters?.month) params.set('month', filters.month)
+    if (filters?.metier) params.set('metier', filters.metier)
+    params.set('page', page.toString())
+    return `?${params.toString()}`
   }
 
   return (
@@ -257,7 +252,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
             Candidats Récents
           </h2>
           <p className="text-orange-500 font-medium">
-            {candidates.length} candidat{candidates.length > 1 ? 's' : ''} affiché{candidates.length > 1 ? 's' : ''}
+            {totalCandidates} candidat{totalCandidates > 1 ? 's' : ''} au total
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
@@ -374,18 +369,6 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {/* <Link href={`/wfm/scores/${candidate.id}`}>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="border-2 border-orange-300 text-orange-600 hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all duration-200 cursor-pointer font-medium rounded-lg px-4"
-                      >
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        Notes
-                      </Button>
-                    </Link> */}
                     <Link href={`/wfm/candidates/${candidate.id}/edit`}>
                       <Button 
                         variant="outline" 
@@ -423,7 +406,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                   </div>
                 </div>
 
-                {/* Notes détaillées - Face à Face (Sous-critères) */}
+                {/* Notes détaillées - Face à Face */}
                 {scores && (
                   <div className="bg-gradient-to-br from-blue-50 to-white rounded-2xl p-5 border-2 border-blue-100">
                     <h4 className="font-semibold text-blue-800 mb-4 flex items-center gap-3">
@@ -435,7 +418,6 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                       <span>Face à Face - Sous-critères</span>
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Qualité de la voix */}
                       <div className="bg-white p-4 rounded-xl border border-blue-100">
                         <div className="text-sm text-blue-600 font-medium mb-2">Qualité de la voix</div>
                         <div className={`text-2xl font-bold ${
@@ -448,7 +430,6 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                         <div className="text-xs text-gray-500 mt-1">Minimum: 3/5</div>
                       </div>
 
-                      {/* Communication verbale */}
                       <div className="bg-white p-4 rounded-xl border border-blue-100">
                         <div className="text-sm text-blue-600 font-medium mb-2">Communication verbale</div>
                         <div className={`text-2xl font-bold ${
@@ -461,7 +442,6 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                         <div className="text-xs text-gray-500 mt-1">Minimum: 3/5</div>
                       </div>
 
-                      {/* Présentation visuelle (si AGENCES) */}
                       {candidate.metier === 'AGENCES' && (
                         <div className="bg-white p-4 rounded-xl border border-blue-100">
                           <div className="text-sm text-blue-600 font-medium mb-2">Présentation visuelle</div>
@@ -479,7 +459,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                   </div>
                 )}
 
-                {/* Tests Techniques - Affichage conditionnel selon métier */}
+                {/* Tests Techniques */}
                 {scores && (
                   <div className="bg-gradient-to-br from-purple-50 to-white rounded-2xl p-5 border-2 border-purple-100">
                     <h4 className="font-semibold text-purple-800 mb-4 flex items-center gap-3">
@@ -492,7 +472,6 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       
-                      {/* Saisie - Rapidité (si requis) */}
                       {isTestRequired(candidate.metier, "Saisie") && scores.typingSpeed !== null && scores.typingSpeed !== undefined && (
                         <div className="bg-white p-4 rounded-xl border border-purple-100">
                           <div className="text-sm text-purple-600 font-medium mb-2">Rapidité de saisie</div>
@@ -509,7 +488,6 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                         </div>
                       )}
 
-                      {/* Saisie - Précision (si requis) */}
                       {isTestRequired(candidate.metier, "Saisie") && scores.typingAccuracy !== null && scores.typingAccuracy !== undefined && (
                         <div className="bg-white p-4 rounded-xl border border-purple-100">
                           <div className="text-sm text-purple-600 font-medium mb-2">Précision de saisie</div>
@@ -526,7 +504,6 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                         </div>
                       )}
 
-                      {/* Excel (si requis) */}
                       {isTestRequired(candidate.metier, "Excel") && scores.excelTest !== null && scores.excelTest !== undefined && (
                         <div className="bg-white p-4 rounded-xl border border-purple-100">
                           <div className="text-sm text-purple-600 font-medium mb-2">Test Excel</div>
@@ -541,7 +518,6 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                         </div>
                       )}
 
-                      {/* Dictée (si requis) */}
                       {isTestRequired(candidate.metier, "Dictée") && scores.dictation !== null && scores.dictation !== undefined && (
                         <div className="bg-white p-4 rounded-xl border border-purple-100">
                           <div className="text-sm text-purple-600 font-medium mb-2">Dictée</div>
@@ -557,101 +533,9 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                           </div>
                         </div>
                       )}
-
-                      {/* Simulation - Sens négociation (si requis) */}
-                      {isTestRequired(candidate.metier, "Simulation Vente") && scores.simulationSensNegociation !== null && scores.simulationSensNegociation !== undefined && (
-                        <div className="bg-white p-4 rounded-xl border border-purple-100">
-                          <div className="text-sm text-purple-600 font-medium mb-2">Sens de la négociation</div>
-                          <div className={`text-2xl font-bold ${
-                            Number(scores.simulationSensNegociation) >= 3
-                              ? 'text-green-600' 
-                              : 'text-red-600'
-                          }`}>
-                            {formatNumber(scores.simulationSensNegociation)}/5
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">Minimum: 3/5</div>
-                        </div>
-                      )}
-
-                      {/* Simulation - Capacité persuasion (si requis) */}
-                      {isTestRequired(candidate.metier, "Simulation Vente") && scores.simulationCapacitePersuasion !== null && scores.simulationCapacitePersuasion !== undefined && (
-                        <div className="bg-white p-4 rounded-xl border border-purple-100">
-                          <div className="text-sm text-purple-600 font-medium mb-2">Capacité de persuasion</div>
-                          <div className={`text-2xl font-bold ${
-                            Number(scores.simulationCapacitePersuasion) >= 3
-                              ? 'text-green-600' 
-                              : 'text-red-600'
-                          }`}>
-                            {formatNumber(scores.simulationCapacitePersuasion)}/5
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">Minimum: 3/5</div>
-                        </div>
-                      )}
-
-                      {/* Simulation - Sens combativité (si requis) */}
-                      {isTestRequired(candidate.metier, "Simulation Vente") && scores.simulationSensCombativite !== null && scores.simulationSensCombativite !== undefined && (
-                        <div className="bg-white p-4 rounded-xl border border-purple-100">
-                          <div className="text-sm text-purple-600 font-medium mb-2">Sens de la combativité</div>
-                          <div className={`text-2xl font-bold ${
-                            Number(scores.simulationSensCombativite) >= 3
-                              ? 'text-green-600' 
-                              : 'text-red-600'
-                          }`}>
-                            {formatNumber(scores.simulationSensCombativite)}/5
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">Minimum: 3/5</div>
-                        </div>
-                      )}
-
-                      {/* Psychotechnique - Raisonnement logique (si requis) */}
-                      {isTestRequired(candidate.metier, "Test Psychotechnique") && scores.psychoRaisonnementLogique !== null && scores.psychoRaisonnementLogique !== undefined && (
-                        <div className="bg-white p-4 rounded-xl border border-purple-100">
-                          <div className="text-sm text-purple-600 font-medium mb-2">Raisonnement logique</div>
-                          <div className={`text-2xl font-bold ${
-                            Number(scores.psychoRaisonnementLogique) >= 3
-                              ? 'text-green-600' 
-                              : 'text-red-600'
-                          }`}>
-                            {formatNumber(scores.psychoRaisonnementLogique)}/5
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">Minimum: 3/5</div>
-                        </div>
-                      )}
-
-                      {/* Psychotechnique - Attention concentration (si requis) */}
-                      {isTestRequired(candidate.metier, "Test Psychotechnique") && scores.psychoAttentionConcentration !== null && scores.psychoAttentionConcentration !== undefined && (
-                        <div className="bg-white p-4 rounded-xl border border-purple-100">
-                          <div className="text-sm text-purple-600 font-medium mb-2">Attention & concentration</div>
-                          <div className={`text-2xl font-bold ${
-                            Number(scores.psychoAttentionConcentration) >= 3
-                              ? 'text-green-600' 
-                              : 'text-red-600'
-                          }`}>
-                            {formatNumber(scores.psychoAttentionConcentration)}/5
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">Minimum: 3/5</div>
-                        </div>
-                      )}
-
-                      {/* Exercice d'analyse (si requis) */}
-                      {isTestRequired(candidate.metier, "Exercice Analyse") && scores.analysisExercise !== null && scores.analysisExercise !== undefined && (
-                        <div className="bg-white p-4 rounded-xl border border-purple-100">
-                          <div className="text-sm text-purple-600 font-medium mb-2">Exercice d'analyse</div>
-                          <div className={`text-2xl font-bold ${
-                            Number(scores.analysisExercise) >= 3
-                              ? 'text-green-600' 
-                              : 'text-red-600'
-                          }`}>
-                            {formatNumber(scores.analysisExercise)}/5
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">Minimum: 3/5</div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
-
-            
               </div>
             )
           })
@@ -665,7 +549,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
             Page <span className="font-semibold text-orange-600">{currentPage}</span> sur <span className="font-semibold">{totalPages}</span>
           </div>
           <div className="flex gap-2">
-            <Link href={`?page=${Math.max(1, currentPage - 1)}`}>
+            <Link href={buildUrl(Math.max(1, currentPage - 1))}>
               <Button
                 variant="outline"
                 size="sm"
@@ -694,7 +578,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
                 }
                 
                 return (
-                  <Link key={pageNum} href={`?page=${pageNum}`}>
+                  <Link key={pageNum} href={buildUrl(pageNum)}>
                     <Button
                       variant={currentPage === pageNum ? "default" : "outline"}
                       size="sm"
@@ -710,7 +594,7 @@ export async function RecentCandidates({ filters }: RecentCandidatesProps) {
               })}
             </div>
 
-            <Link href={`?page=${Math.min(totalPages, currentPage + 1)}`}>
+            <Link href={buildUrl(Math.min(totalPages, currentPage + 1))}>
               <Button
                 variant="outline"
                 size="sm"

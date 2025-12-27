@@ -1,5 +1,4 @@
-// components/AuditLogViewer.tsx 
-
+// components/AuditLogViewer.tsx
 'use client'
 
 import React, { useState, useEffect } from 'react'
@@ -19,7 +18,6 @@ const AuditLogViewer = () => {
     limit: 50
   })
 
-  // Actions et entités disponibles
   const actions = [
     { value: 'CREATE', label: 'Création', color: 'bg-green-100 text-green-800' },
     { value: 'READ', label: 'Lecture', color: 'bg-gray-100 text-gray-800' },
@@ -111,6 +109,28 @@ const AuditLogViewer = () => {
     }).format(new Date(date))
   }
 
+  // 🆕 Fonction pour extraire les créateurs de session depuis les métadonnées
+  const getSessionCreators = (log: any) => {
+    if (log.entity === 'EXPORT' && log.metadata) {
+      try {
+        const metadata = typeof log.metadata === 'string' 
+          ? JSON.parse(log.metadata) 
+          : log.metadata
+        
+        // Chercher sessionCreatedBy (export session unique) ou sessionCreators (export consolidé)
+        if (metadata.sessionCreatedBy) {
+          return [metadata.sessionCreatedBy]
+        }
+        if (metadata.sessionCreators && Array.isArray(metadata.sessionCreators)) {
+          return metadata.sessionCreators
+        }
+      } catch (e) {
+        console.error('Erreur parsing metadata:', e)
+      }
+    }
+    return []
+  }
+
   const exportLogs = () => {
     if (logs.length === 0) {
       alert('Aucun log à exporter')
@@ -118,16 +138,21 @@ const AuditLogViewer = () => {
     }
 
     const csv = [
-      ['Date', 'Utilisateur', 'Email', 'Action', 'Entité', 'Description', 'IP'].join(','),
-      ...logs.map(log => [
-        formatDate(log.createdAt),
-        log.userName,
-        log.userEmail,
-        log.action,
-        log.entity,
-        `"${log.description}"`,
-        log.ipAddress
-      ].join(','))
+      ['Date', 'Utilisateur', 'Email', 'Action', 'Entité', 'Description', 'Créateurs Session', 'IP'].join(','),
+      ...logs.map(log => {
+        const creators = getSessionCreators(log)
+        const creatorsStr = creators.length > 0 ? creators.join(', ') : ''
+        return [
+          formatDate(log.createdAt),
+          log.userName,
+          log.userEmail,
+          log.action,
+          log.entity,
+          `"${log.description}"`,
+          creatorsStr,
+          log.ipAddress
+        ].join(',')
+      })
     ].join('\n')
 
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -309,6 +334,10 @@ const AuditLogViewer = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Description
                   </th>
+                  {/* 🆕 COLONNE CRÉATEURS */}
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Créateurs Session
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     IP
                   </th>
@@ -317,7 +346,7 @@ const AuditLogViewer = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={7} className="px-6 py-12 text-center">
                       <div className="flex flex-col justify-center items-center gap-3">
                         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-600"></div>
                         <p className="text-sm text-gray-500">Chargement des logs...</p>
@@ -326,7 +355,7 @@ const AuditLogViewer = () => {
                   </tr>
                 ) : logs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={7} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <Activity className="w-12 h-12 text-gray-300" />
                         <p className="text-gray-500 font-medium">Aucune action trouvée</p>
@@ -337,6 +366,7 @@ const AuditLogViewer = () => {
                 ) : (
                   logs.map((log) => {
                     const actionBadge = getActionBadge(log.action)
+                    const creators = getSessionCreators(log)
                     return (
                       <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -368,6 +398,23 @@ const AuditLogViewer = () => {
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900 max-w-md truncate">
                           {log.description}
+                        </td>
+                        {/* 🆕 AFFICHAGE DES CRÉATEURS */}
+                        <td className="px-6 py-4">
+                          {creators.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {creators.map((creator: string, idx: number) => (
+                                <span 
+                                  key={idx}
+                                  className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full"
+                                >
+                                  {creator}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">-</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                           {log.ipAddress}

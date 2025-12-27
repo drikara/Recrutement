@@ -4,7 +4,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
-import { LoadingOverlay } from '@/components/loading-overlay'
 
 type ViewMode = 'WFM' | 'JURY'
 
@@ -15,7 +14,6 @@ interface RoleContextType {
   switchToWFM: () => Promise<void>
   switchToJury: () => Promise<void>
   isLoading: boolean
-  loadingMessage: string
 }
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined)
@@ -41,13 +39,11 @@ export function RoleProvider({ children, userRole, juryRoleType }: RoleProviderP
   })
 
   const [isLoading, setIsLoading] = useState(false)
-  const [loadingMessage, setLoadingMessage] = useState('Chargement...')
 
   // Synchroniser avec le serveur via cookie
   const syncWithServer = useCallback(async (mode: ViewMode) => {
     try {
       setIsLoading(true)
-      setLoadingMessage(`Basculement vers le mode ${mode}...`)
       
       const response = await fetch('/api/auth/switch-mode', {
         method: 'POST',
@@ -66,8 +62,8 @@ export function RoleProvider({ children, userRole, juryRoleType }: RoleProviderP
     } catch (error) {
       console.error('❌ Erreur synchronisation:', error)
       toast.error('Erreur lors du changement de mode')
+    } finally {
       setIsLoading(false)
-      throw error
     }
   }, [])
 
@@ -77,23 +73,13 @@ export function RoleProvider({ children, userRole, juryRoleType }: RoleProviderP
       return
     }
     
-    try {
-      console.log('🔄 Bascule vers WFM')
-      setViewMode('WFM')
-      localStorage.setItem('viewMode', 'WFM')
-      
-      await syncWithServer('WFM')
-      
-      setLoadingMessage('Redirection vers le dashboard WFM...')
-      
-      // Petit délai pour l'effet visuel
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      router.push('/wfm/dashboard')
-      router.refresh()
-    } catch (error) {
-      setIsLoading(false)
-    }
+    console.log('🔄 Bascule vers WFM')
+    setViewMode('WFM')
+    localStorage.setItem('viewMode', 'WFM')
+    
+    await syncWithServer('WFM')
+    router.push('/wfm/dashboard')
+    router.refresh()
   }, [canSwitchRole, syncWithServer, router])
 
   const switchToJury = useCallback(async () => {
@@ -102,23 +88,13 @@ export function RoleProvider({ children, userRole, juryRoleType }: RoleProviderP
       return
     }
     
-    try {
-      console.log('🔄 Bascule vers JURY')
-      setViewMode('JURY')
-      localStorage.setItem('viewMode', 'JURY')
-      
-      await syncWithServer('JURY')
-      
-      setLoadingMessage('Redirection vers le dashboard Jury...')
-      
-      // Petit délai pour l'effet visuel
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      router.push('/jury/dashboard')
-      router.refresh()
-    } catch (error) {
-      setIsLoading(false)
-    }
+    console.log('🔄 Bascule vers JURY')
+    setViewMode('JURY')
+    localStorage.setItem('viewMode', 'JURY')
+    
+    await syncWithServer('JURY')
+    router.push('/jury/dashboard')
+    router.refresh()
   }, [canSwitchRole, syncWithServer, router])
 
   // Synchroniser au montage (une seule fois)
@@ -138,12 +114,10 @@ export function RoleProvider({ children, userRole, juryRoleType }: RoleProviderP
         canSwitchRole,
         switchToWFM,
         switchToJury,
-        isLoading,
-        loadingMessage
+        isLoading
       }}
     >
       {children}
-      {isLoading && <LoadingOverlay message={loadingMessage} />}
     </RoleContext.Provider>
   )
 }

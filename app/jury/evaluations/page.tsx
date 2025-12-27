@@ -12,12 +12,9 @@ import {
   Users,
   Award,
   Target,
-  BookOpen,
-  Filter,
-  BarChart3,
-  Calendar
+  Filter
 } from 'lucide-react'
-import { canJuryMemberAccessCandidate, filterCandidatesForJury, isSessionActive } from "@/lib/permissions"
+import { filterCandidatesForJury } from "@/lib/permissions"
 
 export default async function JuryEvaluationsPage() {
   const session = await auth.api.getSession({
@@ -53,7 +50,7 @@ export default async function JuryEvaluationsPage() {
     redirect("/jury/dashboard")
   }
 
-  //  Filtrer les candidats "NON disponibles" 
+  // Filtrer les candidats "NON disponibles" 
   const allCandidates = await prisma.candidate.findMany({
     where: {
       // Seulement les candidats des sessions actives ET disponibles
@@ -62,7 +59,7 @@ export default async function JuryEvaluationsPage() {
           in: ["PLANIFIED", "IN_PROGRESS"]
         }
       },
-      availability: 'OUI' //  seulement les candidats disponibles
+      availability: 'OUI' // seulement les candidats disponibles
     },
     include: {
       session: {
@@ -97,7 +94,7 @@ export default async function JuryEvaluationsPage() {
 
   console.log(`📊 Jurys - Candidats disponibles: ${allCandidates.length} (filtrés availability='OUI')`)
 
-  //  Appel asynchrone à filterCandidatesForJury
+  // Appel asynchrone à filterCandidatesForJury
   const candidates = await filterCandidatesForJury(allCandidates, juryMember)
 
   // Définir les types
@@ -163,8 +160,6 @@ export default async function JuryEvaluationsPage() {
   const totalCandidates = formattedCandidates.length
   const evaluatedCount = formattedCandidates.filter((c: FormattedCandidate) => c.myScore).length
   const pendingCount = formattedCandidates.filter((c: FormattedCandidate) => !c.myScore).length
-  const phase1OnlyCount = formattedCandidates.filter((c: FormattedCandidate) => c.evaluationStatus === 'phase1_only').length
-  const bothPhasesCount = formattedCandidates.filter((c: FormattedCandidate) => c.evaluationStatus === 'both_phases').length
 
   const getRoleIcon = (roleType: string) => {
     switch (roleType) {
@@ -172,7 +167,7 @@ export default async function JuryEvaluationsPage() {
         return <Award className="w-4 h-4" />
       case 'EPC':
         return <Users className="w-4 h-4" />
-         case 'FORMATEUR':
+      case 'FORMATEUR':
         return <Users className="w-4 h-4" />
       case 'REPRESENTANT_METIER':
         return <Target className="w-4 h-4" />
@@ -185,7 +180,7 @@ export default async function JuryEvaluationsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <DashboardHeader user={session.user} role="JURY" />
+      <DashboardHeader user={session.user} />
       <main className="container mx-auto p-6 space-y-8">
         {/* En-tête */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
@@ -220,7 +215,7 @@ export default async function JuryEvaluationsPage() {
         </div>
 
         {/* Statistiques détaillées */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 hover:border-blue-300">
             <div className="flex items-center justify-between">
               <div>
@@ -259,8 +254,6 @@ export default async function JuryEvaluationsPage() {
               </div>
             </div>
           </div>
-
-          
         </div>
 
         {/* En-tête de la liste */}
@@ -275,7 +268,6 @@ export default async function JuryEvaluationsPage() {
                 <p className="text-gray-600 text-sm">
                   {formattedCandidates.length} candidat(s) disponible(s) à évaluer
                 </p>
-               
               </div>
             </div>
             

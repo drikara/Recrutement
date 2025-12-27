@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Metier } from '@prisma/client'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface JuryMember {
   id: number
@@ -35,9 +36,12 @@ interface JuryManagementProps {
     email: string
     role: string
   }>
+  currentPage: number
+  totalPages: number
+  totalItems: number
 }
 
-export function JuryManagement({ juryMembers, users }: JuryManagementProps) {
+export function JuryManagement({ juryMembers, users, currentPage, totalPages, totalItems }: JuryManagementProps) {
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
@@ -126,44 +130,47 @@ export function JuryManagement({ juryMembers, users }: JuryManagementProps) {
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'DRH':
-        return 'bg-linear-to-r from-orange-500 to-amber-500 text-white'
+        return 'bg-gradient-to-r from-orange-500 to-amber-500 text-white'
       case 'EPC':
-        return 'bg-linear-to-r from-blue-500 to-cyan-500 text-white'
-      
+        return 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
       case 'FORMATEUR':
-        return 'bg-linear-to-r from-yellow-500 to-cyan-500 text-white'
+        return 'bg-gradient-to-r from-yellow-500 to-cyan-500 text-white'
       case 'REPRESENTANT_METIER':
-        return 'bg-linear-to-r from-emerald-500 to-green-500 text-white'
+        return 'bg-gradient-to-r from-emerald-500 to-green-500 text-white'
       case 'WFM_JURY':
-        return 'bg-linear-to-r from-purple-500 to-pink-500 text-white'
+        return 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
       default:
-        return 'bg-linear-to-r from-gray-500 to-gray-600 text-white'
+        return 'bg-gradient-to-r from-gray-500 to-gray-600 text-white'
     }
   }
+
+  const itemsPerPage = 5
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems)
 
   return (
     <div className="space-y-6">
       {/* En-tête élégant */}
-      <div className="bg-linear-to-r from-orange-50 to-amber-50 rounded-2xl p-6 border-2 border-orange-200 shadow-sm">
+      <div className="bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl p-6 border-2 border-orange-200 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-linear-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-lg">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl font-bold bg-linear-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
                 Gestion des Membres du Jury
               </h1>
               <p className="text-orange-700">
-                {juryMembers.length} membre{juryMembers.length > 1 ? 's' : ''} du jury
+                {totalItems} membre{totalItems > 1 ? 's' : ''} du jury au total
               </p>
             </div>
           </div>
           <button
             onClick={() => setShowForm(true)}
-            className="bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 font-semibold flex items-center gap-2 cursor-pointer"
+            className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 font-semibold flex items-center gap-2 cursor-pointer"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -317,7 +324,7 @@ export function JuryManagement({ juryMembers, users }: JuryManagementProps) {
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-linear-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+                className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -342,7 +349,7 @@ export function JuryManagement({ juryMembers, users }: JuryManagementProps) {
       <div className="bg-white rounded-2xl border-2 border-orange-100 shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-linear-to-r from-orange-50 to-amber-50 border-b-2 border-orange-200">
+            <thead className="bg-gradient-to-r from-orange-50 to-amber-50 border-b-2 border-orange-200">
               <tr>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-orange-800 uppercase tracking-wider">
                   Membre
@@ -386,7 +393,7 @@ export function JuryManagement({ juryMembers, users }: JuryManagementProps) {
                   <tr key={member.id} className="hover:bg-orange-50/50 transition-all duration-200 group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-linear-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center text-white font-semibold shadow-md">
+                        <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center text-white font-semibold shadow-md">
                           {member.fullName.split(' ').map(n => n[0]).join('').slice(0, 2)}
                         </div>
                         <div>
@@ -417,19 +424,15 @@ export function JuryManagement({ juryMembers, users }: JuryManagementProps) {
                           <div className="text-lg font-bold text-orange-600">{member.stats.evaluationsCount}</div>
                           <div className="text-xs text-orange-500 font-medium">Évaluations</div>
                         </div>
-                        {/* <div className="text-center">
-                          <div className="text-lg font-bold text-blue-600">{member.stats.presencesCount}</div>
-                          <div className="text-xs text-blue-500 font-medium">Présences</div>
-                        </div> */}
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <button
                         onClick={() => handleToggleActive(member.id, member.isActive)}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-all duration-200 ${
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-all duration-200 cursor-pointer ${
                           member.isActive
-                            ? 'bg-linear-to-r from-emerald-100 to-green-100 text-emerald-700 border-emerald-200 hover:from-emerald-200 hover:to-green-200'
-                            : 'bg-linear-to-r from-red-100 to-pink-100 text-red-700 border-red-200 hover:from-red-200 hover:to-pink-200'
+                            ? 'bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-700 border-emerald-200 hover:from-emerald-200 hover:to-green-200'
+                            : 'bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border-red-200 hover:from-red-200 hover:to-pink-200'
                         }`}
                       >
                         <div className={`w-2 h-2 rounded-full ${member.isActive ? 'bg-emerald-500' : 'bg-red-500'}`} />
@@ -471,6 +474,73 @@ export function JuryManagement({ juryMembers, users }: JuryManagementProps) {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-8 py-6 border-t border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Affichage de <span className="font-semibold text-orange-600">{startIndex + 1}</span> à{' '}
+                <span className="font-semibold text-orange-600">{endIndex}</span> sur{' '}
+                <span className="font-semibold text-orange-600">{totalItems}</span> membres
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {/* Bouton Précédent */}
+                <Link href={`?page=${Math.max(1, currentPage - 1)}`}>
+                  <button
+                    disabled={currentPage === 1}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border-2 border-orange-300 rounded-lg hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Précédent
+                  </button>
+                </Link>
+
+                {/* Numéros de pages */}
+                <div className="flex gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum
+                    if (totalPages <= 5) {
+                      pageNum = i + 1
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i
+                    } else {
+                      pageNum = currentPage - 2 + i
+                    }
+                    
+                    return (
+                      <Link key={pageNum} href={`?page=${pageNum}`}>
+                        <button
+                          className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                            currentPage === pageNum
+                              ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md'
+                              : 'text-gray-700 bg-white border-2 border-orange-300 hover:bg-orange-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      </Link>
+                    )
+                  })}
+                </div>
+
+                {/* Bouton Suivant */}
+                <Link href={`?page=${Math.min(totalPages, currentPage + 1)}`}>
+                  <button
+                    disabled={currentPage === totalPages}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border-2 border-orange-300 rounded-lg hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    Suivant
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

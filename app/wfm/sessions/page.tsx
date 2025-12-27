@@ -20,7 +20,9 @@ import {
   Eye,
   FileText,
   AlertCircle,
-  Lock
+  Lock,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 
 interface RecruitmentSession {
@@ -49,6 +51,10 @@ export default function SessionsPage() {
     jour: '',
     statut: ''
   })
+
+  // État pour la pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 5
 
   // État pour la suppression
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -153,6 +159,17 @@ export default function SessionsPage() {
     )
   })
 
+  // Calculs de pagination
+  const totalPages = Math.ceil(filteredSessions.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedSessions = filteredSessions.slice(startIndex, endIndex)
+
+  // Réinitialiser la page quand les filtres changent
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filters])
+
   // Générer les options de mois
   const moisOptions = [
     { value: '1', label: 'Janvier' },
@@ -171,7 +188,6 @@ export default function SessionsPage() {
 
   const getStatusConfig = (status: string) => {
     switch (status) {
-      
       case 'IN_PROGRESS':
         return {
           color: 'bg-orange-50 text-orange-700 border-orange-200',
@@ -247,7 +263,6 @@ export default function SessionsPage() {
           email: session.user?.email || '',
           role: (session.user as any)?.role
         }}
-        role={(session.user as any)?.role}
       />
       
       <main className="p-6">
@@ -268,14 +283,14 @@ export default function SessionsPage() {
                 
                 {/* Statistiques rapides */}
                 <div className="flex flex-wrap gap-4">
-                  <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 min-w-[140px]">
+                  <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 min-w-35">
                     <div className="flex items-center gap-2 mb-2">
                       <FileText className="w-4 h-4 text-gray-500" />
                       <div className="text-2xl font-bold text-gray-800">{sessions.length}</div>
                     </div>
                     <div className="text-sm text-gray-600">Total sessions</div>
                   </div>
-                  <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 min-w-[140px]">
+                  <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 min-w-35">
                     <div className="flex items-center gap-2 mb-2">
                       <RefreshCw className="w-4 h-4 text-orange-500" />
                       <div className="text-2xl font-bold text-orange-600">
@@ -284,7 +299,7 @@ export default function SessionsPage() {
                     </div>
                     <div className="text-sm text-gray-600">En cours</div>
                   </div>
-                  <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 min-w-[140px]">
+                  <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 min-w-35">
                     <div className="flex items-center gap-2 mb-2">
                       <Clock className="w-4 h-4 text-blue-500" />
                       <div className="text-2xl font-bold text-blue-600">
@@ -293,7 +308,7 @@ export default function SessionsPage() {
                     </div>
                     <div className="text-sm text-gray-600">Terminée</div>
                   </div>
-                  <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 min-w-[140px]">
+                  <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 min-w-35">
                     <div className="flex items-center gap-2 mb-2">
                       <Users className="w-4 h-4 text-gray-500" />
                       <div className="text-2xl font-bold text-gray-800">
@@ -372,7 +387,7 @@ export default function SessionsPage() {
                 }
               ].map((filter, index) => (
                 <div key={index} className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
                     {filter.icon}
                     {filter.label}
                   </label>
@@ -489,125 +504,192 @@ export default function SessionsPage() {
                   )}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        {[
-                          { label: "Métier", className: "pl-8 pr-6 py-4" },
-                          { label: "Date", className: "px-6 py-4" },
-                          { label: "Jour", className: "px-6 py-4" },
-                          { label: "Statut", className: "px-6 py-4" },
-                          { label: "Candidats", className: "px-6 py-4" },
-                          { label: "Jury", className: "px-6 py-4" },
-                          { label: "Actions", className: "pr-8 pl-6 py-4" }
-                        ].map((header, index) => (
-                          <th 
-                            key={index}
-                            className={`text-left text-xs font-semibold text-gray-500 uppercase tracking-wider ${header.className}`}
-                          >
-                            {header.label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {filteredSessions.map((session) => (
-                        <tr 
-                          key={session.id} 
-                          className="hover:bg-gradient-to-r hover:from-orange-25 hover:to-orange-50 transition-all duration-200 group"
-                        >
-                          <td className="pl-8 pr-6 py-6 whitespace-nowrap">
-                            <div className="flex items-center space-x-4">
-                              <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-orange-200 rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
-                                <Users className="w-5 h-5 text-orange-600" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="text-sm font-semibold text-gray-800 truncate">
-                                  {session.metier}
-                                </div>
-                                {session.description && (
-                                  <div className="text-sm text-gray-600 truncate max-w-xs mt-1">
-                                    {session.description}
-                                  </div>
-                                )}
-                                {session.location && (
-                                  <div className="text-xs text-gray-500 flex items-center space-x-1 mt-1">
-                                    <Calendar className="w-3 h-3 text-orange-500" />
-                                    <span className="truncate">{session.location}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-6 whitespace-nowrap">
-                            <div className="text-sm font-semibold text-gray-800">
-                              {new Date(session.date).toLocaleDateString('fr-FR', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric'
-                              })}
-                            </div>
-                          </td>
-                          <td className="px-6 py-6 whitespace-nowrap">
-                            <div className="text-sm font-semibold text-gray-800 bg-gray-100 px-3 py-1.5 rounded-lg inline-block">
-                              {session.jour}
-                            </div>
-                          </td>
-                          <td className="px-6 py-6 whitespace-nowrap">
-                            <StatutBadge status={session.status} />
-                          </td>
-                          <td className="px-6 py-6 whitespace-nowrap">
-                            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
-                              <Users className="w-4 h-4 text-gray-500" />
-                              <span className="text-sm font-semibold text-gray-800">
-                                {session.candidatesCount || 0}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-6 whitespace-nowrap">
-                            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
-                              <UserCheck className="w-4 h-4 text-gray-500" />
-                              <span className="text-sm font-semibold text-gray-800">
-                                {session.juryPresencesCount || 0}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="pr-8 pl-6 py-6 whitespace-nowrap">
-                            <div className="flex items-center space-x-1">
-                              <Link 
-                                href={`/wfm/sessions/${session.id}`}
-                                className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all duration-200 group/action"
-                                title="Voir les détails"
-                              >
-                                <Eye className="w-4 h-4 group-hover/action:scale-110 transition-transform" />
-                              </Link>
-                              <Link
-                                href={`/wfm/sessions/${session.id}/edit`}
-                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all duration-200 group/action"
-                                title="Modifier"
-                              >
-                                <Edit className="w-4 h-4 group-hover/action:scale-110 transition-transform" />
-                              </Link>
-                              <button 
-                                onClick={() => handleDelete(session.id)}
-                                disabled={deletingId === session.id}
-                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 group/action cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Supprimer"
-                              >
-                                {deletingId === session.id ? (
-                                  <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4 group-hover/action:scale-110 transition-transform" />
-                                )}
-                              </button>
-                            </div>
-                          </td>
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {[
+                            { label: "Métier", className: "pl-8 pr-6 py-4" },
+                            { label: "Date", className: "px-6 py-4" },
+                            { label: "Jour", className: "px-6 py-4" },
+                            { label: "Statut", className: "px-6 py-4" },
+                            { label: "Candidats", className: "px-6 py-4" },
+                            { label: "Jury", className: "px-6 py-4" },
+                            { label: "Actions", className: "pr-8 pl-6 py-4" }
+                          ].map((header, index) => (
+                            <th 
+                              key={index}
+                              className={`text-left text-xs font-semibold text-gray-500 uppercase tracking-wider ${header.className}`}
+                            >
+                              {header.label}
+                            </th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {paginatedSessions.map((session) => (
+                          <tr 
+                            key={session.id} 
+                            className="hover:bg-gradient-to-r hover:from-orange-25 hover:to-orange-50 transition-all duration-200 group"
+                          >
+                            <td className="pl-8 pr-6 py-6 whitespace-nowrap">
+                              <div className="flex items-center space-x-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-orange-200 rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+                                  <Users className="w-5 h-5 text-orange-600" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-semibold text-gray-800 truncate">
+                                    {session.metier}
+                                  </div>
+                                  {session.description && (
+                                    <div className="text-sm text-gray-600 truncate max-w-xs mt-1">
+                                      {session.description}
+                                    </div>
+                                  )}
+                                  {session.location && (
+                                    <div className="text-xs text-gray-500 flex items-center space-x-1 mt-1">
+                                      <Calendar className="w-3 h-3 text-orange-500" />
+                                      <span className="truncate">{session.location}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-6 whitespace-nowrap">
+                              <div className="text-sm font-semibold text-gray-800">
+                                {new Date(session.date).toLocaleDateString('fr-FR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                })}
+                              </div>
+                            </td>
+                            <td className="px-6 py-6 whitespace-nowrap">
+                              <div className="text-sm font-semibold text-gray-800 bg-gray-100 px-3 py-1.5 rounded-lg inline-block">
+                                {session.jour}
+                              </div>
+                            </td>
+                            <td className="px-6 py-6 whitespace-nowrap">
+                              <StatutBadge status={session.status} />
+                            </td>
+                            <td className="px-6 py-6 whitespace-nowrap">
+                              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
+                                <Users className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm font-semibold text-gray-800">
+                                  {session.candidatesCount || 0}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-6 whitespace-nowrap">
+                              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200">
+                                <UserCheck className="w-4 h-4 text-gray-500" />
+                                <span className="text-sm font-semibold text-gray-800">
+                                  {session.juryPresencesCount || 0}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="pr-8 pl-6 py-6 whitespace-nowrap">
+                              <div className="flex items-center space-x-1">
+                                <Link 
+                                  href={`/wfm/sessions/${session.id}`}
+                                  className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all duration-200 group/action"
+                                  title="Voir les détails"
+                                >
+                                  <Eye className="w-4 h-4 group-hover/action:scale-110 transition-transform" />
+                                </Link>
+                                <Link
+                                  href={`/wfm/sessions/${session.id}/edit`}
+                                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all duration-200 group/action"
+                                  title="Modifier"
+                                >
+                                  <Edit className="w-4 h-4 group-hover/action:scale-110 transition-transform" />
+                                </Link>
+                                <button 
+                                  onClick={() => handleDelete(session.id)}
+                                  disabled={deletingId === session.id}
+                                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 group/action cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Supprimer"
+                                >
+                                  {deletingId === session.id ? (
+                                    <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-4 h-4 group-hover/action:scale-110 transition-transform" />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div className="px-8 py-6 border-t border-gray-200 bg-gray-50">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-gray-600">
+                          Affichage de <span className="font-semibold text-gray-800">{startIndex + 1}</span> à{' '}
+                          <span className="font-semibold text-gray-800">{Math.min(endIndex, filteredSessions.length)}</span> sur{' '}
+                          <span className="font-semibold text-gray-800">{filteredSessions.length}</span> sessions
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          {/* Bouton Précédent */}
+                          <button
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                            Précédent
+                          </button>
+
+                          {/* Numéros de pages */}
+                          <div className="flex gap-1">
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                              let pageNum
+                              if (totalPages <= 5) {
+                                pageNum = i + 1
+                              } else if (currentPage <= 3) {
+                                pageNum = i + 1
+                              } else if (currentPage >= totalPages - 2) {
+                                pageNum = totalPages - 4 + i
+                              } else {
+                                pageNum = currentPage - 2 + i
+                              }
+                              
+                              return (
+                                <button
+                                  key={pageNum}
+                                  onClick={() => setCurrentPage(pageNum)}
+                                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                                    currentPage === pageNum
+                                      ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md'
+                                      : 'text-gray-700 bg-white border-2 border-gray-300 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              )
+                            })}
+                          </div>
+
+                          {/* Bouton Suivant */}
+                          <button
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages}
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                          >
+                            Suivant
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

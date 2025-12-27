@@ -5,6 +5,7 @@ import { headers } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { JuryScoreForm } from "@/components/jury-score-form"
+import { EvaluationStatusBanner } from "@/components/evaluation-status-banner"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { 
@@ -72,7 +73,6 @@ export default async function JuryEvaluationPage({
     redirect("/jury/evaluations")
   }
 
-  //  Appel asynchrone à canJuryMemberAccessCandidate
   const hasAccess = await canJuryMemberAccessCandidate(juryMember, candidate)
   if (!hasAccess) {
     redirect("/jury/evaluations")
@@ -89,22 +89,24 @@ export default async function JuryEvaluationPage({
   const phase1Complete = !!phase1Score
   const needsSimulation = candidate.metier === 'AGENCES' || candidate.metier === 'TELEVENTE'
   
-  //  Vérifier si la phase Simulation est débloquée
   let canDoPhase2 = false
   let unlockStatus = null
 
   if (needsSimulation && phase1Complete) {
-    //  On ne vérifie PLUS si la décision est FAVORABLE
-    // On vérifie directement le statut de déblocage basé sur les moyennes
     unlockStatus = await checkSimulationUnlockStatus(candidate.id, candidate.metier)
     canDoPhase2 = unlockStatus.unlocked
   }
   
   const fullName = `${candidate.prenom} ${candidate.nom}`
 
+  // 🆕 Déterminer l'état d'avancement de l'évaluation
+  const isFullyEvaluated = needsSimulation 
+    ? (phase1Complete && !!phase2Score) 
+    : phase1Complete
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <DashboardHeader user={session.user} role="JURY" />
+      <DashboardHeader user={session.user} />
       
       <main className="container mx-auto p-6 space-y-6">
         <Link href="/jury/evaluations">
@@ -113,6 +115,15 @@ export default async function JuryEvaluationPage({
             Retour aux évaluations
           </Button>
         </Link>
+
+        {/* 🆕 Message de statut d'évaluation */}
+        <EvaluationStatusBanner
+          isFullyEvaluated={isFullyEvaluated}
+          phase1Complete={phase1Complete}
+          phase2Score={!!phase2Score}
+          needsSimulation={needsSimulation}
+          canDoPhase2={canDoPhase2}
+        />
 
         {/* En-tête candidat */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
@@ -180,8 +191,7 @@ export default async function JuryEvaluationPage({
                     <span className="text-white font-bold text-sm">1</span>
                   </div>
                   <div>
-                    <p className="font-semibold text-orange-800"> Face-à-Face</p>
-                    
+                    <p className="font-semibold text-orange-800">🎤 Face-à-Face</p>
                   </div>
                 </div>
                 {phase1Complete && (
@@ -209,7 +219,7 @@ export default async function JuryEvaluationPage({
                       <p className={`font-semibold ${
                         canDoPhase2 ? 'text-green-800' : 'text-gray-600'
                       }`}>
-                         Simulation 
+                        🎭 Simulation 
                       </p>
                       <p className={`text-sm ${
                         canDoPhase2 ? 'text-green-700' : 'text-gray-500'
@@ -232,11 +242,10 @@ export default async function JuryEvaluationPage({
                   )}
                 </div>
                 
-                {/* Affichage des conditions manquantes si la simulation n'est pas débloquée */}
                 {!canDoPhase2 && phase1Complete && unlockStatus && unlockStatus.missingConditions && unlockStatus.missingConditions.length > 0 && (
                   <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p className="text-sm font-medium text-yellow-800 mb-1">
-                       Conditions pour débloquer la simulation :
+                      ⚠️ Conditions pour débloquer la simulation :
                     </p>
                     <ul className="text-xs text-yellow-700 list-disc pl-4 space-y-1">
                       {unlockStatus.missingConditions.map((condition, index) => (
@@ -322,7 +331,6 @@ export default async function JuryEvaluationPage({
                       {phase1Score.decision === 'FAVORABLE' ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
                     </p>
                   </div>
-                  
                 </div>
 
                 {phase1Score.comments && (

@@ -1,6 +1,6 @@
-
-//components/advanced-export-panel.tsx
-
+// ============================================
+// FICHIER 1: components/advanced-export-panel.tsx
+// ============================================
 "use client"
 
 import { useState, useEffect } from "react"
@@ -54,7 +54,6 @@ export function AdvancedExportPanel() {
     { value: "all", label: "Tous les statuts" },
     { value: "RECRUTE", label: "Recrutés" },
     { value: "NON_RECRUTE", label: "Non Recrutés" },
-    { value: "EN_COURS", label: "En cours" },
   ]
 
   const toggleMetier = (metier: string) => {

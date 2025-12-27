@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { 
   User, 
@@ -26,7 +26,11 @@ import {
   CheckCircle2,
   XCircle,
   UserCheck,
-  UserX
+  UserX,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react'
 import { Statut, FinalDecision } from '@prisma/client'
 
@@ -60,8 +64,16 @@ export function CandidatesList({
     sort: initialFilters.sort || 'newest'
   })
 
+  // ✅ AJOUT: États pour la pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   const [selectedCandidates, setSelectedCandidates] = useState<number[]>([])
   const [showFilters, setShowFilters] = useState(false)
+
+  // ✅ AJOUT: Réinitialiser la page quand les filtres changent
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filters.metier, filters.status, filters.search, filters.sort])
 
   // ✅ CORRECTION CRITIQUE : Vérification robuste avec valeur par défaut
   const safeCandidates = useMemo(() => {
@@ -164,6 +176,20 @@ export function CandidatesList({
 
     return result
   }, [safeCandidates, filters])
+
+  // ✅ AJOUT: Calcul des données paginées
+  const paginatedCandidates = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredCandidates.slice(startIndex, endIndex)
+  }, [filteredCandidates, currentPage, itemsPerPage])
+
+  const totalPages = Math.ceil(filteredCandidates.length / itemsPerPage)
+
+  // ✅ AJOUT: Fonctions de navigation de pagination
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
+  }
 
   const getStatusColor = (status: string, type: 'final' | 'statut' = 'final') => {
     const colors = {
@@ -375,6 +401,21 @@ export function CandidatesList({
                 <option value="metier_asc">Métier A-Z</option>
                 <option value="metier_desc">Métier Z-A</option>
               </select>
+
+              {/* ✅ AJOUT: Sélecteur d'éléments par page */}
+              <select 
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="px-4 py-3 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[140px] transition-all duration-200 cursor-pointer"
+              >
+                <option value="5">5 par page</option>
+                <option value="10">10 par page</option>
+                <option value="20">20 par page</option>
+                <option value="50">50 par page</option>
+              </select>
             </div>
           </div>
         </div>
@@ -392,7 +433,7 @@ export function CandidatesList({
                 <h2 className="text-2xl font-bold text-gray-900">Candidats</h2>
                 <p className="text-gray-600 mt-1 flex items-center gap-2">
                   <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-medium">
-                    {filteredCandidates.length} candidat(s)
+                    Affichage {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredCandidates.length)} sur {filteredCandidates.length} candidat(s)
                   </span>
                   <span className="text-gray-400">•</span>
                   <span>Total: {statistics.total}</span>
@@ -416,145 +457,226 @@ export function CandidatesList({
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200/60">
-            {filteredCandidates.map((candidate) => (
-              <div key={candidate.id} className="p-8 hover:bg-gradient-to-r hover:from-blue-50/30 hover:to-purple-50/20 transition-all duration-300 group">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4 flex-1">
-                    <div className="pt-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedCandidates.includes(candidate.id)}
-                        onChange={() => toggleCandidateSelection(candidate.id)}
-                        className="w-5 h-5 text-blue-600 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:ring-2 transition-all duration-200"
-                      />
-                    </div>
-
-                    <div className="relative">
-                      <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg group-hover:scale-105 transition-transform duration-300">
-                        {getInitials(candidate.nom, candidate.prenom)}
-                      </div>
-                      {candidate.scores?.finalDecision === 'RECRUTE' && (
-                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
-                          <Star className="w-3 h-3 text-white fill-current" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-3 flex-wrap">
-                        <h3 className="font-bold text-xl text-gray-900 group-hover:text-gray-800 transition-colors">
-                          {candidate.nom} {candidate.prenom}
-                        </h3>
-                        
-                        {candidate.scores?.finalDecision ? (
-                          <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-semibold ${getStatusColor(candidate.scores.finalDecision, 'final')}`}>
-                            {getStatusIcon(candidate.scores.finalDecision)}
-                            {candidate.scores.finalDecision === 'RECRUTE' ? 'RECRUTÉ' : 'NON RECRUTÉ'}
-                          </span>
-                        ) : candidate.scores?.statut ? (
-                          <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-semibold ${getStatusColor(candidate.scores.statut, 'statut')}`}>
-                            {getStatusIcon(candidate.scores.statut)}
-                            {candidate.scores.statut}
-                          </span>
-                        ) : (
-                          <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-semibold ${getStatusColor('EN_ATTENTE', 'statut')}`}>
-                            <Clock className="w-4 h-4" />
-                            EN ATTENTE
-                          </span>
-                        )}
+          <>
+            <div className="divide-y divide-gray-200/60">
+              {paginatedCandidates.map((candidate) => (
+                <div key={candidate.id} className="p-8 hover:bg-gradient-to-r hover:from-blue-50/30 hover:to-purple-50/20 transition-all duration-300 group">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4 flex-1">
+                      <div className="pt-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedCandidates.includes(candidate.id)}
+                          onChange={() => toggleCandidateSelection(candidate.id)}
+                          className="w-5 h-5 text-blue-600 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:ring-2 transition-all duration-200"
+                        />
                       </div>
 
-                      <div className="flex flex-wrap gap-4 mb-4">
-                        <div className="flex items-center gap-3 text-gray-600 bg-gray-100/80 px-4 py-2 rounded-xl border border-gray-200/60">
-                          <Mail className="w-4 h-4" />
-                          <span className="text-sm font-medium">{candidate.email || "Email non disponible"}</span>
+                      <div className="relative">
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg group-hover:scale-105 transition-transform duration-300">
+                          {getInitials(candidate.nom, candidate.prenom)}
                         </div>
-                        <div className="flex items-center gap-3 text-gray-600 bg-gray-100/80 px-4 py-2 rounded-xl border border-gray-200/60">
-                          <Phone className="w-4 h-4" />
-                          <span className="text-sm font-medium">{candidate.phone || "Téléphone non disponible"}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-3">
-                        <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
-                          <Briefcase className="w-4 h-4" />
-                          <span className="font-medium">{String(candidate.metier || "Métier non spécifié")}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
-                          <MapPin className="w-4 h-4" />
-                          <span className="font-medium">{candidate.location || "Lieu non spécifié"}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
-                          <Cake className="w-4 h-4" />
-                          <span className="font-medium">{candidate.age || "?"} ans</span>
-                        </div>
-                        {candidate.createdAt && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
-                            <Calendar className="w-4 h-4" />
-                            <span className="font-medium">Inscrit le {formatDate(candidate.createdAt)}</span>
+                        {candidate.scores?.finalDecision === 'RECRUTE' && (
+                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                            <Star className="w-3 h-3 text-white fill-current" />
                           </div>
                         )}
                       </div>
 
-                      {candidate.scores?.statut && (
-                        <div className="mt-4">
-                          <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-semibold ${getStatusColor(candidate.scores.statut, 'statut')}`}>
-                            {getStatusIcon(candidate.scores.statut)}
-                            Statut: {candidate.scores.statut === 'PRESENT' ? 'Présent' : 'Absent'}
-                          </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-3 flex-wrap">
+                          <h3 className="font-bold text-xl text-gray-900 group-hover:text-gray-800 transition-colors">
+                            {candidate.nom} {candidate.prenom}
+                          </h3>
+                          
+                          {candidate.scores?.finalDecision ? (
+                            <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-semibold ${getStatusColor(candidate.scores.finalDecision, 'final')}`}>
+                              {getStatusIcon(candidate.scores.finalDecision)}
+                              {candidate.scores.finalDecision === 'RECRUTE' ? 'RECRUTÉ' : 'NON RECRUTÉ'}
+                            </span>
+                          ) : candidate.scores?.statut ? (
+                            <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-semibold ${getStatusColor(candidate.scores.statut, 'statut')}`}>
+                              {getStatusIcon(candidate.scores.statut)}
+                              {candidate.scores.statut}
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-semibold ${getStatusColor('EN_ATTENTE', 'statut')}`}>
+                              <Clock className="w-4 h-4" />
+                              EN ATTENTE
+                            </span>
+                          )}
                         </div>
-                      )}
+
+                        <div className="flex flex-wrap gap-4 mb-4">
+                          <div className="flex items-center gap-3 text-gray-600 bg-gray-100/80 px-4 py-2 rounded-xl border border-gray-200/60">
+                            <Mail className="w-4 h-4" />
+                            <span className="text-sm font-medium">{candidate.email || "Email non disponible"}</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-gray-600 bg-gray-100/80 px-4 py-2 rounded-xl border border-gray-200/60">
+                            <Phone className="w-4 h-4" />
+                            <span className="text-sm font-medium">{candidate.phone || "Téléphone non disponible"}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-3">
+                          <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+                            <Briefcase className="w-4 h-4" />
+                            <span className="font-medium">{String(candidate.metier || "Métier non spécifié")}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+                            <MapPin className="w-4 h-4" />
+                            <span className="font-medium">{candidate.location || "Lieu non spécifié"}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+                            <Cake className="w-4 h-4" />
+                            <span className="font-medium">{candidate.age || "?"} ans</span>
+                          </div>
+                          {candidate.createdAt && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+                              <Calendar className="w-4 h-4" />
+                              <span className="font-medium">Inscrit le {formatDate(candidate.createdAt)}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {candidate.scores?.statut && (
+                          <div className="mt-4">
+                            <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-semibold ${getStatusColor(candidate.scores.statut, 'statut')}`}>
+                              {getStatusIcon(candidate.scores.statut)}
+                              Statut: {candidate.scores.statut === 'PRESENT' ? 'Présent' : 'Absent'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3 ml-6">
+                      <Link
+                        href={`/wfm/candidates/${candidate.id}`}
+                        className="flex items-center gap-2 bg-white text-gray-700 py-3 px-6 rounded-2xl text-sm font-semibold hover:bg-gray-50 transition-all duration-200 border-2 border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 min-w-[140px] justify-center"
+                      >
+                        <Eye className="w-4 h-4" />
+                        Détails
+                      </Link>
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-3 ml-6">
+                  <div className="flex gap-4 mt-6 pt-6 border-t border-gray-200/60">
                     <Link
-                      href={`/wfm/candidates/${candidate.id}`}
-                      className="flex items-center gap-2 bg-white text-gray-700 py-3 px-6 rounded-2xl text-sm font-semibold hover:bg-gray-50 transition-all duration-200 border-2 border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 min-w-[140px] justify-center"
+                      href={`/wfm/scores/${candidate.id}`}
+                      className="flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-semibold transition-all duration-200 hover:scale-105 transform"
                     >
-                      <Eye className="w-4 h-4" />
-                      Détails
+                      <Edit className="w-4 h-4" />
+                      Modifier les notes
                     </Link>
+                    
+                    <Link
+                      href={`/wfm/candidates/${candidate.id}/edit`}
+                      className="flex items-center gap-2 text-green-600 hover:text-green-800 text-sm font-semibold transition-all duration-200 hover:scale-105 transform"
+                    >
+                      <Edit className="w-4 h-4" />
+                      Modifier infos
+                    </Link>
+                    
+                    <Link
+                      href={`/wfm/candidates/${candidate.id}/call`}
+                      className="flex items-center gap-2 text-orange-600 hover:text-orange-800 text-sm font-semibold transition-all duration-200 hover:scale-105 transform"
+                    >
+                      <PhoneCall className="w-4 h-4" />
+                      Statut présence
+                    </Link>
+                    
+                    <button
+                      onClick={() => handleDeleteCandidate(candidate.id)}
+                      className="flex items-center gap-2 text-red-600 hover:text-red-800 text-sm font-semibold transition-all duration-200 hover:scale-105 transform cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Supprimer
+                    </button>
                   </div>
                 </div>
+              ))}
+            </div>
 
-                <div className="flex gap-4 mt-6 pt-6 border-t border-gray-200/60">
-                  <Link
-                    href={`/wfm/scores/${candidate.id}`}
-                    className="flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-semibold transition-all duration-200 hover:scale-105 transform"
-                  >
-                    <Edit className="w-4 h-4" />
-                    Modifier les notes
-                  </Link>
+            {/* ✅ AJOUT: Pagination */}
+            {totalPages > 1 && (
+              <div className="p-6 border-t border-gray-200 bg-gradient-to-r from-gray-50/50 to-blue-50/30">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-sm text-gray-600">
+                    Page <span className="font-semibold">{currentPage}</span> sur <span className="font-semibold">{totalPages}</span> • 
+                    <span className="ml-2">{filteredCandidates.length} candidat(s) au total</span>
+                  </div>
                   
-                  <Link
-                    href={`/wfm/candidates/${candidate.id}/edit`}
-                    className="flex items-center gap-2 text-green-600 hover:text-green-800 text-sm font-semibold transition-all duration-200 hover:scale-105 transform"
-                  >
-                    <Edit className="w-4 h-4" />
-                    Modifier infos
-                  </Link>
-                  
-                  <Link
-                    href={`/wfm/candidates/${candidate.id}/call`}
-                    className="flex items-center gap-2 text-orange-600 hover:text-orange-800 text-sm font-semibold transition-all duration-200 hover:scale-105 transform"
-                  >
-                    <PhoneCall className="w-4 h-4" />
-                    Statut présence
-                  </Link>
-                  
-                  <button
-                    onClick={() => handleDeleteCandidate(candidate.id)}
-                    className="flex items-center gap-2 text-red-600 hover:text-red-800 text-sm font-semibold transition-all duration-200 hover:scale-105 transform cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Supprimer
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => goToPage(1)}
+                      disabled={currentPage === 1}
+                      className="p-2 rounded-xl border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      title="Première page"
+                    >
+                      <ChevronsLeft className="w-5 h-5" />
+                    </button>
+                    
+                    <button
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="p-2 rounded-xl border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      title="Page précédente"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum
+                        if (totalPages <= 5) {
+                          pageNum = i + 1
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i
+                        } else {
+                          pageNum = currentPage - 2 + i
+                        }
+                        
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => goToPage(pageNum)}
+                            className={`w-10 h-10 rounded-xl font-medium transition-all duration-200 ${
+                              currentPage === pageNum
+                                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                                : 'border border-gray-300 hover:bg-gray-100'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    
+                    <button
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="p-2 rounded-xl border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      title="Page suivante"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                    
+                    <button
+                      onClick={() => goToPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="p-2 rounded-xl border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                      title="Dernière page"
+                    >
+                      <ChevronsRight className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>

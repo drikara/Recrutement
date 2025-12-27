@@ -5,7 +5,6 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { DashboardHeader } from '@/components/dashboard-header'
 import AuditLogViewer from '@/components/AuditLogViewer'
-import { prisma } from '@/lib/prisma'
 
 export const metadata = {
   title: 'Historique des Actions | WFM',
@@ -23,29 +22,29 @@ export default async function AuditPage() {
   }
 
   // Vérifier que l'utilisateur est WFM
-  if (session.user.role !== 'WFM') {
+  const userRole = (session.user as any).role
+  
+  if (userRole !== 'WFM') {
     redirect('/jury/dashboard')
   }
-
-  // Récupérer le juryRoleType si l'utilisateur a un profil jury
-  const juryMember = await prisma.juryMember.findUnique({
-    where: { userId: session.user.id },
-    select: { roleType: true }
-  })
 
   return (
     <div className="min-h-screen bg-gray-50">
       <DashboardHeader 
         user={{
-          name: session.user.name,
-          email: session.user.email,
-          role: session.user.role
+          name: session.user?.name || 'Utilisateur',
+          email: session.user?.email || '',
+          role: userRole
         }}
-        role={session.user.role}
-        juryRoleType={juryMember?.roleType}
       />
       
       <AuditLogViewer />
+      
+      <footer className="border-t mt-8 py-4">
+        <div className="container mx-auto px-6 text-center text-muted-foreground text-sm">
+          © {new Date().getFullYear()} Orange Côte d'Ivoire. Developed by okd_dev. All rights reserved.
+        </div>
+      </footer>
     </div>
   )
 }

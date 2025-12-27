@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
     const requestInfo = getRequestInfo(request)
     const { searchParams } = new URL(request.url)
     
-    // Récupérer les paramètres de filtrage
     const sessionId = searchParams.get('sessionId')
     const metierParam = searchParams.get('metier')
     const dateFrom = searchParams.get('dateFrom')
@@ -28,18 +27,24 @@ export async function GET(request: NextRequest) {
     const month = searchParams.get('month')
     const statusParam = searchParams.get('status')
 
-    // Convertir les paramètres avec vérification
     const metier = metierParam && metierParam !== 'all' ? metierParam as Metier : null
     const status = statusParam && statusParam !== 'all' ? statusParam as SessionStatus : null
 
     console.log('🔍 Paramètres export Excel:', { sessionId, metier, dateFrom, dateTo, month, status })
 
-    // Si une session est spécifiée, exporter uniquement cette session
+    // Si une session est spécifiée
     if (sessionId) {
-      // Récupérer la session spécifique
+      // 🆕 INCLURE LE CRÉATEUR
       const recruitmentSession = await prisma.recruitmentSession.findUnique({
         where: { id: sessionId },
         include: {
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
           candidates: {
             include: {
               scores: true,
@@ -61,27 +66,22 @@ export async function GET(request: NextRequest) {
       if (!recruitmentSession) {
         return new NextResponse("Session non trouvée", { 
           status: 404,
-          headers: {
-            'Content-Type': 'text/plain; charset=utf-8'
-          }
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
         })
       }
 
       if (recruitmentSession.candidates.length === 0) {
         return new NextResponse("Aucun candidat dans cette session", { 
           status: 404,
-          headers: {
-            'Content-Type': 'text/plain; charset=utf-8'
-          }
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
         })
       }
 
-      // Générer l'export pour cette session uniquement
       const exportResult = await generateSessionExportXLSX(recruitmentSession)
 
       console.log(`✅ Export Excel session ${recruitmentSession.metier}: ${recruitmentSession.candidates.length} candidats`)
 
-      // 🆕 ENREGISTRER L'AUDIT
+      // 🆕 Enrichir les métadonnées avec le créateur
       await AuditService.log({
         userId: session.user.id,
         userName: session.user.name || 'Utilisateur WFM',
@@ -94,12 +94,12 @@ export async function GET(request: NextRequest) {
           fileName: exportResult.filename,
           recordCount: recruitmentSession.candidates.length,
           sessionId: sessionId,
-          metier: recruitmentSession.metier
+          metier: recruitmentSession.metier,
+          sessionCreatedBy: recruitmentSession.createdBy?.name || 'Non renseigné' // 🆕
         },
         ...requestInfo
       })
 
-      // Retourner le buffer Excel
       return new NextResponse(exportResult.buffer, {
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Sinon, exporter consolidé avec filtres
+    // Export consolidé avec filtres
     const sessionConditions: any = {}
 
     if (dateFrom || dateTo) {
@@ -138,10 +138,17 @@ export async function GET(request: NextRequest) {
 
     console.log('🔍 Conditions de filtrage Excel:', JSON.stringify(sessionConditions, null, 2))
 
-    // Récupérer les sessions avec les candidats
+    // 🆕 INCLURE LE CRÉATEUR dans toutes les sessions
     const recruitmentSessions = await prisma.recruitmentSession.findMany({
       where: sessionConditions,
       include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
         candidates: {
           include: {
             scores: true,
@@ -171,18 +178,19 @@ export async function GET(request: NextRequest) {
     if (recruitmentSessions.length === 0 || totalCandidates === 0) {
       return new NextResponse("Aucune donnée à exporter pour les critères sélectionnés", { 
         status: 404,
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8'
-        }
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
       })
     }
 
-    // Générer l'export consolidé
     const exportResult = await generateConsolidatedExportXLSX(recruitmentSessions)
 
     console.log(`✅ Export Excel consolidé réussi: ${totalCandidates} candidats`)
 
-    // 🆕 ENREGISTRER L'AUDIT
+    // 🆕 Enrichir les métadonnées avec les créateurs
+    const sessionCreators = Array.from(new Set(
+      recruitmentSessions.map(s => s.createdBy?.name || 'Non renseigné')
+    ))
+
     await AuditService.log({
       userId: session.user.id,
       userName: session.user.name || 'Utilisateur WFM',
@@ -195,6 +203,7 @@ export async function GET(request: NextRequest) {
         fileName: exportResult.filename,
         recordCount: totalCandidates,
         sessionsCount: recruitmentSessions.length,
+        sessionCreators: sessionCreators, // 🆕 Liste des créateurs
         filters: {
           metier: metier,
           dateFrom: dateFrom,
@@ -206,7 +215,6 @@ export async function GET(request: NextRequest) {
       ...requestInfo
     })
 
-    // Retourner le buffer Excel
     return new NextResponse(exportResult.buffer, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

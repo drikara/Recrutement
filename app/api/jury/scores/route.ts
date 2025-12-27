@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Créer ou mettre à jour un score (Phase 1 ou Phase 2)
+// POST - Créer ou mettre à jour un score (Phase face à face ou Phase simulation)
 export async function POST(request: NextRequest) {
   try {
     const session = await auth.api.getSession({

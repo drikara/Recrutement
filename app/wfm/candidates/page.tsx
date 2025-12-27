@@ -1,4 +1,3 @@
-// app/wfm/candidates/page.tsx
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
@@ -67,7 +66,8 @@ export default async function CandidatesPage({ searchParams }: PageProps) {
 
     return (
       <div className="min-h-screen bg-gray-50">
-        <DashboardHeader user={session.user} role="WFM" />
+        {/* ✅ CORRECTION: Retirer la propriété 'role' qui n'existe pas */}
+        <DashboardHeader user={session.user} />
         
         <main className="container mx-auto p-6 max-w-7xl">
           <CandidatesList 
@@ -100,7 +100,8 @@ export default async function CandidatesPage({ searchParams }: PageProps) {
     
     return (
       <div className="min-h-screen bg-gray-50">
-        <DashboardHeader user={session.user} role="WFM" />
+        {/* ✅ CORRECTION: Retirer la propriété 'role' qui n'existe pas */}
+        <DashboardHeader user={session.user} />
         
         <main className="container mx-auto p-6 max-w-7xl">
           <CandidatesList 

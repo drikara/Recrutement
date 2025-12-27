@@ -6,7 +6,15 @@ import { prisma } from "@/lib/prisma"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { JuryManagement } from "@/components/jury-management"
 
-export default async function JuryManagementPage() {
+interface SearchParams {
+  page?: string
+}
+
+export default async function JuryManagementPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>
+}) {
   const session = await auth.api.getSession({
     headers: await headers(),
   })
@@ -20,8 +28,18 @@ export default async function JuryManagementPage() {
     redirect("/auth/login")
   }
 
-  // Récupérer les membres du jury
+  const params = await searchParams
+  const currentPage = params.page ? parseInt(params.page) : 1
+  const itemsPerPage = 5
+
+  // Compter le total de membres du jury
+  const totalJuryMembers = await prisma.juryMember.count()
+  const totalPages = Math.ceil(totalJuryMembers / itemsPerPage)
+
+  // Récupérer les membres du jury avec pagination
   const juryMembers = await prisma.juryMember.findMany({
+    skip: (currentPage - 1) * itemsPerPage,
+    take: itemsPerPage,
     include: {
       user: {
         select: {
@@ -81,7 +99,13 @@ export default async function JuryManagementPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader user={session.user} role="WFM" />
+      <DashboardHeader 
+        user={{
+          name: session.user?.name || 'Utilisateur',
+          email: session.user?.email || '',
+          role: userRole
+        }}
+      />
       <main className="container mx-auto p-6">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800">Gestion des Membres du Jury</h1>
@@ -92,14 +116,17 @@ export default async function JuryManagementPage() {
 
         <JuryManagement 
           juryMembers={formattedJuryMembers} 
-          users={users} 
+          users={users}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalJuryMembers}
         />
       </main>
 
       {/* Footer avec copyright */}
       <footer className="border-t mt-8 py-4">
         <div className="container mx-auto px-6 text-center text-muted-foreground text-sm">
-           © {new Date().getFullYear()}  Orange Côte d'Ivoire. Developed by okd_dev. All rights reserved.
+           © {new Date().getFullYear()} Orange Côte d'Ivoire. Developed by okd_dev. All rights reserved.
         </div>
       </footer>
     </div>

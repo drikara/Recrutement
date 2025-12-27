@@ -1,15 +1,16 @@
 // app/api/export/advanced/route.ts
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
+import { headers as getHeaders } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { Metier } from "@prisma/client"
 import { AuditService, getRequestInfo } from "@/lib/audit-service"
 
 export async function GET(request: NextRequest) {
   try {
+    const headersList = await getHeaders()
     const session = await auth.api.getSession({
-      headers: await headers(),
+      headers: headersList,
     })
 
     if (!session || (session.user as any).role !== "WFM") {
@@ -55,11 +56,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (status && status !== "all") {
-      if (status === "EN_COURS") {
-        where.scores = { OR: [{ finalDecision: null }, { finalDecision: { equals: null } }] }
-      } else {
-        where.scores = { finalDecision: status }
-      }
+      where.scores = { finalDecision: status }
     }
 
     console.log('🔍 Conditions de filtrage:', JSON.stringify(where, null, 2))
@@ -70,14 +67,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ count })
     }
 
+    // 🆕 INCLURE LE CRÉATEUR via la session
     const candidates = await prisma.candidate.findMany({
       where,
       include: {
+        session: {
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        },
         scores: true,
-        sessions: { include: { session: true } },
         faceToFaceScores: {
           include: {
-            juryMember: { select: { fullName: true, roleType: true } }
+            juryMember: {
+              select: {
+                fullName: true,
+                roleType: true
+              }
+            }
           }
         }
       },
@@ -117,7 +130,7 @@ export async function GET(request: NextRequest) {
       const scores = candidate.scores
       if (!scores) return ''
       
-      const mapping: Record<string, string> = {
+      const mapping: Record<string, any> = {
         'Raisonnement Logique (/5)': scores.psychoRaisonnementLogique,
         'Attention Concentration (/5)': scores.psychoAttentionConcentration,
         'Rapidité de Saisie (MPM)': scores.typingSpeed,
@@ -134,28 +147,31 @@ export async function GET(request: NextRequest) {
     }
 
     function calculatePhase1Average(faceToFaceScores: any[], criteria: string): string {
-      const phase1Scores = faceToFaceScores.filter(s => s.phase === 1)
+      const phase1Scores = faceToFaceScores.filter((s: any) => s.phase === 1)
       if (phase1Scores.length === 0) return ''
       
-      const validScores = phase1Scores.filter(s => s[criteria] !== null && s[criteria] !== undefined)
+      const validScores = phase1Scores.filter((s: any) => s[criteria] !== null && s[criteria] !== undefined)
       if (validScores.length === 0) return ''
       
-      const avg = validScores.reduce((sum, score) => sum + (Number(score[criteria]) || 0), 0) / validScores.length
+      const avg = validScores.reduce((sum: number, score: any) => sum + (Number(score[criteria]) || 0), 0) / validScores.length
       return avg.toFixed(2)
     }
 
-    const headers = [
+    // 🆕 Ajouter la colonne "Créé par" dans les en-têtes
+    const exportHeaders = [
       'N°', 'Nom', 'Prénoms', 'Email', 'Téléphone', 'Âge', 'Diplôme', 'Niveau d\'études', 
       'Université', 'Lieu d\'habitation', 'Date d\'entretien', 'Métier',
+      'Créé par', // 🆕 NOUVELLE COLONNE
       'Présentation Visuelle (moyenne)', 'Communication Verbale (moyenne)', 'Qualité Vocale (moyenne)', 'Décision Face-à-Face',
       ...Array.from(allTechnicalColumns),
       'Décision Test', 'Décision Finale', 'Commentaires Généraux'
     ]
     
-    const data = [headers]
+    const data = [exportHeaders]
     
-    candidates.forEach((candidate, index) => {
+    candidates.forEach((candidate: any, index: number) => {
       const candidateMetier = candidate.metier as Metier
+      const sessionCreator = candidate.session?.createdBy?.name || 'Non renseigné' // 🆕
       
       const row = [
         index + 1,
@@ -170,6 +186,7 @@ export async function GET(request: NextRequest) {
         candidate.location || '',
         candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '',
         candidate.metier || '',
+        sessionCreator, // 🆕 AJOUTER LE CRÉATEUR
         calculatePhase1Average(candidate.faceToFaceScores || [], 'presentationVisuelle'),
         calculatePhase1Average(candidate.faceToFaceScores || [], 'verbalCommunication'),
         calculatePhase1Average(candidate.faceToFaceScores || [], 'voiceQuality'),
@@ -190,7 +207,8 @@ export async function GET(request: NextRequest) {
     
     const colWidths = [
       { wch: 5 }, { wch: 18 }, { wch: 18 }, { wch: 25 }, { wch: 15 }, { wch: 6 }, 
-      { wch: 20 }, { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 18 }, 
+      { wch: 20 }, { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 18 },
+      { wch: 20 }, // 🆕 Largeur pour "Créé par"
       { wch: 18 }, { wch: 20 }, { wch: 15 }, { wch: 18 }
     ]
     
@@ -212,6 +230,11 @@ export async function GET(request: NextRequest) {
     }
     filename += `_${new Date().toISOString().split('T')[0]}.xlsx`
 
+    // 🆕 Enrichir les métadonnées avec les créateurs
+    const sessionCreators = Array.from(new Set(
+      candidates.map(c => c.session?.createdBy?.name || 'Non renseigné')
+    ))
+
     await AuditService.log({
       userId: session.user.id,
       userName: session.user.name || 'Utilisateur WFM',
@@ -223,6 +246,7 @@ export async function GET(request: NextRequest) {
         exportType: 'XLSX_ADVANCED',
         fileName: filename,
         recordCount: candidates.length,
+        sessionCreators: sessionCreators, // 🆕 Liste des créateurs
         filters: { year, startDate, endDate, metiers: metiersParam, status }
       },
       ...requestInfo

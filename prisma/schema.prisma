@@ -8,19 +8,20 @@ datasource db {
 }
 
 model User {
-  id            String      @id @default(cuid())
-  name          String
-  email         String      @unique
-  emailVerified Boolean     @default(false) @map("email_verified")
-  image         String?
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  role          UserRole    @default(JURY)
-  isActive      Boolean     @default(true) @map("is_active")
-  lastLogin     DateTime?   @map("last_login")
-  accounts      Account[]
-  juryMember    JuryMember?
-  sessions      Session[]
+  id              String               @id @default(cuid())
+  name            String
+  email           String               @unique
+  emailVerified   Boolean              @default(false) @map("email_verified")
+  image           String?
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  role            UserRole             @default(JURY)
+  isActive        Boolean              @default(true) @map("is_active")
+  lastLogin       DateTime?            @map("last_login")
+  accounts        Account[]
+  juryMember      JuryMember?
+  createdSessions RecruitmentSession[] @relation("SessionCreatedBy")
+  sessions        Session[]
 
   @@map("users")
 }
@@ -79,19 +80,22 @@ model RecruitmentSession {
   metier        Metier
   date          DateTime       @db.Date
   jour          String
-  status        SessionStatus  @default(PLANIFIED)
+  status        SessionStatus  @default(IN_PROGRESS)
   description   String?
   location      String?
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
+  createdById   String        @map("created_by_id")
   candidates    Candidate[]
   exportLogs    ExportLog[]
   juryPresences JuryPresence[]
+  createdBy     User          @relation("SessionCreatedBy", fields: [createdById], references: [id])
 
   @@index([metier])
   @@index([date])
   @@index([status])
   @@index([createdAt])
+  @@index([createdById])
   @@map("recruitment_sessions")
 }
 
@@ -171,47 +175,34 @@ model JuryPresence {
 model Score {
   id                           Int            @id @default(autoincrement())
   candidateId                  Int            @unique @map("candidate_id")
-  
-  //  PHASE 1: FACE-À-FACE (moyennes calculées automatiquement)
   voiceQuality                 Decimal?       @map("voice_quality") @db.Decimal(4, 2)
   verbalCommunication          Decimal?       @map("verbal_communication") @db.Decimal(4, 2)
   presentationVisuelle         Decimal?       @map("presentation_visuelle") @db.Decimal(4, 2)
   phase1FfDecision             FFDecision?    @map("phase1_ff_decision")
-  phase1Decision               Decision?      @map("phase1_decision")
-  
-  //  PHASE 2: SIMULATION (AGENCES + TÉLÉVENTE) - moyennes calculées
-  simulationSensNegociation    Decimal?       @map("simulation_sens_negociation") @db.Decimal(4, 2)
-  simulationCapacitePersuasion Decimal?       @map("simulation_capacite_persuasion") @db.Decimal(4, 2)
-  simulationSensCombativite    Decimal?       @map("simulation_sens_combativite") @db.Decimal(4, 2)
-  salesSimulation              Decimal?       @map("sales_simulation") @db.Decimal(4, 2)
-  phase2Date                   DateTime?      @map("phase2_date") @db.Date
-  decisionTest                 FFDecision?    @map("decision_test")
-  
-  // TESTS PSYCHOTECHNIQUES (BO_RECLAM)
   psychoRaisonnementLogique    Decimal?       @map("psycho_raisonnement_logique") @db.Decimal(3, 2)
   psychoAttentionConcentration Decimal?       @map("psycho_attention_concentration") @db.Decimal(3, 2)
   psychotechnicalTest          Decimal?       @map("psychotechnical_test") @db.Decimal(4, 2)
-  
-  // TESTS TECHNIQUES (WFM)
+  phase1Decision               Decision?      @map("phase1_decision")
   typingSpeed                  Int?           @map("typing_speed")
   typingAccuracy               Decimal?       @map("typing_accuracy") @db.Decimal(5, 2)
   excelTest                    Decimal?       @map("excel_test") @db.Decimal(4, 2)
   dictation                    Decimal?       @map("dictation") @db.Decimal(4, 2)
+  simulationSensNegociation    Decimal?       @map("simulation_sens_negociation") @db.Decimal(4, 2)
+  simulationCapacitePersuasion Decimal?       @map("simulation_capacite_persuasion") @db.Decimal(4, 2)
+  simulationSensCombativite    Decimal?       @map("simulation_sens_combativite") @db.Decimal(4, 2)
+  salesSimulation              Decimal?       @map("sales_simulation") @db.Decimal(4, 2)
   analysisExercise             Decimal?       @map("analysis_exercise") @db.Decimal(4, 2)
-  
-  // DÉCISION FINALE
+  phase2Date                   DateTime?      @map("phase2_date") @db.Date
+  decisionTest                 FFDecision?    @map("decision_test")
   finalDecision                FinalDecision? @map("final_decision")
   statut                       Statut?        @default(ABSENT)
   statutCommentaire            String?        @map("statut_commentaire")
-  
-  // Métadonnées
   faceToFacePhase1Average      Decimal?       @map("face_to_face_phase1_avg") @db.Decimal(3, 2)
   faceToFacePhase2Average      Decimal?       @map("face_to_face_phase2_avg") @db.Decimal(3, 2)
   evaluatedBy                  String?        @map("evaluated_by")
   comments                     String?
   createdAt                    DateTime       @default(now()) @map("created_at")
   updatedAt                    DateTime       @updatedAt @map("updated_at")
-  
   candidate                    Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
   @@index([candidateId])
@@ -221,32 +212,24 @@ model Score {
 }
 
 model FaceToFaceScore {
-  id                   Int        @id @default(autoincrement())
-  candidateId          Int        @map("candidate_id")
-  juryMemberId         Int        @map("jury_member_id")
-  phase                Int        // 1 = Face-à-Face, 2 = Simulation
-  
-  //  PHASE 1: FACE-À-FACE (notes individuelles du jury)
-  presentationVisuelle Decimal?   @map("presentation_visuelle") @db.Decimal(3, 2)
-  verbalCommunication  Decimal?   @map("verbal_communication") @db.Decimal(3, 2)
-  voiceQuality         Decimal?   @map("voice_quality") @db.Decimal(3, 2)
-  
-  //  PHASE 2: SIMULATION (notes individuelles du jury)
-  simulationSensNegociation    Decimal? @map("simulation_sens_negociation") @db.Decimal(3, 2)
-  simulationCapacitePersuasion Decimal? @map("simulation_capacite_persuasion") @db.Decimal(3, 2)
-  simulationSensCombativite    Decimal? @map("simulation_sens_combativite") @db.Decimal(3, 2)
-  
-  //  DÉCISION DU JURY (FAVORABLE/DEFAVORABLE)
-  decision             FFDecision?
-  
-  score                Decimal?   @db.Decimal(3, 2)
-  comments             String?
-  evaluatedAt          DateTime   @default(now()) @map("evaluated_at")
-  createdAt            DateTime   @default(now()) @map("created_at")
-  updatedAt            DateTime   @updatedAt @map("updated_at")
-  
-  candidate            Candidate  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  juryMember           JuryMember @relation(fields: [juryMemberId], references: [id], onDelete: Cascade)
+  id                           Int         @id @default(autoincrement())
+  candidateId                  Int         @map("candidate_id")
+  juryMemberId                 Int         @map("jury_member_id")
+  phase                        Int
+  score                        Decimal?    @db.Decimal(3, 2)
+  presentationVisuelle         Decimal?    @map("presentation_visuelle") @db.Decimal(3, 2)
+  verbalCommunication          Decimal?    @map("verbal_communication") @db.Decimal(3, 2)
+  voiceQuality                 Decimal?    @map("voice_quality") @db.Decimal(3, 2)
+  comments                     String?
+  evaluatedAt                  DateTime    @default(now()) @map("evaluated_at")
+  createdAt                    DateTime    @default(now()) @map("created_at")
+  updatedAt                    DateTime    @updatedAt @map("updated_at")
+  decision                     FFDecision?
+  simulationCapacitePersuasion Decimal?    @map("simulation_capacite_persuasion") @db.Decimal(3, 2)
+  simulationSensCombativite    Decimal?    @map("simulation_sens_combativite") @db.Decimal(3, 2)
+  simulationSensNegociation    Decimal?    @map("simulation_sens_negociation") @db.Decimal(3, 2)
+  candidate                    Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  juryMember                   JuryMember  @relation(fields: [juryMemberId], references: [id], onDelete: Cascade)
 
   @@unique([candidateId, juryMemberId, phase])
   @@index([candidateId])
@@ -276,18 +259,18 @@ model ExportLog {
 }
 
 model AuditLog {
-  id            String         @id @default(uuid())
-  userId        String         @map("user_id")
-  userName      String         @map("user_name")
-  userEmail     String         @map("user_email")
-  action        AuditAction
-  entity        AuditEntity
-  entityId      String?        @map("entity_id")
-  description   String
-  metadata      Json?          // Données supplémentaires (avant/après, etc.)
-  ipAddress     String?        @map("ip_address")
-  userAgent     String?        @map("user_agent")
-  createdAt     DateTime       @default(now()) @map("created_at")
+  id          String      @id @default(uuid())
+  userId      String      @map("user_id")
+  userName    String      @map("user_name")
+  userEmail   String      @map("user_email")
+  action      AuditAction
+  entity      AuditEntity
+  entityId    String?     @map("entity_id")
+  description String
+  metadata    Json?
+  ipAddress   String?     @map("ip_address")
+  userAgent   String?     @map("user_agent")
+  createdAt   DateTime    @default(now()) @map("created_at")
 
   @@index([userId])
   @@index([action])
@@ -298,7 +281,6 @@ model AuditLog {
 
 enum AuditAction {
   CREATE
-   READ  
   UPDATE
   DELETE
   EXPORT
@@ -308,6 +290,7 @@ enum AuditAction {
   UNASSIGN
   APPROVE
   REJECT
+  READ
 }
 
 enum AuditEntity {
@@ -316,12 +299,11 @@ enum AuditEntity {
   JURY_MEMBER
   SCORE
   USER
-  USER_ROLE      
-  USER_EMAIL     
-  USER_PASSWORD  
-  PRESENCE  
   EXPORT
-  
+  USER_ROLE
+  USER_EMAIL
+  USER_PASSWORD
+  PRESENCE
 }
 
 enum UserRole {
