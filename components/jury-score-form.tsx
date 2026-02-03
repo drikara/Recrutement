@@ -125,15 +125,17 @@ export function JuryScoreForm({
   /* ===========================
      Détermination du type de fiche
      =========================== */
-  const isAgenceOrTelevente = candidate.metier === 'AGENCES' || candidate.metier === 'TELEVENTE'
+  const isAgence = candidate.metier === 'AGENCES'
+  const isTelevente = candidate.metier === 'TELEVENTE'
+  const isCallCenter = candidate.metier === 'CALL_CENTER'
   
-  const needsSimulation = isAgenceOrTelevente
+  const needsSimulation = isAgence || isTelevente
 
   /* ===========================
      États pour les sous-critères
      =========================== */
   
-  // États pour AGENCES/TELEVENTE
+  // États pour AGENCES (avec présentation visuelle)
   const [agenceScores, setAgenceScores] = useState({
     // Présentation Visuelle
     tenue_vestimentaire: null as number | null,
@@ -151,20 +153,18 @@ export function JuryScoreForm({
     communique_jury: null as number | null,
   })
 
-  // États pour CALL_CENTER
-  const [callCenterScores, setCallCenterScores] = useState({
+  // États pour TELEVENTE et CALL_CENTER (sans présentation visuelle)
+  const [televenteCallCenterScores, setTeleventeCallCenterScores] = useState({
     // Communication Verbale
     expression_claire: null as number | null,
     assurance_voix: null as number | null,
     aimable_disponible: null as number | null,
-   
     
     // Qualité de la Voix
     ecoute_active: null as number | null,
     pose_questions: null as number | null,
     presente_idees: null as number | null,
     communique_jury: null as number | null,
-   
   })
 
   // États communs
@@ -194,8 +194,8 @@ export function JuryScoreForm({
      Calcul des moyennes selon Excel
      =========================== */
   const calculatePhase1Averages = () => {
-    if (isAgenceOrTelevente) {
-      // Moyennes selon fiche AGENCES/TELEVENTE
+    if (isAgence) {
+      // Moyennes selon fiche AGENCES (avec présentation visuelle)
       const presentationVisuelle = agenceScores.tenue_vestimentaire !== null && 
         agenceScores.tenue_corporelle !== null
         ? (agenceScores.tenue_vestimentaire + agenceScores.tenue_corporelle) / 2
@@ -217,20 +217,20 @@ export function JuryScoreForm({
 
       return { presentationVisuelle, verbalCommunication, voiceQuality }
     } else {
-      // Moyennes selon fiche CALL_CENTER
-      const verbalCommunication = callCenterScores.expression_claire !== null && 
-        callCenterScores.assurance_voix !== null && 
-        callCenterScores.aimable_disponible !== null
-        ? (callCenterScores.expression_claire + callCenterScores.assurance_voix + 
-           callCenterScores.aimable_disponible) / 3
+      // Moyennes selon fiche TELEVENTE et CALL_CENTER (sans présentation visuelle)
+      const verbalCommunication = televenteCallCenterScores.expression_claire !== null && 
+        televenteCallCenterScores.assurance_voix !== null && 
+        televenteCallCenterScores.aimable_disponible !== null
+        ? (televenteCallCenterScores.expression_claire + televenteCallCenterScores.assurance_voix + 
+           televenteCallCenterScores.aimable_disponible) / 3
         : null
 
-      const voiceQuality = callCenterScores.ecoute_active !== null && 
-        callCenterScores.pose_questions !== null && 
-        callCenterScores.presente_idees !== null && 
-        callCenterScores.communique_jury !== null
-        ? (callCenterScores.ecoute_active + callCenterScores.pose_questions + 
-           callCenterScores.presente_idees + callCenterScores.communique_jury) / 4
+      const voiceQuality = televenteCallCenterScores.ecoute_active !== null && 
+        televenteCallCenterScores.pose_questions !== null && 
+        televenteCallCenterScores.presente_idees !== null && 
+        televenteCallCenterScores.communique_jury !== null
+        ? (televenteCallCenterScores.ecoute_active + televenteCallCenterScores.pose_questions + 
+           televenteCallCenterScores.presente_idees + televenteCallCenterScores.communique_jury) / 4
         : null
 
       return { verbalCommunication, voiceQuality }
@@ -266,8 +266,8 @@ export function JuryScoreForm({
   const validatePhase1 = () => {
     const averages = calculatePhase1Averages()
     
-    if (isAgenceOrTelevente) {
-      // Règle AGENCES/TELEVENTE
+    if (isAgence) {
+      // Règle AGENCES (avec présentation visuelle)
       if (!averages.presentationVisuelle || !averages.verbalCommunication || !averages.voiceQuality) {
         return false
       }
@@ -286,7 +286,7 @@ export function JuryScoreForm({
         return 'Très Bien'
       }
     } else {
-      // Règle CALL_CENTER
+      // Règle TELEVENTE et CALL_CENTER (sans présentation visuelle)
       if (!averages.verbalCommunication || !averages.voiceQuality) {
         return false
       }
@@ -324,12 +324,12 @@ export function JuryScoreForm({
      Vérification complétude
      =========================== */
   const isPhase1Complete = () => {
-    if (isAgenceOrTelevente) {
-      // Pour AGENCES/TELEVENTE, vérifier tous les sous-critères
+    if (isAgence) {
+      // Pour AGENCES, vérifier tous les sous-critères
       return Object.values(agenceScores).every(value => value !== null)
     } else {
-      // Pour CALL_CENTER, vérifier tous les sous-critères
-      return Object.values(callCenterScores).every(value => value !== null)
+      // Pour TELEVENTE et CALL_CENTER, vérifier tous les sous-critères
+      return Object.values(televenteCallCenterScores).every(value => value !== null)
     }
   }
 
@@ -361,9 +361,12 @@ export function JuryScoreForm({
     const averages = calculatePhase1Averages()
 
     // Calculer le score moyen pour la phase face à face
-    const phase1Score = isAgenceOrTelevente
-      ? (averages.presentationVisuelle! + averages.verbalCommunication! + averages.voiceQuality!) / 3
-      : (averages.verbalCommunication! + averages.voiceQuality!) / 2
+    let phase1Score = 0
+    if (isAgence) {
+      phase1Score = (averages.presentationVisuelle! + averages.verbalCommunication! + averages.voiceQuality!) / 3
+    } else {
+      phase1Score = (averages.verbalCommunication! + averages.voiceQuality!) / 2
+    }
 
     // Payload conforme à la table FaceToFaceScore
     const payload: any = {
@@ -375,7 +378,7 @@ export function JuryScoreForm({
     }
 
     // Ajouter les moyennes selon le métier
-    if (isAgenceOrTelevente) {
+    if (isAgence) {
       payload.presentation_visuelle = averages.presentationVisuelle
       payload.verbal_communication = averages.verbalCommunication
       payload.voice_quality = averages.voiceQuality
@@ -384,7 +387,7 @@ export function JuryScoreForm({
       payload.verbal_communication = averages.verbalCommunication
       payload.voice_quality = averages.voiceQuality
       payload.score = phase1Score
-      // presentation_visuelle n'est pas requis pour CALL_CENTER, sera null par défaut
+      // presentation_visuelle n'est pas requis pour TELEVENTE et CALL_CENTER, sera null par défaut
     }
 
     const res = await fetch('/api/jury/scores', {
@@ -466,11 +469,10 @@ export function JuryScoreForm({
     return (
       <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-2xl border-2 border-blue-200 shadow-lg">
         <h4 className="font-bold text-blue-900 mb-4 text-lg flex items-center gap-2">
-         
           Moyennes calculées
         </h4>
         
-        {isAgenceOrTelevente ? (
+        {isAgence ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl p-4 shadow-sm border border-blue-100">
               <p className="text-xs text-blue-600 mb-1 font-medium uppercase tracking-wide">Présentation Visuelle</p>
@@ -538,7 +540,7 @@ export function JuryScoreForm({
   }
 
   /* ===========================
-     RENDER - Phase face  pour AGENCES/TELEVENTE
+     RENDER - Phase face à face pour AGENCES
      =========================== */
   const renderPhase1Agence = () => {
     return (
@@ -546,7 +548,6 @@ export function JuryScoreForm({
         {/* Section Présentation Visuelle */}
         <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
           <div className="flex items-center gap-3 mb-6">
-            
             <div>
               <h3 className="text-xl font-bold text-gray-900">Présentation Visuelle</h3>
               <p className="text-sm text-gray-600 mt-1">Moyenne calculée à partir des 2 sous-critères</p>
@@ -569,7 +570,6 @@ export function JuryScoreForm({
         {/* Section Communication Verbale */}
         <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
           <div className="flex items-center gap-3 mb-6">
-            
             <div>
               <h3 className="text-xl font-bold text-gray-900">Communication Verbale (Expression Orale)</h3>
               <p className="text-sm text-gray-600 mt-1">Moyenne calculée à partir des 3 sous-critères</p>
@@ -597,7 +597,6 @@ export function JuryScoreForm({
         {/* Section Qualité de la Voix */}
         <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
           <div className="flex items-center gap-3 mb-6">
-          
             <div>
               <h3 className="text-xl font-bold text-gray-900">Qualité de la Voix</h3>
               <p className="text-sm text-gray-600 mt-1">Moyenne calculée à partir des 4 sous-critères</p>
@@ -660,15 +659,14 @@ export function JuryScoreForm({
   }
 
   /* ===========================
-     RENDER - Phase face à face pour CALL_CENTER
+     RENDER - Phase face à face pour TELEVENTE et CALL_CENTER
      =========================== */
-  const renderPhase1CallCenter = () => {
+  const renderPhase1TeleventeCallCenter = () => {
     return (
       <form onSubmit={handleSubmitPhase1} className="space-y-8">
         {/* Section Communication Verbale */}
         <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
           <div className="flex items-center gap-3 mb-6">
-            
             <div>
               <h3 className="text-xl font-bold text-gray-900">Communication Verbale (Expression Orale)</h3>
               <p className="text-sm text-gray-600 mt-1">Moyenne calculée à partir des 3 sous-critères</p>
@@ -677,18 +675,18 @@ export function JuryScoreForm({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <ScoreInput
               label="S'exprime de façon claire et avec aisance"
-              value={callCenterScores.expression_claire}
-              onChange={(v) => setCallCenterScores(p => ({ ...p, expression_claire: v }))}
+              value={televenteCallCenterScores.expression_claire}
+              onChange={(v) => setTeleventeCallCenterScores(p => ({ ...p, expression_claire: v }))}
             />
             <ScoreInput
               label="Assurance dans la voix, agréable à écouter, débit normal"
-              value={callCenterScores.assurance_voix}
-              onChange={(v) => setCallCenterScores(p => ({ ...p, assurance_voix: v }))}
+              value={televenteCallCenterScores.assurance_voix}
+              onChange={(v) => setTeleventeCallCenterScores(p => ({ ...p, assurance_voix: v }))}
             />
             <ScoreInput
               label="Se montre aimable, disponible"
-              value={callCenterScores.aimable_disponible}
-              onChange={(v) => setCallCenterScores(p => ({ ...p, aimable_disponible: v }))}
+              value={televenteCallCenterScores.aimable_disponible}
+              onChange={(v) => setTeleventeCallCenterScores(p => ({ ...p, aimable_disponible: v }))}
             />
           </div>
         </div>
@@ -696,7 +694,6 @@ export function JuryScoreForm({
         {/* Section Qualité de la Voix */}
         <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
           <div className="flex items-center gap-3 mb-6">
-            
             <div>
               <h3 className="text-xl font-bold text-gray-900">Qualité de la Voix</h3>
               <p className="text-sm text-gray-600 mt-1">Moyenne calculée à partir des 4 sous-critères</p>
@@ -705,23 +702,23 @@ export function JuryScoreForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <ScoreInput
               label="Écoute attentivement sans interrompre pour comprendre le besoin du client"
-              value={callCenterScores.ecoute_active}
-              onChange={(v) => setCallCenterScores(p => ({ ...p, ecoute_active: v }))}
+              value={televenteCallCenterScores.ecoute_active}
+              onChange={(v) => setTeleventeCallCenterScores(p => ({ ...p, ecoute_active: v }))}
             />
             <ScoreInput
               label="Pose des questions pour mieux comprendre le besoin du client"
-              value={callCenterScores.pose_questions}
-              onChange={(v) => setCallCenterScores(p => ({ ...p, pose_questions: v }))}
+              value={televenteCallCenterScores.pose_questions}
+              onChange={(v) => setTeleventeCallCenterScores(p => ({ ...p, pose_questions: v }))}
             />
             <ScoreInput
               label="Présente les idées et l'information avec assurance"
-              value={callCenterScores.presente_idees}
-              onChange={(v) => setCallCenterScores(p => ({ ...p, presente_idees: v }))}
+              value={televenteCallCenterScores.presente_idees}
+              onChange={(v) => setTeleventeCallCenterScores(p => ({ ...p, presente_idees: v }))}
             />
             <ScoreInput
               label="Communique efficacement avec les membres du jury"
-              value={callCenterScores.communique_jury}
-              onChange={(v) => setCallCenterScores(p => ({ ...p, communique_jury: v }))}
+              value={televenteCallCenterScores.communique_jury}
+              onChange={(v) => setTeleventeCallCenterScores(p => ({ ...p, communique_jury: v }))}
             />
           </div>
         </div>
@@ -771,7 +768,6 @@ export function JuryScoreForm({
         {/* Section Sens de la Négociation */}
         <div className="bg-white p-8 rounded-2xl shadow-lg border border-emerald-200">
           <div className="flex items-center gap-3 mb-6">
-            
             <div>
               <h3 className="text-xl font-bold text-emerald-900">Sens de la Négociation</h3>
               <p className="text-sm text-emerald-700 mt-1">Moyenne calculée à partir des 3 sous-critères</p>
@@ -806,7 +802,6 @@ export function JuryScoreForm({
         {/* Section Capacité de Persuasion */}
         <div className="bg-white p-8 rounded-2xl shadow-lg border border-emerald-200">
           <div className="flex items-center gap-3 mb-6">
-            
             <div>
               <h3 className="text-xl font-bold text-emerald-900">Capacité de Persuasion</h3>
               <p className="text-sm text-emerald-700 mt-1">Moyenne calculée à partir des 3 sous-critères</p>
@@ -841,7 +836,6 @@ export function JuryScoreForm({
         {/* Section Sens de la Combativité */}
         <div className="bg-white p-8 rounded-2xl shadow-lg border border-emerald-200">
           <div className="flex items-center gap-3 mb-6">
-           
             <div>
               <h3 className="text-xl font-bold text-emerald-900">Sens de la Combativité</h3>
               <p className="text-sm text-emerald-700 mt-1">Moyenne calculée à partir des 3 sous-critères</p>
@@ -877,7 +871,6 @@ export function JuryScoreForm({
         {isPhase2Complete() && (
           <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-6 rounded-2xl border-2 border-emerald-200 shadow-lg">
             <h4 className="font-bold text-emerald-900 mb-4 text-lg flex items-center gap-2">
-            
               Moyennes Phase Simulation
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -969,8 +962,7 @@ export function JuryScoreForm({
           }`}
         >
           <div className="flex items-center justify-center gap-2">
-            
-            <span>Phase  Face à Face</span>
+            <span>Phase Face à Face</span>
           </div>
         </button>
         {needsSimulation && (
@@ -984,14 +976,11 @@ export function JuryScoreForm({
             } ${!canDoPhase2 ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <div className="flex items-center justify-center gap-2">
-              
-              <span>Phase  Simulation</span>
+              <span>Phase Simulation</span>
             </div>
           </button>
         )}
       </div>
-
-    
 
       {/* Avertissement si tentative Phase 2 sans déblocage */}
       {activePhase === 2 && !canDoPhase2 && (
@@ -1012,7 +1001,7 @@ export function JuryScoreForm({
 
       {/* Affichage de la phase active */}
       {activePhase === 1 && (
-        isAgenceOrTelevente ? renderPhase1Agence() : renderPhase1CallCenter()
+        isAgence ? renderPhase1Agence() : renderPhase1TeleventeCallCenter()
       )}
       {activePhase === 2 && canDoPhase2 && renderPhase2()}
     </div>
