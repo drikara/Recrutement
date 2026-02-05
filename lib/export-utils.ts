@@ -77,13 +77,13 @@ export function generateSessionExport(session: any): { csv: string, filename: st
   
   console.log(`📊 Export session ${metier} par ${creatorName}: ${exportableCandidates.length} candidats`)
   
-  // En-têtes avec Vague ajoutée juste avant Nom
+  // En-têtes avec Vague et Métier avant Nom
   const baseHeaders = [
-    'N°', 'Vague', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Âge',
+    'N°', 'Vague', 'Métier', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Âge',
     'Diplôme', 'Niveau d\'études', 'Université', 'Lieu d\'habitation', 'Date d\'entretien',
   ]
   
-  const sessionInfoHeaders = ['Métier de Session', 'Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
+  const sessionInfoHeaders = ['Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
   
   const faceToFaceHeaders = [
     'Présentation Visuelle (moyenne)', 'Communication Verbale (moyenne)', 'Qualité Vocale (moyenne)',
@@ -107,6 +107,7 @@ export function generateSessionExport(session: any): { csv: string, filename: st
     const baseRow = [
       (index + 1).toString(),
       waveInfo, // ✅ Vague ajoutée
+      session.metier || '', // ✅ Métier ajouté
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -120,7 +121,6 @@ export function generateSessionExport(session: any): { csv: string, filename: st
     ]
     
     const sessionInfo = [
-      session.metier || '', 
       creatorName,
       candidate.availability || '',
       candidate.statutRecruitment || '',
@@ -169,11 +169,11 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
   })
   
   const baseHeaders = [
-    'N°', 'Vague', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Âge',
+    'N°', 'Vague', 'Métier', 'Nom', 'Prénom', 'Email', 'Téléphone', 'Âge',
     'Diplôme', 'Niveau d\'études', 'Université', 'Lieu d\'habitation', 'Date d\'entretien',
   ]
   
-  const sessionInfoHeaders = ['Métier de Session', 'Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
+  const sessionInfoHeaders = ['Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
   
   const faceToFaceHeaders = [
     'Présentation Visuelle (moyenne)', 'Communication Verbale (moyenne)', 'Qualité Vocale (moyenne)',
@@ -205,6 +205,7 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
     const baseRow = [
       candidateNumber.toString(),
       waveInfo, // ✅ Vague ajoutée
+      candidate.metier || '', //Métier ajouté
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -218,7 +219,6 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
     ]
     
     const sessionInfo = [
-      session.metier || '', 
       creatorName,
       candidate.availability || '',
       candidate.statutRecruitment || '',
@@ -280,11 +280,11 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
   console.log(`📊 Export XLSX session ${metier} par ${creatorName}: ${exportableCandidates.length} candidats`)
   
   const baseHeaders = [
-    'N°', 'Vague', 'Nom', 'Prénoms', 'Email', 'Téléphone', 'Âge',
+    'N°', 'Vague', 'Métier', 'Nom', 'Prénoms', 'Email', 'Téléphone', 'Âge',
     'Diplôme', 'Niveau d\'études', 'Université', 'Lieu d\'habitation', 'Date d\'entretien',
   ]
   
-  const sessionInfoHeaders = ['Métier', 'Session créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
+  const sessionInfoHeaders = ['Session créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
   
   const faceToFaceHeaders = [
     'Présentation Visuelle (moyenne)', 'Communication Verbale (moyenne)', 'Qualité Vocale (moyenne)',
@@ -310,6 +310,7 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
     const baseRow = [
       index + 1,
       waveInfo, // ✅ Vague ajoutée
+      session.metier || '', // ✅ Métier ajouté
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -323,7 +324,6 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
     ]
     
     const sessionInfo = [
-      session.metier || '', 
       creatorName,
       candidate.availability || '',
       candidate.statutRecruitment || '',
@@ -349,6 +349,7 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
   const colWidths = [
     { wch: 5 },  // N°
     { wch: 20 }, // ✅ Vague
+    { wch: 18 }, // ✅ Métier
     { wch: 18 }, // Nom
     { wch: 18 }, // Prénoms
     { wch: 25 }, // Email
@@ -359,7 +360,6 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
     { wch: 25 }, // Université
     { wch: 20 }, // Lieu d'habitation
     { wch: 15 }, // Date d'entretien
-    { wch: 18 }, // Métier
     { wch: 20 }, // Créé par
     { wch: 15 }, // Disponibilité
     { wch: 20 }, // Statut Recrutement
@@ -402,11 +402,11 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
   })
   
   const baseHeaders = [
-    'N°', 'Vague', 'Nom', 'Prénoms', 'Email', 'Téléphone', 'Âge',
+    'N°', 'Vague', 'Métier', 'Nom', 'Prénoms', 'Email', 'Téléphone', 'Âge',
     'Diplôme', 'Niveau d\'études', 'Université', 'Lieu d\'habitation', 'Date d\'entretien',
   ]
   
-  const sessionInfoHeaders = ['Métier de Session', 'Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
+  const sessionInfoHeaders = ['Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
   
   const faceToFaceHeaders = [
     'Présentation Visuelle (moyenne)', 'Communication Verbale (moyenne)', 'Qualité Vocale (moyenne)',
@@ -439,6 +439,7 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     const baseRow = [
       candidateNumber,
       waveInfo, // ✅ Vague ajoutée
+      candidate.metier || '', // ✅ Métier ajouté
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -452,7 +453,6 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     ]
     
     const sessionInfo = [
-      session.metier || '', 
       creatorName,
       candidate.availability || '',
       candidate.statutRecruitment || '',
@@ -483,6 +483,7 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
   const colWidths = [
     { wch: 5 },  // N°
     { wch: 20 }, // ✅ Vague
+    { wch: 18 }, // ✅ Métier
     { wch: 18 }, // Nom
     { wch: 18 }, // Prénoms
     { wch: 25 }, // Email
@@ -493,7 +494,6 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     { wch: 25 }, // Université
     { wch: 20 }, // Lieu d'habitation
     { wch: 15 }, // Date d'entretien
-    { wch: 18 }, // Métier
     { wch: 20 }, // Créé par
     { wch: 15 }, // Disponibilité
     { wch: 20 }, // Statut Recrutement

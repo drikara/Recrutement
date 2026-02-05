@@ -170,10 +170,10 @@ export async function GET(request: NextRequest) {
       return scores?.evaluatedBy || ''
     }
 
-    // ✅ En-têtes COMPLÈTES avec Vague ajoutée juste avant Nom
+    // ✅ En-têtes COMPLÈTES avec Vague et Métier ajoutés juste avant Nom
     const exportHeaders = [
-      'N°', 'Vague', 'Nom', 'Prénoms', 'Email', 'Téléphone', 'Âge', 'Diplôme', 'Niveau d\'études', 
-      'Université', 'Lieu d\'habitation', 'Date d\'entretien', 'Métier',
+      'N°', 'Vague', 'Métier', 'Nom', 'Prénoms', 'Email', 'Téléphone', 'Âge', 'Diplôme', 'Niveau d\'études', 
+      'Université', 'Lieu d\'habitation', 'Date d\'entretien',
       'Session Créée par',
       'Disponibilité', 
       'Statut de Recrutement',
@@ -193,6 +193,7 @@ export async function GET(request: NextRequest) {
       const row = [
         index + 1,
         waveInfo, // ✅ Vague ajoutée
+        candidate.metier || '', // ✅ Métier ajouté
         candidate.nom || '',
         candidate.prenom || '',
         candidate.email || '',
@@ -203,7 +204,6 @@ export async function GET(request: NextRequest) {
         candidate.institution || '',
         candidate.location || '',
         candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '',
-        candidate.metier || '',
         sessionCreator,
         candidate.availability || '',
         candidate.statutRecruitment || '',
@@ -229,6 +229,7 @@ export async function GET(request: NextRequest) {
     const colWidths = [
       { wch: 5 },  // N°
       { wch: 20 }, // ✅ Vague
+      { wch: 18 }, // ✅ Métier
       { wch: 18 }, // Nom
       { wch: 18 }, // Prénoms
       { wch: 25 }, // Email
@@ -239,7 +240,6 @@ export async function GET(request: NextRequest) {
       { wch: 25 }, // Université
       { wch: 20 }, // Lieu d'habitation
       { wch: 15 }, // Date d'entretien
-      { wch: 18 }, // Métier
       { wch: 20 }, // Session Créée par
       { wch: 15 }, // Disponibilité
       { wch: 20 }, // Statut de Recrutement
