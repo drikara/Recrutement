@@ -1,320 +1,438 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
-import { headers } from 'next/headers'
-import { Decimal } from '@prisma/client/runtime/library'
-import { calculateDecisions } from '@/lib/auto-decisions'
-import { Disponibilite, Statut } from '@prisma/client'
-import { AuditService, getRequestInfo } from '@/lib/audit-service'
-
-export async function GET(request: NextRequest) {
-  try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    })
-
-    if (!session) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const candidateId = searchParams.get('candidateId')
-
-    if (candidateId) {
-      const score = await prisma.score.findUnique({
-        where: { candidateId: parseInt(candidateId) },
-        include: {
-          candidate: {
-            include: {
-              session: true
-            }
-          }
-        }
-      })
-
-      return NextResponse.json(score)
-    }
-
-    const scores = await prisma.score.findMany({
-      include: {
-        candidate: {
-          include: {
-            session: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    })
-
-    return NextResponse.json(scores)
-  } catch (error) {
-    console.error('Error fetching scores:', error)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
-  }
-}
+import { NextRequest, NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { auth } from "@/lib/auth"
+import { headers } from "next/headers"
+import { AuditService, getRequestInfo } from "@/lib/audit-service"
+import { Prisma } from "@prisma/client"
+import { getMetierConfig } from "@/lib/metier-config" // ✅ AJOUT CRITIQUE
 
 export async function POST(request: NextRequest) {
   try {
+    const requestInfo = getRequestInfo(request)
     const session = await auth.api.getSession({
       headers: await headers(),
     })
 
-    if (!session || (session.user as any).role !== "WFM") {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+    if (!session || (session.user as any).role !== 'WFM') {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    const requestInfo = getRequestInfo(request)
-    const data = await request.json()
-    const { candidateId, ...scoreData } = data
+    const body = await request.json()
+    
+    console.log('📝 POST /api/scores - Données reçues:', {
+      candidateId: body.candidateId,
+      statut: body.statut,
+      voice_quality: body.voice_quality,
+      verbal_communication: body.verbal_communication,
+      appetence_digitale: body.appetence_digitale,
+      typing_speed: body.typing_speed,
+      typing_accuracy: body.typing_accuracy,
+      dictation: body.dictation,
+    })
 
-    if (!candidateId) {
-      return NextResponse.json(
-        { error: 'ID candidat requis' },
-        { status: 400 }
-      )
-    }
+    // Récupérer le score existant pour garder l'évaluateur WFM_JURY
+    const existingScore = await prisma.score.findUnique({
+      where: { candidateId: body.candidateId },
+      select: { evaluatedBy: true }
+    })
 
-    // Récupérer le candidat avec ses scores jurys
+    console.log('📖 Score existant - Évalué par:', existingScore?.evaluatedBy || 'Aucun évaluateur enregistré')
+
+    // Validation du candidat
     const candidate = await prisma.candidate.findUnique({
-      where: { id: parseInt(candidateId) },
+      where: { id: body.candidateId },
       include: {
-        faceToFaceScores: {
-          where: { phase: 1 },
-          include: { juryMember: true }
-        }
+        faceToFaceScores: true,
+        session: true
       }
     })
 
     if (!candidate) {
-      return NextResponse.json(
-        { error: 'Candidat non trouvé' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Candidat non trouvé' }, { status: 404 })
     }
 
-    // Fonctions de parsing
-    const parseDecimal = (value: any) => {
-      if (value === null || value === undefined || value === '') return null
-      const num = parseFloat(value)
-      return isNaN(num) ? null : new Decimal(num)
-    }
+    console.log('✅ Candidat trouvé:', candidate.nom, candidate.prenom, '- Métier:', candidate.metier)
 
-    const parseIntValue = (value: any) => {
-      if (value === null || value === undefined || value === '') return null
-      const num = parseInt(value)
-      return isNaN(num) ? null : num
-    }
+    const metier = candidate.metier
+    const isAgences = metier === 'AGENCES'
+    const isTelelvente = metier === 'TELEVENTE'
+    const isReseauxSociaux = metier === 'RESEAUX_SOCIAUX'
+    const needsSimulation = isAgences || isTelelvente
 
-    // ✅ CORRECTION : Accepter les deux formats (snake_case et camelCase)
-    const voiceQuality = scoreData.voiceQuality !== undefined ? scoreData.voiceQuality : scoreData.voice_quality
-    const verbalCommunication = scoreData.verbalCommunication !== undefined ? scoreData.verbalCommunication : scoreData.verbal_communication
-    const presentationVisuelle = scoreData.presentationVisuelle !== undefined ? scoreData.presentationVisuelle : scoreData.presentation_visuelle
+    // ✅ RÉCUPÉRER LA CONFIG DU MÉTIER
+    const config = getMetierConfig(metier as any)
+    console.log('⚙️ Configuration métier chargée:', metier, config.criteria)
+
+    // ✅ CALCUL DE LA DÉCISION PHASE 1 (Face-à-Face)
+    let phase1FfDecision: 'FAVORABLE' | 'DEFAVORABLE' | null = null
     
-    const simulationSensNegociation = scoreData.simulationSensNegociation !== undefined ? scoreData.simulationSensNegociation : scoreData.simulation_sens_negociation
-    const simulationCapacitePersuasion = scoreData.simulationCapacitePersuasion !== undefined ? scoreData.simulationCapacitePersuasion : scoreData.simulation_capacite_persuasion
-    const simulationSensCombativite = scoreData.simulationSensCombativite !== undefined ? scoreData.simulationSensCombativite : scoreData.simulation_sens_combativite
-    
-    const typingSpeed = scoreData.typingSpeed !== undefined ? scoreData.typingSpeed : scoreData.typing_speed
-    const typingAccuracy = scoreData.typingAccuracy !== undefined ? scoreData.typingAccuracy : scoreData.typing_accuracy
-    const excelTest = scoreData.excelTest !== undefined ? scoreData.excelTest : scoreData.excel_test
-    const dictation = scoreData.dictation !== undefined ? scoreData.dictation : scoreData.dictation
-    const psychoRaisonnementLogique = scoreData.psychoRaisonnementLogique !== undefined ? scoreData.psychoRaisonnementLogique : scoreData.psycho_raisonnement_logique
-    const psychoAttentionConcentration = scoreData.psychoAttentionConcentration !== undefined ? scoreData.psychoAttentionConcentration : scoreData.psycho_attention_concentration
-    const analysisExercise = scoreData.analysisExercise !== undefined ? scoreData.analysisExercise : scoreData.analysis_exercise
+    if (candidate.availability === 'NON') {
+      phase1FfDecision = 'DEFAVORABLE'
+    } else {
+      const voiceQuality = parseFloat(body.voice_quality) || 0
+      const verbalCommunication = parseFloat(body.verbal_communication) || 0
+      const presentationVisuelle = body.presentation_visuelle ? parseFloat(body.presentation_visuelle) : null
+      const appetenceDigitale = body.appetence_digitale ? parseFloat(body.appetence_digitale) : null
 
-    // ✅ NOUVEAU : Calculer l'appétence digitale moyenne pour RESEAUX_SOCIAUX
-    let appetenceDigitale = null
-    if (candidate.metier === 'RESEAUX_SOCIAUX') {
-      console.log('📊 Calcul appétence digitale moyenne pour RESEAUX_SOCIAUX')
-      
-      // Filtrer les scores Phase 1 avec appétence digitale
-      const phase1ScoresWithAppetence = candidate.faceToFaceScores.filter(
-        s => s.appetenceDigitale !== null
-      )
-      
-      console.log('📊 Scores Phase 1 avec appétence digitale:', {
-        count: phase1ScoresWithAppetence.length,
-        scores: phase1ScoresWithAppetence.map(s => ({
-          juryId: s.juryMemberId,
-          juryName: s.juryMember.fullName,
-          appetence: s.appetenceDigitale?.toString()
-        }))
-      })
-      
-      if (phase1ScoresWithAppetence.length > 0) {
-        const total = phase1ScoresWithAppetence.reduce((sum, s) => {
-          const value = typeof s.appetenceDigitale === 'number' 
-            ? s.appetenceDigitale 
-            : parseFloat(s.appetenceDigitale?.toString() || '0')
-          return sum + value
-        }, 0)
+      if (isAgences) {
+        phase1FfDecision = (
+          voiceQuality >= 3 &&
+          verbalCommunication >= 3 &&
+          (presentationVisuelle || 0) >= 3
+        ) ? 'FAVORABLE' : 'DEFAVORABLE'
+      } else if (isReseauxSociaux) {
+        phase1FfDecision = (
+          voiceQuality >= 3 &&
+          verbalCommunication >= 3 &&
+          (appetenceDigitale || 0) >= 3
+        ) ? 'FAVORABLE' : 'DEFAVORABLE'
         
-        appetenceDigitale = total / phase1ScoresWithAppetence.length
-        console.log('✅ Appétence digitale moyenne calculée:', appetenceDigitale)
+        console.log('📊 Validation Phase 1 RESEAUX_SOCIAUX:', {
+          voiceQuality,
+          verbalCommunication,
+          appetenceDigitale,
+          decision: phase1FfDecision
+        })
       } else {
-        console.log('⚠️ Aucun score avec appétence digitale trouvé')
+        phase1FfDecision = (
+          voiceQuality >= 3 &&
+          verbalCommunication >= 3
+        ) ? 'FAVORABLE' : 'DEFAVORABLE'
       }
     }
 
-    // Construire les objets pour calculateDecisions
-    const juryAverages = {
-      voiceQuality: parseFloat(voiceQuality) || 0,
-      verbalCommunication: parseFloat(verbalCommunication) || 0,
-      presentationVisuelle: parseFloat(presentationVisuelle) || 0,
-      appetenceDigitale: appetenceDigitale || 0 // ✅ Ajout pour RESEAUX_SOCIAUX
+    console.log('📊 Décision Phase 1 (Face-à-Face):', phase1FfDecision)
+
+    // ✅ CALCUL DE LA DÉCISION DES TESTS TECHNIQUES (UTILISANT getMetierConfig)
+    let decisionTest: 'FAVORABLE' | 'DEFAVORABLE' | null = null
+
+    if (body.statut === 'PRESENT' && phase1FfDecision === 'FAVORABLE') {
+      const failures: string[] = []
+
+      // ✅ Tests de typing (utilisant config)
+      if (config.criteria.typing?.required) {
+        const hasTypingSpeed = body.typing_speed !== null && body.typing_speed !== undefined && body.typing_speed !== ''
+        const hasTypingAccuracy = body.typing_accuracy !== null && body.typing_accuracy !== undefined && body.typing_accuracy !== ''
+        
+        if (hasTypingSpeed && hasTypingAccuracy) {
+          const typingSpeed = parseInt(body.typing_speed)
+          const typingAccuracy = parseFloat(body.typing_accuracy)
+          
+          const minSpeed = config.criteria.typing.minSpeed
+          const minAccuracy = config.criteria.typing.minAccuracy
+
+          if (typingSpeed < minSpeed || typingAccuracy < minAccuracy) {
+            failures.push('typing')
+            console.log(`❌ Test typing échoué - Speed: ${typingSpeed}/${minSpeed}, Accuracy: ${typingAccuracy}%/${minAccuracy}%`)
+          } else {
+            console.log(`✅ Test typing réussi - Speed: ${typingSpeed}/${minSpeed}, Accuracy: ${typingAccuracy}%/${minAccuracy}%`)
+          }
+        } else {
+          failures.push('typing manquant')
+          console.log('❌ Tests typing non remplis')
+        }
+      }
+
+      // ✅ Test Excel (utilisant config)
+      if (config.criteria.excel?.required) {
+        const hasExcel = body.excel_test !== null && body.excel_test !== undefined && body.excel_test !== ''
+        
+        if (hasExcel) {
+          const excelTest = parseFloat(body.excel_test)
+          const minScore = config.criteria.excel.minScore
+          
+          if (excelTest < minScore) {
+            failures.push('excel')
+            console.log(`❌ Test Excel échoué - Score: ${excelTest}/${minScore}`)
+          } else {
+            console.log(`✅ Test Excel réussi - Score: ${excelTest}/${minScore}`)
+          }
+        } else {
+          failures.push('excel manquant')
+          console.log('❌ Test Excel non rempli')
+        }
+      }
+
+      // ✅ Dictée (utilisant config)
+      if (config.criteria.dictation?.required) {
+        const hasDictation = body.dictation !== null && body.dictation !== undefined && body.dictation !== ''
+        
+        if (hasDictation) {
+          const dictation = parseFloat(body.dictation)
+          const minScore = config.criteria.dictation.minScore
+          
+          if (dictation < minScore) {
+            failures.push('dictation')
+            console.log(`❌ Dictée échouée - Score: ${dictation}/${minScore}`)
+          } else {
+            console.log(`✅ Dictée réussie - Score: ${dictation}/${minScore}`)
+          }
+        } else {
+          failures.push('dictation manquante')
+          console.log('❌ Dictée non remplie')
+        }
+      }
+
+      // ✅ Tests psychotechniques (utilisant config)
+      if (config.criteria.psycho?.required) {
+        const hasPsychoRaisonnement = body.psycho_raisonnement_logique !== null && body.psycho_raisonnement_logique !== undefined && body.psycho_raisonnement_logique !== ''
+        const hasPsychoAttention = body.psycho_attention_concentration !== null && body.psycho_attention_concentration !== undefined && body.psycho_attention_concentration !== ''
+        
+        if (hasPsychoRaisonnement && hasPsychoAttention) {
+          const raisonnement = parseFloat(body.psycho_raisonnement_logique)
+          const attention = parseFloat(body.psycho_attention_concentration)
+          const minRaisonnement = config.criteria.psycho.minRaisonnementLogique
+          const minAttention = config.criteria.psycho.minAttentionConcentration
+          
+          if (raisonnement < minRaisonnement || attention < minAttention) {
+            failures.push('psycho')
+            console.log(`❌ Tests psycho échoués - Raisonnement: ${raisonnement}/${minRaisonnement}, Attention: ${attention}/${minAttention}`)
+          } else {
+            console.log(`✅ Tests psycho réussis - Raisonnement: ${raisonnement}/${minRaisonnement}, Attention: ${attention}/${minAttention}`)
+          }
+        } else {
+          failures.push('psycho manquant')
+          console.log('❌ Tests psycho non remplis')
+        }
+      }
+
+      // ✅ Capacité d'analyse (utilisant config)
+      if (config.criteria.analysis?.required) {
+        const hasAnalysis = body.analysis_exercise !== null && body.analysis_exercise !== undefined && body.analysis_exercise !== ''
+        
+        if (hasAnalysis) {
+          const analysis = parseFloat(body.analysis_exercise)
+          const minScore = config.criteria.analysis.minScore
+          
+          if (analysis < minScore) {
+            failures.push('analysis')
+            console.log(`❌ Analyse échouée - Score: ${analysis}/${minScore}`)
+          } else {
+            console.log(`✅ Analyse réussie - Score: ${analysis}/${minScore}`)
+          }
+        } else {
+          failures.push('analysis manquante')
+          console.log('❌ Analyse non remplie')
+        }
+      }
+
+      decisionTest = failures.length === 0 ? 'FAVORABLE' : 'DEFAVORABLE'
+      console.log('📊 Décision Tests Techniques:', decisionTest, '- Échecs:', failures)
+    } else {
+      decisionTest = 'DEFAVORABLE'
+      console.log('📊 Décision Tests Techniques: DEFAVORABLE (statut absent ou phase 1 échouée)')
     }
 
-    const simulationAverages = {
-      sensNegociation: parseFloat(simulationSensNegociation) || 0,
-      capacitePersuasion: parseFloat(simulationCapacitePersuasion) || 0,
-      sensCombativite: parseFloat(simulationSensCombativite) || 0
+    // ✅ CALCUL DE LA DÉCISION FINALE
+    let finalDecision: 'RECRUTE' | 'NON_RECRUTE' = 'NON_RECRUTE'
+
+    if (candidate.availability === 'NON') {
+      finalDecision = 'NON_RECRUTE'
+      console.log('📊 Décision Finale: NON_RECRUTE (candidat non disponible)')
+    } else if (body.statut === 'ABSENT') {
+      finalDecision = 'NON_RECRUTE'
+      console.log('📊 Décision Finale: NON_RECRUTE (candidat absent)')
+    } else if (phase1FfDecision === 'DEFAVORABLE') {
+      finalDecision = 'NON_RECRUTE'
+      console.log('📊 Décision Finale: NON_RECRUTE (phase 1 échouée)')
+    } else if (needsSimulation) {
+      const sensNegociation = parseFloat(body.simulation_sens_negociation) || 0
+      const capacitePersuasion = parseFloat(body.simulation_capacite_persuasion) || 0
+      const sensCombativite = parseFloat(body.simulation_sens_combativite) || 0
+
+      const phase2Valid = sensNegociation >= 3 && capacitePersuasion >= 3 && sensCombativite >= 3
+
+      if (!phase2Valid) {
+        finalDecision = 'NON_RECRUTE'
+        console.log('📊 Décision Finale: NON_RECRUTE (phase 2 simulation échouée)')
+      } else if (decisionTest === 'DEFAVORABLE') {
+        finalDecision = 'NON_RECRUTE'
+        console.log('📊 Décision Finale: NON_RECRUTE (tests techniques échoués)')
+      } else {
+        finalDecision = 'RECRUTE'
+        console.log('📊 Décision Finale: RECRUTE (toutes les phases validées)')
+      }
+    } else {
+      if (decisionTest === 'FAVORABLE') {
+        finalDecision = 'RECRUTE'
+        console.log('📊 Décision Finale: RECRUTE (phase 1 et tests techniques validés)')
+      } else {
+        finalDecision = 'NON_RECRUTE'
+        console.log('📊 Décision Finale: NON_RECRUTE (tests techniques échoués)')
+      }
     }
 
-    const technicalScores = {
-      typingSpeed: parseFloat(typingSpeed) || 0,
-      typingAccuracy: parseFloat(typingAccuracy) || 0,
-      excelTest: parseFloat(excelTest) || 0,
-      dictation: parseFloat(dictation) || 0,
-      psychoRaisonnementLogique: parseFloat(psychoRaisonnementLogique) || 0,
-      psychoAttentionConcentration: parseFloat(psychoAttentionConcentration) || 0,
-      analysisExercise: parseFloat(analysisExercise) || 0
+    // Préparer les données de base
+    const scoreData: any = {
+      candidateId: body.candidateId,
+      
+      voiceQuality: new Prisma.Decimal(body.voice_quality || 0),
+      verbalCommunication: new Prisma.Decimal(body.verbal_communication || 0),
+      presentationVisuelle: body.presentation_visuelle ? new Prisma.Decimal(body.presentation_visuelle) : null,
+      appetenceDigitale: body.appetence_digitale ? new Prisma.Decimal(body.appetence_digitale) : null,
+      
+      phase1FfDecision: phase1FfDecision,
+      
+      simulationSensNegociation: body.simulation_sens_negociation ? new Prisma.Decimal(body.simulation_sens_negociation) : null,
+      simulationCapacitePersuasion: body.simulation_capacite_persuasion ? new Prisma.Decimal(body.simulation_capacite_persuasion) : null,
+      simulationSensCombativite: body.simulation_sens_combativite ? new Prisma.Decimal(body.simulation_sens_combativite) : null,
+      
+      typingSpeed: body.typing_speed ? parseInt(body.typing_speed) : null,
+      typingAccuracy: body.typing_accuracy ? new Prisma.Decimal(body.typing_accuracy) : null,
+      excelTest: body.excel_test ? new Prisma.Decimal(body.excel_test) : null,
+      dictation: body.dictation ? new Prisma.Decimal(body.dictation) : null,
+      psychoRaisonnementLogique: body.psycho_raisonnement_logique ? new Prisma.Decimal(body.psycho_raisonnement_logique) : null,
+      psychoAttentionConcentration: body.psycho_attention_concentration ? new Prisma.Decimal(body.psycho_attention_concentration) : null,
+      analysisExercise: body.analysis_exercise ? new Prisma.Decimal(body.analysis_exercise) : null,
+      
+      decisionTest: decisionTest,
+      finalDecision: finalDecision,
+      
+      statut: body.statut,
+      statutCommentaire: body.statut_commentaire || null,
+      comments: body.comments || null,
+      
+      evaluatedBy: existingScore?.evaluatedBy || null,
     }
 
-    console.log('📊 Données pour calculateDecisions:', {
-      metier: candidate.metier,
-      availability: candidate.availability,
-      statut: scoreData.statut || 'ABSENT',
-      juryAverages,
-      simulationAverages,
-      technicalScores
+    console.log('📊 Données score préparées:', {
+      candidateId: scoreData.candidateId,
+      evaluatedBy: scoreData.evaluatedBy,
+      statut: scoreData.statut,
+      appetenceDigitale: scoreData.appetenceDigitale?.toString(),
+      phase1FfDecision: scoreData.phase1FfDecision,
+      decisionTest: scoreData.decisionTest,
+      finalDecision: scoreData.finalDecision
     })
 
-    // ✅ Calculer les décisions
-    const decisions = calculateDecisions(
-      candidate.metier,
-      candidate.availability as Disponibilite,
-      (scoreData.statut as Statut) || 'ABSENT',
-      juryAverages,
-      simulationAverages,
-      technicalScores
-    )
-
-    console.log('✅ Décisions calculées:', decisions)
-
-    // Créer ou mettre à jour le score
     const score = await prisma.score.upsert({
-      where: { candidateId: parseInt(candidateId) },
+      where: { candidateId: body.candidateId },
       update: {
-        // Phase 1
-        voiceQuality: parseDecimal(voiceQuality),
-        verbalCommunication: parseDecimal(verbalCommunication),
-        presentationVisuelle: parseDecimal(presentationVisuelle),
-        appetenceDigitale: appetenceDigitale ? parseDecimal(appetenceDigitale) : null, // ✅ AJOUT
-        
-        // Simulation
-        simulationSensNegociation: parseDecimal(simulationSensNegociation),
-        simulationCapacitePersuasion: parseDecimal(simulationCapacitePersuasion),
-        simulationSensCombativite: parseDecimal(simulationSensCombativite),
-        salesSimulation: parseDecimal(scoreData.sales_simulation || scoreData.salesSimulation),
-        
-        // Tests techniques
-        typingSpeed: parseIntValue(typingSpeed),
-        typingAccuracy: parseDecimal(typingAccuracy),
-        excelTest: parseDecimal(excelTest),
-        dictation: parseDecimal(dictation),
-        psychoRaisonnementLogique: parseDecimal(psychoRaisonnementLogique),
-        psychoAttentionConcentration: parseDecimal(psychoAttentionConcentration),
-        analysisExercise: parseDecimal(analysisExercise),
-        
-        // Décisions
-        phase1FfDecision: decisions.phase1FfDecision,
-        phase1Decision: decisions.phase1Decision,
-        decisionTest: decisions.decisionTest,
-        finalDecision: decisions.finalDecision,
-        
-        // Statut et commentaires
-        statut: scoreData.statut || null,
-        statutCommentaire: scoreData.statutCommentaire || scoreData.statut_commentaire || null,
-        comments: scoreData.comments || null,
-        
-        evaluatedBy: (session.user as any).id
+        ...scoreData,
+        evaluatedBy: existingScore?.evaluatedBy || scoreData.evaluatedBy,
+        updatedAt: new Date()
       },
       create: {
-        candidateId: parseInt(candidateId),
-        // Phase 1
-        voiceQuality: parseDecimal(voiceQuality),
-        verbalCommunication: parseDecimal(verbalCommunication),
-        presentationVisuelle: parseDecimal(presentationVisuelle),
-        appetenceDigitale: appetenceDigitale ? parseDecimal(appetenceDigitale) : null, // ✅ AJOUT
-        
-        // Simulation
-        simulationSensNegociation: parseDecimal(simulationSensNegociation),
-        simulationCapacitePersuasion: parseDecimal(simulationCapacitePersuasion),
-        simulationSensCombativite: parseDecimal(simulationSensCombativite),
-        salesSimulation: parseDecimal(scoreData.sales_simulation || scoreData.salesSimulation),
-        
-        // Tests techniques
-        typingSpeed: parseIntValue(typingSpeed),
-        typingAccuracy: parseDecimal(typingAccuracy),
-        excelTest: parseDecimal(excelTest),
-        dictation: parseDecimal(dictation),
-        psychoRaisonnementLogique: parseDecimal(psychoRaisonnementLogique),
-        psychoAttentionConcentration: parseDecimal(psychoAttentionConcentration),
-        analysisExercise: parseDecimal(analysisExercise),
-        
-        // Décisions
-        phase1FfDecision: decisions.phase1FfDecision,
-        phase1Decision: decisions.phase1Decision,
-        decisionTest: decisions.decisionTest,
-        finalDecision: decisions.finalDecision,
-        
-        // Statut et commentaires
-        statut: scoreData.statut || 'ABSENT',
-        statutCommentaire: scoreData.statutCommentaire || scoreData.statut_commentaire || null,
-        comments: scoreData.comments || null,
-        
-        evaluatedBy: (session.user as any).id
+        ...scoreData,
       },
       include: {
-        candidate: true
+        candidate: {
+          select: {
+            id: true,
+            nom: true,
+            prenom: true,
+            metier: true
+          }
+        }
       }
     })
 
-    // Audit
+    console.log('✅ Score final enregistré')
+    console.log('  - Évalué par:', score.evaluatedBy)
+    console.log('  - Appétence digitale:', score.appetenceDigitale?.toString())
+    console.log('  - Phase 1:', score.phase1FfDecision)
+    console.log('  - Tests techniques:', score.decisionTest)
+    console.log('  - Décision finale:', score.finalDecision)
+
     await AuditService.log({
       userId: session.user.id,
       userName: session.user.name || 'Utilisateur WFM',
       userEmail: session.user.email,
       action: 'UPDATE',
       entity: 'SCORE',
-      entityId: score.id.toString(),
-      description: `Mise à jour des scores pour ${candidate.nom} ${candidate.prenom}`,
+      entityId: score.candidate.id.toString(),
+      description: `Évaluation finale du candidat ${score.candidate.nom} ${score.candidate.prenom} (${score.candidate.metier})`,
       metadata: {
-        candidateId: candidate.id,
-        candidateName: `${candidate.nom} ${candidate.prenom}`,
-        decisions: decisions,
-        appetenceDigitale: appetenceDigitale, // ✅ AJOUT dans les métadonnées
-        hasComments: !!scoreData.comments
+        candidateId: score.candidate.id,
+        candidateName: `${score.candidate.nom} ${score.candidate.prenom}`,
+        metier: score.candidate.metier,
+        evaluatedBy: score.evaluatedBy,
+        phase1FfDecision: score.phase1FfDecision,
+        decisionTest: score.decisionTest,
+        finalDecision: score.finalDecision,
+        statut: score.statut,
+        scores: {
+          voiceQuality: score.voiceQuality?.toString(),
+          verbalCommunication: score.verbalCommunication?.toString(),
+          presentationVisuelle: score.presentationVisuelle?.toString(),
+          appetenceDigitale: score.appetenceDigitale?.toString(),
+        }
       },
       ...requestInfo
     })
 
-    return NextResponse.json(
-      { 
-        score, 
-        decisions, 
-        appetenceDigitale, // ✅ AJOUT dans la réponse
-        message: 'Score enregistré avec succès' 
+    return NextResponse.json({
+      success: true,
+      score: {
+        ...score,
+        voiceQuality: score.voiceQuality?.toString(),
+        verbalCommunication: score.verbalCommunication?.toString(),
+        presentationVisuelle: score.presentationVisuelle?.toString(),
+        appetenceDigitale: score.appetenceDigitale?.toString(),
       },
-      { status: 201 }
-    )
+      evaluatedBy: score.evaluatedBy,
+      decisions: {
+        phase1FfDecision: score.phase1FfDecision,
+        decisionTest: score.decisionTest,
+        finalDecision: score.finalDecision
+      }
+    })
+
   } catch (error) {
-    console.error('Error creating/updating score:', error)
-    return NextResponse.json(
-      { error: 'Erreur lors de l\'enregistrement du score' },
-      { status: 500 }
-    )
+    console.error('❌ Error saving score:', error)
+    return NextResponse.json({ 
+      error: 'Erreur serveur interne',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
+  }
+}
+
+// GET endpoint
+export async function GET(request: NextRequest) {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    })
+
+    if (!session || (session.user as any).role !== 'WFM') {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const candidateId = searchParams.get('candidateId')
+
+    if (!candidateId) {
+      return NextResponse.json({ error: 'ID candidat manquant' }, { status: 400 })
+    }
+
+    const score = await prisma.score.findUnique({
+      where: { candidateId: parseInt(candidateId) },
+      include: {
+        candidate: {
+          select: {
+            nom: true,
+            prenom: true,
+            metier: true
+          }
+        }
+      }
+    })
+
+    if (!score) {
+      return NextResponse.json({ error: 'Score non trouvé' }, { status: 404 })
+    }
+
+    return NextResponse.json({
+      ...score,
+      voiceQuality: score.voiceQuality?.toString(),
+      verbalCommunication: score.verbalCommunication?.toString(),
+      presentationVisuelle: score.presentationVisuelle?.toString(),
+      appetenceDigitale: score.appetenceDigitale?.toString(),
+      evaluatedBy: score.evaluatedBy
+    })
+
+  } catch (error) {
+    console.error('❌ Error fetching score:', error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

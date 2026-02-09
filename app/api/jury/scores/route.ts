@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ Jury member trouvé:', juryMember.id)
 
-    // ⭐⭐ VÉRIFICATION CRITIQUE : Récupérer le candidat pour vérifier sa disponibilité
+    // Récupérer le candidat pour vérifier sa disponibilité
     const candidate = await prisma.candidate.findUnique({
       where: { id: parseInt(candidateId) }
     })
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Candidat non trouvé' }, { status: 404 })
     }
 
-    // ⭐⭐ BLOQUER L'ACCÈS AUX CANDIDATS NON DISPONIBLES
+    // Bloquer l'accès aux candidats non disponibles
     if (candidate.availability === 'NON') {
       console.log(`🚫 Jury ${juryMember.id} - Tentative d'accès à candidat ${candidateId} non disponible`)
       return NextResponse.json({ 
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       }, { status: 403 })
     }
 
-    // ⭐⭐ VÉRIFICATION CRITIQUE : Le juré doit être assigné à la session du candidat
+    // Vérifier que le juré est assigné à la session du candidat
     if (candidate.sessionId) {
       const juryAssignedToSession = await prisma.juryPresence.findUnique({
         where: {
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
       presentation_visuelle,
       verbal_communication,
       voice_quality,
-      appetence_digitale, // ✅ AJOUT pour RESEAUX_SOCIAUX
+      appetence_digitale,
       // Phase 2: Simulation
       simulation_sens_negociation,
       simulation_capacite_persuasion,
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       verbal_communication,
       voice_quality,
       presentation_visuelle,
-      appetence_digitale, // ✅ LOG
+      appetence_digitale,
       comments: comments ? 'Présent' : 'Absent'
     })
 
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Membre du jury non trouvé' }, { status: 403 })
     }
 
-    console.log('✅ Jury member trouvé:', juryMember.id, juryMember.fullName)
+    console.log('✅ Jury member trouvé:', juryMember.id, juryMember.fullName, '- Role:', juryMember.roleType)
 
     // Vérifier les permissions d'accès au candidat
     const candidate = await prisma.candidate.findUnique({
@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Candidat trouvé:', candidate.nom, candidate.prenom, 'Métier:', candidate.metier)
 
-    // ⭐⭐ VÉRIFICATION CRITIQUE : Le candidat doit être disponible
+    // Le candidat doit être disponible
     if (candidate.availability === 'NON') {
       console.log(`🚫 Jury ${juryMember.id} - Tentative d'évaluer candidat ${candidate_id} non disponible`)
       return NextResponse.json({ 
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
       }, { status: 403 })
     }
 
-    // ⭐⭐ VÉRIFICATION CRITIQUE : Le juré doit être assigné à la session du candidat
+    // Le juré doit être assigné à la session du candidat
     if (candidate.sessionId) {
       const juryAssignedToSession = await prisma.juryPresence.findUnique({
         where: {
@@ -276,7 +276,7 @@ export async function POST(request: NextRequest) {
         dataToSave.presentationVisuelle = pres
       }
 
-      // ✅ AJOUT : Appétence digitale pour RESEAUX_SOCIAUX
+      // Appétence digitale pour RESEAUX_SOCIAUX
       if (candidate.metier === 'RESEAUX_SOCIAUX') {
         if (appetence_digitale === undefined) {
           return NextResponse.json({ 
@@ -307,10 +307,9 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
-      // ⭐⭐ VÉRIFICATION CRITIQUE : Phase 2 nécessite validation Phase 1
+      // Vérifier que la simulation est débloquée
       console.log('🎭 Phase 2 - Vérification déblocage simulation')
 
-      // ⭐ Vérifier que la simulation est débloquée
       const { checkSimulationUnlockStatus } = await import('@/lib/simulation-unlock')
       const unlockStatus = await checkSimulationUnlockStatus(candidate_id, candidate.metier)
 
@@ -354,6 +353,29 @@ export async function POST(request: NextRequest) {
       console.log('✅ Phase 2 - Données validées')
     }
 
+    // ✅ Si c'est un WFM_JURY qui évalue, enregistrer son nom dans la table scores
+    if (juryMember.roleType === 'WFM_JURY') {
+      console.log('🎯 WFM_JURY détecté:', juryMember.fullName)
+      
+      try {
+        await prisma.score.upsert({
+          where: { candidateId: candidate_id },
+          update: {
+            evaluatedBy: juryMember.fullName,
+            updatedAt: new Date()
+          },
+          create: {
+            candidateId: candidate_id,
+            evaluatedBy: juryMember.fullName,
+          }
+        })
+
+        console.log('✅ Évaluateur WFM_JURY enregistré dans la table scores:', juryMember.fullName)
+      } catch (error) {
+        console.error('⚠️ Erreur lors de l\'enregistrement de l\'évaluateur:', error)
+      }
+    }
+
     // Vérifier si un score existe déjà
     const existingScore = await prisma.faceToFaceScore.findFirst({
       where: {
@@ -367,7 +389,6 @@ export async function POST(request: NextRequest) {
 
     let result
     if (existingScore) {
-      // Mise à jour du score existant
       console.log('🔄 Mise à jour du score existant...')
       result = await prisma.faceToFaceScore.update({
         where: { id: existingScore.id },
@@ -381,10 +402,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         action: 'updated',
         message: `Phase ${phase} mise à jour avec succès`,
-        score: result 
+        score: result,
+        evaluatedBy: juryMember.roleType === 'WFM_JURY' ? juryMember.fullName : null
       })
     } else {
-      // Création d'un nouveau score
       console.log('➕ Création d\'un nouveau score...')
       result = await prisma.faceToFaceScore.create({
         data: dataToSave
@@ -394,7 +415,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         action: 'created',
         message: `Phase ${phase} enregistrée avec succès`,
-        score: result 
+        score: result,
+        evaluatedBy: juryMember.roleType === 'WFM_JURY' ? juryMember.fullName : null
       }, { status: 201 })
     }
 

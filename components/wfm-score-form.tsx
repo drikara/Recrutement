@@ -471,6 +471,10 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
     setLoading(true)
 
     try {
+      // ✅ CALCUL DE L'APPÉTENCE DIGITALE pour RESEAUX_SOCIAUX
+      const appetenceDigitaleAverage = isReseauxSociaux ? calculateAppetenceDigitaleAverage() : null
+      console.log('📤 Appétence digitale moyenne à envoyer:', appetenceDigitaleAverage)
+
       //  Préparer les données en snake_case pour l'API POST
       const scoreData: any = {
         candidateId: candidate.id,
@@ -479,6 +483,9 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
         voice_quality: candidate.availability === 'NON' ? 0 : (phase1Avg.voiceQuality || 0),
         verbal_communication: candidate.availability === 'NON' ? 0 : (phase1Avg.verbalCommunication || 0),
         presentation_visuelle: candidate.availability === 'NON' && isAgences ? 0 : (phase1Avg.presentationVisuelle || null),
+        
+        // ✅ AJOUT CRITIQUE : Appétence digitale pour RESEAUX_SOCIAUX
+        appetence_digitale: isReseauxSociaux ? (candidate.availability === 'NON' ? 0 : appetenceDigitaleAverage) : null,
         
         // Phase 2 - TOUJOURS enregistrer si applicable
         ...(needsSimulation && {
