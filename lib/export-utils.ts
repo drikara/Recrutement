@@ -67,7 +67,13 @@ function getEvaluatorName(scores: any): string {
   return scores?.evaluatedBy || ''
 }
 
-// ✅ Export par session (CSV) avec Vague et Appétence Digitale
+// ✅ Fonction pour obtenir le statut de présence
+function getPresenceStatus(scores: any): string {
+  if (!scores || !scores.statut) return ''
+  return scores.statut === 'PRESENT' ? 'Présent' : 'Absent'
+}
+
+// ✅ Export par session (CSV) avec Vague, Appétence Digitale et Présence
 export function generateSessionExport(session: any): { csv: string, filename: string } {
   const metier = session.metier
   const sessionDate = new Date(session.date).toISOString().split('T')[0]
@@ -84,7 +90,7 @@ export function generateSessionExport(session: any): { csv: string, filename: st
     'Diplôme', 'Niveau d\'études', 'Université', 'Lieu d\'habitation', 'Date d\'entretien',
   ]
   
-  const sessionInfoHeaders = ['Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
+  const sessionInfoHeaders = ['Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Présence', 'Évalué par']
   
   // ✅ En-têtes Face-à-Face avec appétence digitale conditionnelle
   const faceToFaceHeaders = metier === 'RESEAUX_SOCIAUX' 
@@ -125,6 +131,7 @@ export function generateSessionExport(session: any): { csv: string, filename: st
       creatorName,
       candidate.availability || '',
       candidate.statutRecruitment || '',
+      getPresenceStatus(candidate.scores),
       getEvaluatorName(candidate.scores)
     ]
     
@@ -160,7 +167,7 @@ export function generateSessionExport(session: any): { csv: string, filename: st
   return { csv, filename }
 }
 
-// ✅ Export consolidé (CSV) avec Vague et Appétence Digitale
+// ✅ Export consolidé (CSV) avec Vague, Appétence Digitale et Présence
 export function generateConsolidatedExport(sessions: any[]): { csv: string, filename: string } {
   const allExportableCandidates = sessions.flatMap(s => 
     s.candidates.map((c: any) => ({ ...c, session: s }))
@@ -182,7 +189,7 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
     'Diplôme', 'Niveau d\'études', 'Université', 'Lieu d\'habitation', 'Date d\'entretien',
   ]
   
-  const sessionInfoHeaders = ['Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
+  const sessionInfoHeaders = ['Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Présence', 'Évalué par']
   
   // ✅ En-têtes Face-à-Face incluant appétence digitale
   const faceToFaceHeaders = [
@@ -235,6 +242,7 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
       creatorName,
       candidate.availability || '',
       candidate.statutRecruitment || '',
+      getPresenceStatus(candidate.scores),
       getEvaluatorName(candidate.scores)
     ]
     
@@ -283,7 +291,7 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string, file
   return { csv, filename }
 }
 
-// ✅ Export XLSX par session avec Appétence Digitale
+// ✅ Export XLSX par session avec Appétence Digitale et Présence
 export async function generateSessionExportXLSX(session: any): Promise<{ buffer: ArrayBuffer, filename: string }> {
   const XLSX = await import('xlsx')
   
@@ -301,7 +309,7 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
     'Diplôme', 'Niveau d\'études', 'Université', 'Lieu d\'habitation', 'Date d\'entretien',
   ]
   
-  const sessionInfoHeaders = ['Session créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
+  const sessionInfoHeaders = ['Session créée par', 'Disponibilité', 'Statut de Recrutement', 'Présence', 'Évalué par']
   
   // ✅ En-têtes Face-à-Face avec appétence digitale conditionnelle
   const faceToFaceHeaders = metier === 'RESEAUX_SOCIAUX'
@@ -344,6 +352,7 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
       creatorName,
       candidate.availability || '',
       candidate.statutRecruitment || '',
+      getPresenceStatus(candidate.scores),
       getEvaluatorName(candidate.scores)
     ]
     
@@ -388,6 +397,7 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
     { wch: 20 }, // Créé par
     { wch: 15 }, // Disponibilité
     { wch: 20 }, // Statut Recrutement
+    { wch: 12 }, // Présence
     { wch: 20 }, // Évalué par
     { wch: 18 }, { wch: 20 }, { wch: 15 }, { wch: 18 }
   ]
@@ -407,7 +417,7 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
   return { buffer, filename }
 }
 
-// ✅ Export XLSX consolidé avec Appétence Digitale
+// ✅ Export XLSX consolidé avec Appétence Digitale et Présence
 export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{ buffer: ArrayBuffer, filename: string }> {
   const XLSX = await import('xlsx')
   
@@ -431,7 +441,7 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     'Diplôme', 'Niveau d\'études', 'Université', 'Lieu d\'habitation', 'Date d\'entretien',
   ]
   
-  const sessionInfoHeaders = ['Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Évalué par']
+  const sessionInfoHeaders = ['Session Créée par', 'Disponibilité', 'Statut de Recrutement', 'Présence', 'Évalué par']
   
   // ✅ En-têtes Face-à-Face incluant appétence digitale
   const faceToFaceHeaders = [
@@ -485,6 +495,7 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
       creatorName,
       candidate.availability || '',
       candidate.statutRecruitment || '',
+      getPresenceStatus(candidate.scores),
       getEvaluatorName(candidate.scores)
     ]
     
@@ -530,6 +541,7 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     { wch: 20 }, // Créé par
     { wch: 15 }, // Disponibilité
     { wch: 20 }, // Statut Recrutement
+    { wch: 12 }, // Présence
     { wch: 20 }, // Évalué par
     { wch: 18 }, { wch: 20 }, { wch: 15 }, { wch: 20 } // ✅ +1 pour appétence digitale
   ]

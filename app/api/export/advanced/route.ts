@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
       return candidate.session?.createdBy?.name || 'Non renseigné'
     }
 
-    // ✅ Fonction pour obtenir la vague de la session
+    // Fonction pour obtenir la vague de la session
     function getSessionWave(candidate: any): string {
       return candidate.session?.description || ''
     }
@@ -170,13 +170,20 @@ export async function GET(request: NextRequest) {
       return scores?.evaluatedBy || ''
     }
 
-    // ✅ En-têtes COMPLÈTES avec Vague et Métier ajoutés juste avant Nom
+    // ✅ Fonction pour obtenir le statut de présence
+    function getPresenceStatus(scores: any): string {
+      if (!scores || !scores.statut) return ''
+      return scores.statut === 'PRESENT' ? 'Présent' : 'Absent'
+    }
+
+    // ✅ En-têtes COMPLÈTES avec Vague, Métier et Présence
     const exportHeaders = [
       'N°', 'Vague', 'Métier', 'Nom', 'Prénoms', 'Email', 'Téléphone', 'Âge', 'Diplôme', 'Niveau d\'études', 
       'Université', 'Lieu d\'habitation', 'Date d\'entretien',
       'Session Créée par',
       'Disponibilité', 
       'Statut de Recrutement',
+      'Présence',
       'Évalué par',
       'Présentation Visuelle (moyenne)', 'Communication Verbale (moyenne)', 'Qualité Vocale (moyenne)', 'Décision Face-à-Face',
       ...Array.from(allTechnicalColumns),
@@ -188,12 +195,12 @@ export async function GET(request: NextRequest) {
     candidates.forEach((candidate: any, index: number) => {
       const candidateMetier = candidate.metier as Metier
       const sessionCreator = getSessionCreatorName(candidate)
-      const waveInfo = getSessionWave(candidate) // ✅ Récupération de la vague
+      const waveInfo = getSessionWave(candidate)
       
       const row = [
         index + 1,
-        waveInfo, // ✅ Vague ajoutée
-        candidate.metier || '', // ✅ Métier ajouté
+        waveInfo,
+        candidate.metier || '',
         candidate.nom || '',
         candidate.prenom || '',
         candidate.email || '',
@@ -207,6 +214,7 @@ export async function GET(request: NextRequest) {
         sessionCreator,
         candidate.availability || '',
         candidate.statutRecruitment || '',
+        getPresenceStatus(candidate.scores),
         getEvaluatorName(candidate.scores),
         calculatePhase1Average(candidate.faceToFaceScores || [], 'presentationVisuelle'),
         calculatePhase1Average(candidate.faceToFaceScores || [], 'verbalCommunication'),
@@ -228,8 +236,8 @@ export async function GET(request: NextRequest) {
     
     const colWidths = [
       { wch: 5 },  // N°
-      { wch: 20 }, // ✅ Vague
-      { wch: 18 }, // ✅ Métier
+      { wch: 20 }, // Vague
+      { wch: 18 }, // Métier
       { wch: 18 }, // Nom
       { wch: 18 }, // Prénoms
       { wch: 25 }, // Email
@@ -243,6 +251,7 @@ export async function GET(request: NextRequest) {
       { wch: 20 }, // Session Créée par
       { wch: 15 }, // Disponibilité
       { wch: 20 }, // Statut de Recrutement
+      { wch: 12 }, // Présence
       { wch: 20 }, // Évalué par
       { wch: 18 }, { wch: 20 }, { wch: 15 }, { wch: 18 }
     ]
