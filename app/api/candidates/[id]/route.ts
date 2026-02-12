@@ -4,7 +4,6 @@ import { RecruitmentStatut } from "@prisma/client"
 import { headers } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 
-// PUT - Mettre à jour un candidat
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -72,7 +71,7 @@ export async function PUT(
       age--
     }
 
-    //  Préparer les données pour Prisma
+    // Préparer les données pour Prisma
     const updateData: any = {
       nom: body.nom,
       prenom: body.prenom,
@@ -90,21 +89,20 @@ export async function PUT(
       interviewDate: new Date(body.interviewDate),
       metier: body.metier,
       notes: body.notes || null,
+      // ⭐ AJOUT DE LA DATE DE SIGNATURE
+      signingDate: body.signingDate ? new Date(body.signingDate) : null,
     }
 
-    // ⭐⭐ CORRECTION CRITIQUE : Gestion du sessionId
+    // Gestion du sessionId
     console.log('🎯 Gestion du sessionId:', body.sessionId)
     
     if (body.sessionId === null || body.sessionId === undefined || body.sessionId === "none" || body.sessionId === "") {
       updateData.sessionId = null
       console.log('✅ Session définie à null')
     } else {
-      // ⭐⭐ CORRECTION : sessionId est déjà une string (UUID), NE PAS utiliser parseInt
       const sessionId = body.sessionId
-      
       console.log('🔍 Recherche de la session avec ID:', sessionId)
       
-      // Vérifier que la session existe (le ID est un UUID string)
       const sessionExists = await prisma.recruitmentSession.findUnique({
         where: { id: sessionId }
       })
@@ -151,18 +149,17 @@ export async function PUT(
     console.log('   - Session ID:', updatedCandidate.sessionId)
     console.log('   - SMS Date:', updatedCandidate.smsSentDate)
     console.log('   - Interview Date:', updatedCandidate.interviewDate)
+    console.log('   - Signing Date:', updatedCandidate.signingDate) // ⭐ LOG AJOUTÉ
     console.log('   - Statut Recrutement:', updatedCandidate.statutRecruitment)
 
     return NextResponse.json(updatedCandidate)
   } catch (error) {
     console.error('❌ Erreur lors de la mise à jour:', error)
     
-    // Afficher plus de détails sur l'erreur
     if (error instanceof Error) {
       console.error('❌ Message d\'erreur:', error.message)
       console.error('❌ Stack trace:', error.stack)
       
-      // Gérer les erreurs Prisma spécifiques
       if (error.message.includes('Foreign key constraint')) {
         return NextResponse.json(
           { error: 'Erreur de contrainte de clé étrangère. Vérifiez que la session existe.' },

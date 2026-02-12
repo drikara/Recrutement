@@ -26,7 +26,18 @@ export default async function EditSessionPage({ params }: PageProps) {
   }
 
   const recruitmentSession = await prisma.recruitmentSession.findUnique({
-    where: { id }
+    where: { id },
+    // ✅ Sélectionner explicitement tous les champs nécessaires, y compris agenceType
+    select: {
+      id: true,
+      metier: true,
+      date: true,
+      jour: true,
+      status: true,
+      description: true,
+      location: true,
+      agenceType: true, // <-- AJOUT OBLIGATOIRE
+    }
   })
 
   if (!recruitmentSession) {
@@ -42,6 +53,7 @@ export default async function EditSessionPage({ params }: PageProps) {
     status: recruitmentSession.status,
     description: recruitmentSession.description || '',
     location: recruitmentSession.location || '',
+    agenceType: recruitmentSession.agenceType || null, // <-- AJOUT
   }
 
   return (
@@ -58,8 +70,6 @@ export default async function EditSessionPage({ params }: PageProps) {
         <div className="bg-white rounded-xl border-2 border-gray-200 p-6 shadow-sm">
           <SessionForm session={sessionData} />
         </div>
-
-       
       </main>
     </div>
   )

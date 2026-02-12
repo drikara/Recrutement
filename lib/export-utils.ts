@@ -86,12 +86,15 @@ export function generateSessionExport(session: any): { csv: string; filename: st
   
   console.log(`📊 Export CSV session ${metier} par ${creatorName}: ${exportableCandidates.length} candidats`)
   
-  // ----- En-têtes -----
+  // ----- En-têtes (NOUVELLE ORGANISATION) -----
   const baseHeaders = [
     'N°',
     'Vague',
+    'Disponibilité',               // ✅ Déplacé après Vague
+    'Date d\'entretien',          // ✅ Déplacé après Disponibilité
+    'Date de signature contrat',   // ✅ Déplacé après Date d'entretien
     'Métier',
-    'Type d\'agence',               // ✅ AJOUTÉ
+    'Type d\'agence',
     'Nom',
     'Prénom',
     'Email',
@@ -101,16 +104,13 @@ export function generateSessionExport(session: any): { csv: string; filename: st
     'Niveau d\'études',
     'Université',
     'Lieu d\'habitation',
-    'Date d\'entretien',
-    'Date de signature contrat',    // ✅ AJOUTÉ
   ]
   
   const sessionInfoHeaders = [
     'Session créée par',
-    'Disponibilité',
     'Statut de Recrutement',
     'Présence',
-    'Motif d\'absence',            // ✅ AJOUTÉ
+    'Motif d\'absence',
     'Évalué par',
   ]
   
@@ -147,8 +147,11 @@ export function generateSessionExport(session: any): { csv: string; filename: st
     const baseRow = [
       (index + 1).toString(),
       waveInfo,
+      candidate.availability || '',                        // ✅ Disponibilité
+      candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '', // ✅ Date d'entretien
+      candidate.signingDate ? new Date(candidate.signingDate).toLocaleDateString('fr-FR') : '',     // ✅ Date signature
       session.metier || '',
-      agenceType,                         // ✅ Type d'agence
+      agenceType,
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -158,16 +161,13 @@ export function generateSessionExport(session: any): { csv: string; filename: st
       candidate.niveauEtudes || '',
       candidate.institution || '',
       candidate.location || '',
-      candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '',
-      candidate.signingDate ? new Date(candidate.signingDate).toLocaleDateString('fr-FR') : '', // ✅ Date signature
     ]
     
     const sessionInfo = [
       creatorName,
-      candidate.availability || '',
       candidate.statutRecruitment || '',
       getPresenceStatus(candidate.scores),
-      candidate.scores?.statutCommentaire || '',   // ✅ Motif d'absence
+      candidate.scores?.statutCommentaire || '',
       getEvaluatorName(candidate.scores),
     ]
     
@@ -219,14 +219,17 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
   
   console.log(`📊 Export XLSX session ${metier} par ${creatorName}: ${exportableCandidates.length} candidats`)
   
-  // ----- En-têtes -----
+  // ----- En-têtes (NOUVELLE ORGANISATION) -----
   const baseHeaders = [
     'N°',
     'Vague',
+    'Disponibilité',               // ✅ Déplacé après Vague
+    'Date d\'entretien',          // ✅ Déplacé après Disponibilité
+    'Date de signature contrat',   // ✅ Déplacé après Date d'entretien
     'Métier',
-    'Type d\'agence',               // ✅ AJOUTÉ
+    'Type d\'agence',
     'Nom',
-    'Prénoms',                     // Attention : 'Prénoms' dans XLSX
+    'Prénoms',
     'Email',
     'Téléphone',
     'Âge',
@@ -234,16 +237,13 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
     'Niveau d\'études',
     'Université',
     'Lieu d\'habitation',
-    'Date d\'entretien',
-    'Date de signature contrat',    // ✅ AJOUTÉ
   ]
   
   const sessionInfoHeaders = [
     'Session créée par',
-    'Disponibilité',
     'Statut de Recrutement',
     'Présence',
-    'Motif d\'absence',            // ✅ AJOUTÉ
+    'Motif d\'absence',
     'Évalué par',
   ]
   
@@ -282,8 +282,11 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
     const baseRow = [
       index + 1,
       waveInfo,
+      candidate.availability || '',                        // ✅ Disponibilité
+      candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '', // ✅ Date d'entretien
+      candidate.signingDate ? new Date(candidate.signingDate).toLocaleDateString('fr-FR') : '',     // ✅ Date signature
       session.metier || '',
-      agenceType,                         // ✅ Type d'agence
+      agenceType,
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -293,16 +296,13 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
       candidate.niveauEtudes || '',
       candidate.institution || '',
       candidate.location || '',
-      candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '',
-      candidate.signingDate ? new Date(candidate.signingDate).toLocaleDateString('fr-FR') : '', // ✅ Date signature
     ]
     
     const sessionInfo = [
       creatorName,
-      candidate.availability || '',
       candidate.statutRecruitment || '',
       getPresenceStatus(candidate.scores),
-      candidate.scores?.statutCommentaire || '',   // ✅ Motif d'absence
+      candidate.scores?.statutCommentaire || '',
       getEvaluatorName(candidate.scores),
     ]
     
@@ -330,12 +330,15 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
   
   const ws = XLSX.utils.aoa_to_sheet(data)
   
-  // ----- Largeurs de colonnes -----
+  // ----- Largeurs de colonnes (AJUSTÉES) -----
   const colWidths = [
     { wch: 5 },   // N°
     { wch: 20 },  // Vague
+    { wch: 15 },  // ✅ Disponibilité
+    { wch: 15 },  // ✅ Date d'entretien
+    { wch: 15 },  // ✅ Date signature contrat
     { wch: 18 },  // Métier
-    { wch: 15 },  // ✅ Type d'agence
+    { wch: 15 },  // Type d'agence
     { wch: 18 },  // Nom
     { wch: 18 },  // Prénoms
     { wch: 25 },  // Email
@@ -345,13 +348,10 @@ export async function generateSessionExportXLSX(session: any): Promise<{ buffer:
     { wch: 15 },  // Niveau d'études
     { wch: 25 },  // Université
     { wch: 20 },  // Lieu d'habitation
-    { wch: 15 },  // Date d'entretien
-    { wch: 15 },  // ✅ Date signature contrat
     { wch: 20 },  // Session créée par
-    { wch: 15 },  // Disponibilité
     { wch: 20 },  // Statut Recrutement
     { wch: 12 },  // Présence
-    { wch: 25 },  // ✅ Motif d'absence
+    { wch: 25 },  // Motif d'absence
     { wch: 20 },  // Évalué par
     { wch: 18 },  // Présentation Visuelle / Communication Verbale
     { wch: 20 },  // Communication Verbale / Qualité Vocale
@@ -394,12 +394,15 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string; file
     metierTechnicalColumns[metier]?.forEach(col => allTechnicalColumns.add(col))
   })
   
-  // ----- En-têtes -----
+  // ----- En-têtes (NOUVELLE ORGANISATION) -----
   const baseHeaders = [
     'N°',
     'Vague',
+    'Disponibilité',               // ✅ Déplacé après Vague
+    'Date d\'entretien',          // ✅ Déplacé après Disponibilité
+    'Date de signature contrat',   // ✅ Déplacé après Date d'entretien
     'Métier',
-    'Type d\'agence',               // ✅ AJOUTÉ
+    'Type d\'agence',
     'Nom',
     'Prénom',
     'Email',
@@ -409,16 +412,13 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string; file
     'Niveau d\'études',
     'Université',
     'Lieu d\'habitation',
-    'Date d\'entretien',
-    'Date de signature contrat',    // ✅ AJOUTÉ
   ]
   
   const sessionInfoHeaders = [
     'Session Créée par',
-    'Disponibilité',
     'Statut de Recrutement',
     'Présence',
-    'Motif d\'absence',            // ✅ AJOUTÉ
+    'Motif d\'absence',
     'Évalué par',
   ]
   
@@ -426,7 +426,7 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string; file
     'Présentation Visuelle (moyenne)',
     'Communication Verbale (moyenne)',
     'Qualité Vocale (moyenne)',
-    'Appétence Digitale (moyenne)', // ✅ Ajouté (vide pour les métiers non concernés)
+    'Appétence Digitale (moyenne)',
     'Décision Face-à-Face',
   ]
   
@@ -457,8 +457,11 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string; file
     const baseRow = [
       candidateNumber.toString(),
       waveInfo,
+      candidate.availability || '',                        // ✅ Disponibilité
+      candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '', // ✅ Date d'entretien
+      candidate.signingDate ? new Date(candidate.signingDate).toLocaleDateString('fr-FR') : '',     // ✅ Date signature
       candidate.metier || '',
-      agenceType,                         // ✅ Type d'agence
+      agenceType,
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -468,16 +471,13 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string; file
       candidate.niveauEtudes || '',
       candidate.institution || '',
       candidate.location || '',
-      candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '',
-      candidate.signingDate ? new Date(candidate.signingDate).toLocaleDateString('fr-FR') : '', // ✅ Date signature
     ]
     
     const sessionInfo = [
       creatorName,
-      candidate.availability || '',
       candidate.statutRecruitment || '',
       getPresenceStatus(candidate.scores),
-      candidate.scores?.statutCommentaire || '',   // ✅ Motif d'absence
+      candidate.scores?.statutCommentaire || '',
       getEvaluatorName(candidate.scores),
     ]
     
@@ -487,7 +487,7 @@ export function generateConsolidatedExport(sessions: any[]): { csv: string; file
       calculatePhase1Average(candidate.faceToFaceScores || [], 'voiceQuality'),
       candidateMetier === 'RESEAUX_SOCIAUX'
         ? calculatePhase1Average(candidate.faceToFaceScores || [], 'appetenceDigitale')
-        : '', // ✅ Vide pour les autres métiers
+        : '',
       candidate.scores?.phase1FfDecision || '',
     ]
     
@@ -544,12 +544,15 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     metierTechnicalColumns[metier]?.forEach(col => allTechnicalColumns.add(col))
   })
   
-  // ----- En-têtes -----
+  // ----- En-têtes (NOUVELLE ORGANISATION) -----
   const baseHeaders = [
     'N°',
     'Vague',
+    'Disponibilité',               // ✅ Déplacé après Vague
+    'Date d\'entretien',          // ✅ Déplacé après Disponibilité
+    'Date de signature contrat',   // ✅ Déplacé après Date d'entretien
     'Métier',
-    'Type d\'agence',               // ✅ AJOUTÉ
+    'Type d\'agence',
     'Nom',
     'Prénoms',
     'Email',
@@ -559,16 +562,13 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     'Niveau d\'études',
     'Université',
     'Lieu d\'habitation',
-    'Date d\'entretien',
-    'Date de signature contrat',    // ✅ AJOUTÉ
   ]
   
   const sessionInfoHeaders = [
     'Session Créée par',
-    'Disponibilité',
     'Statut de Recrutement',
     'Présence',
-    'Motif d\'absence',            // ✅ AJOUTÉ
+    'Motif d\'absence',
     'Évalué par',
   ]
   
@@ -576,7 +576,7 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     'Présentation Visuelle (moyenne)',
     'Communication Verbale (moyenne)',
     'Qualité Vocale (moyenne)',
-    'Appétence Digitale (moyenne)', // ✅ Ajouté
+    'Appétence Digitale (moyenne)',
     'Décision Face-à-Face',
   ]
   
@@ -607,8 +607,11 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     const baseRow = [
       candidateNumber,
       waveInfo,
+      candidate.availability || '',                        // ✅ Disponibilité
+      candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '', // ✅ Date d'entretien
+      candidate.signingDate ? new Date(candidate.signingDate).toLocaleDateString('fr-FR') : '',     // ✅ Date signature
       candidate.metier || '',
-      agenceType,                         // ✅ Type d'agence
+      agenceType,
       candidate.nom || '',
       candidate.prenom || '',
       candidate.email || '',
@@ -618,16 +621,13 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
       candidate.niveauEtudes || '',
       candidate.institution || '',
       candidate.location || '',
-      candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '',
-      candidate.signingDate ? new Date(candidate.signingDate).toLocaleDateString('fr-FR') : '', // ✅ Date signature
     ]
     
     const sessionInfo = [
       creatorName,
-      candidate.availability || '',
       candidate.statutRecruitment || '',
       getPresenceStatus(candidate.scores),
-      candidate.scores?.statutCommentaire || '',   // ✅ Motif d'absence
+      candidate.scores?.statutCommentaire || '',
       getEvaluatorName(candidate.scores),
     ]
     
@@ -637,7 +637,7 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
       calculatePhase1Average(candidate.faceToFaceScores || [], 'voiceQuality'),
       candidateMetier === 'RESEAUX_SOCIAUX'
         ? calculatePhase1Average(candidate.faceToFaceScores || [], 'appetenceDigitale')
-        : '', // ✅ Vide pour les autres métiers
+        : '',
       candidate.scores?.phase1FfDecision || '',
     ]
     
@@ -655,12 +655,15 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
   
   const ws = XLSX.utils.aoa_to_sheet(data)
   
-  // ----- Largeurs de colonnes -----
+  // ----- Largeurs de colonnes (AJUSTÉES) -----
   const colWidths = [
     { wch: 5 },   // N°
     { wch: 20 },  // Vague
+    { wch: 15 },  // ✅ Disponibilité
+    { wch: 15 },  // ✅ Date d'entretien
+    { wch: 15 },  // ✅ Date signature contrat
     { wch: 18 },  // Métier
-    { wch: 15 },  // ✅ Type d'agence
+    { wch: 15 },  // Type d'agence
     { wch: 18 },  // Nom
     { wch: 18 },  // Prénoms
     { wch: 25 },  // Email
@@ -670,13 +673,10 @@ export async function generateConsolidatedExportXLSX(sessions: any[]): Promise<{
     { wch: 15 },  // Niveau d'études
     { wch: 25 },  // Université
     { wch: 20 },  // Lieu d'habitation
-    { wch: 15 },  // Date d'entretien
-    { wch: 15 },  // ✅ Date signature contrat
     { wch: 20 },  // Session Créée par
-    { wch: 15 },  // Disponibilité
     { wch: 20 },  // Statut Recrutement
     { wch: 12 },  // Présence
-    { wch: 25 },  // ✅ Motif d'absence
+    { wch: 25 },  // Motif d'absence
     { wch: 20 },  // Évalué par
     { wch: 18 },  // Présentation Visuelle
     { wch: 20 },  // Communication Verbale

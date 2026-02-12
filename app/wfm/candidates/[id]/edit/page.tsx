@@ -1,4 +1,3 @@
-// app/wfm/candidates/[id]/edit/page.tsx
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
@@ -28,6 +27,7 @@ export default async function CandidateEditPage({ params }: CandidateEditPagePro
 
   const { id } = await params
 
+  // 1️⃣ Récupérer le candidat avec tous les champs nécessaires
   const candidate = await prisma.candidate.findUnique({
     where: { id: parseInt(id) },
     select: {
@@ -45,6 +45,7 @@ export default async function CandidateEditPage({ params }: CandidateEditPagePro
       smsSentDate: true,
       availability: true,
       interviewDate: true,
+      signingDate: true,       // ⭐ date de signature
       metier: true,
       sessionId: true,
       notes: true,
@@ -55,7 +56,8 @@ export default async function CandidateEditPage({ params }: CandidateEditPagePro
     redirect("/wfm/candidates")
   }
 
-  const sessions = await prisma.recruitmentSession.findMany({
+  // 2️⃣ Récupérer les sessions actives (planifiées ou en cours)
+  let sessions = await prisma.recruitmentSession.findMany({
     where: {
       OR: [
         { status: 'PLANIFIED' },
@@ -69,54 +71,75 @@ export default async function CandidateEditPage({ params }: CandidateEditPagePro
       jour: true,
       status: true,
       description: true,
-      location: true
+      location: true,
     },
     orderBy: {
       date: 'asc'
     }
   })
 
-  // CORRECTION: Sérialiser les dates en strings et gérer null/undefined
+  // 3️⃣ Si le candidat a une session, s'assurer qu'elle est dans la liste
+  if (candidate.sessionId) {
+    const sessionExists = sessions.some(s => s.id === candidate.sessionId)
+    if (!sessionExists) {
+      const candidateSession = await prisma.recruitmentSession.findUnique({
+        where: { id: candidate.sessionId },
+        select: {
+          id: true,
+          metier: true,
+          date: true,
+          jour: true,
+          status: true,
+          description: true,
+          location: true,
+        },
+      })
+      if (candidateSession) {
+        sessions.push(candidateSession)
+      }
+    }
+  }
+
+  // 4️⃣ Formater les données du candidat pour le formulaire
   const formattedCandidate = {
     id: candidate.id,
     nom: candidate.nom,
     prenom: candidate.prenom,
     phone: candidate.phone,
-    birth_date: candidate.birthDate.toISOString().split('T')[0],
+    birthDate: candidate.birthDate.toISOString().split('T')[0],
     age: candidate.age,
     diploma: candidate.diploma,
-    niveau_etudes: candidate.niveauEtudes,
+    niveauEtudes: candidate.niveauEtudes,
     institution: candidate.institution,
     email: candidate.email ?? undefined,
     location: candidate.location,
-    sms_sent_date: candidate.smsSentDate ? candidate.smsSentDate.toISOString().split('T')[0] : '',
+    smsSentDate: candidate.smsSentDate ? candidate.smsSentDate.toISOString().split('T')[0] : '',
     availability: candidate.availability,
-    interview_date: candidate.interviewDate ? candidate.interviewDate.toISOString().split('T')[0] : '',
+    interviewDate: candidate.interviewDate ? candidate.interviewDate.toISOString().split('T')[0] : '',
+    signingDate: candidate.signingDate ? candidate.signingDate.toISOString().split('T')[0] : '', // ⭐ string vide si null
     metier: candidate.metier,
-    session_id: candidate.sessionId ? candidate.sessionId.toString() : 'none', // ⭐ Convertir en string
+    sessionId: candidate.sessionId ? candidate.sessionId.toString() : 'none',
     notes: candidate.notes ?? undefined,
   }
 
-  // CORRECTION: Sérialiser les sessions (convertir Date en string)
-  const serializedSessions = sessions.map(session => ({
-    id: session.id.toString(), // ⭐ Convertir l'ID en string pour cohérence
-    metier: session.metier,
-    date: session.date.toISOString(),
-    jour: session.jour,
-    status: session.status,
-    description: session.description,
-    location: session.location
+  // 5️⃣ Sérialiser les sessions (IDs en string)
+  const serializedSessions = sessions.map(s => ({
+    id: s.id.toString(),
+    metier: s.metier,
+    date: s.date.toISOString(),
+    jour: s.jour,
+    status: s.status,
+    description: s.description,
+    location: s.location,
   }))
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ⭐ CORRECTION: Retirer la prop role */}
       <DashboardHeader user={session.user} />
-      
       <main className="container mx-auto p-6 max-w-5xl">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">
-            Modifier le Candidat: {candidate.nom} {candidate.prenom}
+            Modifier le Candidat : {candidate.nom} {candidate.prenom}
           </h1>
           <p className="text-gray-600 mt-2">
             Modifier les informations du candidat dans le système de recrutement

@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Metier, SessionStatus } from '@prisma/client'
 
-// Type local pour AgenceType
 type AgenceType = 'ABIDJAN' | 'INTERIEUR'
 
 interface SessionFormProps {
@@ -25,6 +24,7 @@ export function SessionForm({ session }: SessionFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // ✅ État initial – si session est présent, on utilise ses valeurs
   const [formData, setFormData] = useState({
     metier: session?.metier || ('' as Metier | ''),
     agenceType: session?.agenceType || ('' as AgenceType | ''),
@@ -120,7 +120,12 @@ export function SessionForm({ session }: SessionFormProps) {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border-2 border-orange-100 p-6 shadow-lg space-y-6">
+      {/* ✅ KEY basée sur l'ID de la session – force le remontage complet */}
+      <form
+        key={session?.id || 'new'}
+        onSubmit={handleSubmit}
+        className="bg-white rounded-2xl border-2 border-orange-100 p-6 shadow-lg space-y-6"
+      >
         {error && (
           <div className="bg-gradient-to-r from-red-50 to-pink-50 rounded-2xl p-4 border-2 border-red-200">
             <div className="flex items-start gap-3">

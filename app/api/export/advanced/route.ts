@@ -173,12 +173,15 @@ export async function GET(request: NextRequest) {
       return scores.statut === 'PRESENT' ? 'Présent' : 'Absent'
     }
 
-    // ✅ EN-TÊTES COMPLÈTES avec les nouvelles colonnes
+    // ✅ EN-TÊTES COMPLÈTES avec NOUVELLE ORGANISATION
     const exportHeaders = [
       'N°',
       'Vague',
+      'Disponibilité',               // ✅ Déplacé après Vague
+      'Date d\'entretien',          // ✅ Déplacé après Disponibilité
+      'Date de signature contrat',   // ✅ Déplacé après Date d'entretien
       'Métier',
-      'Type d\'agence',               // ✅ AJOUTÉ
+      'Type d\'agence',
       'Nom',
       'Prénoms',
       'Email',
@@ -188,13 +191,10 @@ export async function GET(request: NextRequest) {
       'Niveau d\'études',
       'Université',
       'Lieu d\'habitation',
-      'Date d\'entretien',
       'Session Créée par',
-      'Disponibilité',
       'Statut de Recrutement',
-      'Date de signature contrat',    // ✅ AJOUTÉ
       'Présence',
-      'Motif d\'absence',            // ✅ AJOUTÉ
+      'Motif d\'absence',
       'Évalué par',
       'Présentation Visuelle (moyenne)',
       'Communication Verbale (moyenne)',
@@ -217,8 +217,11 @@ export async function GET(request: NextRequest) {
       const row = [
         index + 1,
         waveInfo,
+        candidate.availability || '',                      // ✅ Disponibilité
+        candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '', // ✅ Date d'entretien
+        candidate.signingDate ? new Date(candidate.signingDate).toLocaleDateString('fr-FR') : '',     // ✅ Date signature
         candidate.metier || '',
-        agenceType,                                         // ✅ Type d'agence
+        agenceType,
         candidate.nom || '',
         candidate.prenom || '',
         candidate.email || '',
@@ -228,13 +231,10 @@ export async function GET(request: NextRequest) {
         candidate.niveauEtudes || '',
         candidate.institution || '',
         candidate.location || '',
-        candidate.interviewDate ? new Date(candidate.interviewDate).toLocaleDateString('fr-FR') : '',
         sessionCreator,
-        candidate.availability || '',
         candidate.statutRecruitment || '',
-        candidate.signingDate ? new Date(candidate.signingDate).toLocaleDateString('fr-FR') : '', // ✅ Date signature
         getPresenceStatus(candidate.scores),
-        candidate.scores?.statutCommentaire || '',         // ✅ Motif d'absence
+        candidate.scores?.statutCommentaire || '',
         getEvaluatorName(candidate.scores),
         calculatePhase1Average(candidate.faceToFaceScores || [], 'presentationVisuelle'),
         calculatePhase1Average(candidate.faceToFaceScores || [], 'verbalCommunication'),
@@ -254,12 +254,15 @@ export async function GET(request: NextRequest) {
 
     const ws = XLSX.utils.aoa_to_sheet(data)
 
-    // ✅ Largeurs de colonnes ajustées
+    // ✅ Largeurs de colonnes AJUSTÉES
     const colWidths = [
       { wch: 5 },   // N°
       { wch: 20 },  // Vague
+      { wch: 15 },  // ✅ Disponibilité
+      { wch: 15 },  // ✅ Date d'entretien
+      { wch: 15 },  // ✅ Date signature contrat
       { wch: 18 },  // Métier
-      { wch: 15 },  // ✅ Type d'agence
+      { wch: 15 },  // Type d'agence
       { wch: 18 },  // Nom
       { wch: 18 },  // Prénoms
       { wch: 25 },  // Email
@@ -269,13 +272,10 @@ export async function GET(request: NextRequest) {
       { wch: 15 },  // Niveau d'études
       { wch: 25 },  // Université
       { wch: 20 },  // Lieu d'habitation
-      { wch: 15 },  // Date d'entretien
       { wch: 20 },  // Session Créée par
-      { wch: 15 },  // Disponibilité
       { wch: 20 },  // Statut de Recrutement
-      { wch: 15 },  // ✅ Date signature contrat
       { wch: 12 },  // Présence
-      { wch: 25 },  // ✅ Motif d'absence
+      { wch: 25 },  // Motif d'absence
       { wch: 20 },  // Évalué par
       { wch: 18 },  // Présentation Visuelle
       { wch: 20 },  // Communication Verbale

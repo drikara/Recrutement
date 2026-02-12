@@ -17,53 +17,79 @@ export function CandidateEditForm({ candidate, sessions = [] }: { candidate: any
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [isInitialized, setIsInitialized] = useState(false)
 
-  // ⭐ CORRECTION 1 : Gérer correctement le sessionId (peut être null ou undefined)
+  // État initial – sera rempli par le useEffect
   const [formData, setFormData] = useState({
-    nom: candidate?.nom || "",
-    prenom: candidate?.prenom || "",
-    phone: candidate?.phone || "",
-    birthDate: candidate?.birthDate ? new Date(candidate.birthDate).toISOString().split('T')[0] : "",
-    email: candidate?.email || "",
-    location: candidate?.location || "",
-    diploma: candidate?.diploma || "",
-    niveauEtudes: candidate?.niveauEtudes || "BAC_PLUS_2" as NiveauEtudes,
-    institution: candidate?.institution || "",
-    metier: candidate?.metier || "CALL_CENTER" as Metier,
-    availability: candidate?.availability || "OUI" as Disponibilite,
-    statutRecruitment: candidate?.statutRecruitment || "STAGE" as RecruitmentStatut,
-    smsSentDate: candidate?.smsSentDate ? new Date(candidate.smsSentDate).toISOString().split('T')[0] : "",
-
-    interviewDate: candidate?.interviewDate ? new Date(candidate.interviewDate).toISOString().split('T')[0] : "",
-    signingDate: candidate?.signingDate ? new Date(candidate.signingDate).toISOString().split('T')[0] : "",
-    // ⭐ CORRECTION : sessionId peut être null, donc on utilise "none" s'il est null/undefined
-    sessionId: candidate?.sessionId ? candidate.sessionId : "none",
-    notes: candidate?.notes || ""
+    nom: "",
+    prenom: "",
+    phone: "",
+    birthDate: "",
+    email: "",
+    location: "",
+    diploma: "",
+    niveauEtudes: "BAC_PLUS_2" as NiveauEtudes,
+    institution: "",
+    metier: "CALL_CENTER" as Metier,
+    availability: "OUI" as Disponibilite,
+    statutRecruitment: "STAGE" as RecruitmentStatut,
+    smsSentDate: "",
+    interviewDate: "",
+    signingDate: "",          // ⭐ date de signature du contrat
+    sessionId: "none",
+    notes: ""
   })
 
-  const [age, setAge] = useState<number | null>(candidate?.age || null)
+  const [age, setAge] = useState<number | null>(null)
 
+  // 🔁 Initialisation unique – utilise DIRECTEMENT les valeurs déjà formatées
+  useEffect(() => {
+    if (candidate && !isInitialized) {
+      console.log("🚀 CandidateEditForm - Données reçues :", candidate)
+      console.log("   → signingDate brute :", candidate.signingDate)
+      console.log("   → sessionId :", candidate.sessionId)
+      console.log("   → sessions disponibles :", sessions)
+
+      setFormData({
+        nom: candidate.nom || "",
+        prenom: candidate.prenom || "",
+        phone: candidate.phone || "",
+        birthDate: candidate.birthDate || "",           // déjà YYYY-MM-DD
+        email: candidate.email || "",
+        location: candidate.location || "",
+        diploma: candidate.diploma || "",
+        niveauEtudes: candidate.niveauEtudes || "BAC_PLUS_2",
+        institution: candidate.institution || "",
+        metier: candidate.metier || "CALL_CENTER",
+        availability: candidate.availability || "OUI",
+        statutRecruitment: candidate.statutRecruitment || "STAGE",
+        smsSentDate: candidate.smsSentDate || "",       // déjà YYYY-MM-DD
+        interviewDate: candidate.interviewDate || "",   // déjà YYYY-MM-DD
+        signingDate: candidate.signingDate || "",       // ⭐ déjà YYYY-MM-DD ou vide
+        sessionId: candidate.sessionId || "none",
+        notes: candidate.notes || ""
+      })
+
+      if (candidate.age) setAge(candidate.age)
+      setIsInitialized(true)
+    }
+  }, [candidate, isInitialized, sessions])
+
+  // 🔁 Recalcul de l'âge à chaque changement de date de naissance
   useEffect(() => {
     if (formData.birthDate) {
       const birthDate = new Date(formData.birthDate)
       const today = new Date()
       let calculatedAge = today.getFullYear() - birthDate.getFullYear()
       const monthDiff = today.getMonth() - birthDate.getMonth()
-      
       if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
         calculatedAge--
       }
-      
       setAge(calculatedAge)
     }
   }, [formData.birthDate])
 
-  // ⭐ AJOUT : Afficher les données dans la console pour déboguer
-  useEffect(() => {
-    console.log("📋 Données du formulaire:", formData)
-    console.log("📋 Données du candidat original:", candidate)
-  }, [formData, candidate])
-
+  // Handlers
   const handleNomChange = (value: string) => {
     setFormData(prev => ({ ...prev, nom: value.toUpperCase() }))
   }
@@ -77,6 +103,11 @@ export function CandidateEditForm({ candidate, sessions = [] }: { candidate: any
     setFormData(prev => ({ ...prev, prenom: formatted }))
   }
 
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  // Validation du formulaire
   const validateForm = () => {
     const errors: string[] = []
 
@@ -98,7 +129,6 @@ export function CandidateEditForm({ candidate, sessions = [] }: { candidate: any
     if (formData.smsSentDate && formData.interviewDate) {
       const smsDate = new Date(formData.smsSentDate)
       const interviewDate = new Date(formData.interviewDate)
-      
       if (interviewDate < smsDate) {
         errors.push("La date d'entretien ne peut pas être avant la date d'envoi SMS")
       }
@@ -111,10 +141,11 @@ export function CandidateEditForm({ candidate, sessions = [] }: { candidate: any
     return errors
   }
 
+  // Soumission du formulaire
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    
+
     const errors = validateForm()
     if (errors.length > 0) {
       setError(errors.join(". "))
@@ -124,7 +155,6 @@ export function CandidateEditForm({ candidate, sessions = [] }: { candidate: any
     setLoading(true)
 
     try {
-      // ⭐ CORRECTION 2 : Préparer le payload avec les données correctes
       const payload = {
         nom: formData.nom,
         prenom: formData.prenom,
@@ -141,13 +171,10 @@ export function CandidateEditForm({ candidate, sessions = [] }: { candidate: any
         smsSentDate: new Date(formData.smsSentDate).toISOString(),
         interviewDate: new Date(formData.interviewDate).toISOString(),
         signingDate: formData.signingDate ? new Date(formData.signingDate).toISOString() : null,
-        // ⭐ CORRECTION : envoyer null si "none", sinon l'UUID de la session
         sessionId: formData.sessionId === "none" ? null : formData.sessionId,
         email: formData.email || null,
         notes: formData.notes || null
       }
-
-      console.log("📤 Payload envoyé à l'API:", payload)
 
       const response = await fetch(`/api/candidates/${candidate.id}`, {
         method: "PUT",
@@ -157,12 +184,8 @@ export function CandidateEditForm({ candidate, sessions = [] }: { candidate: any
 
       if (!response.ok) {
         const data = await response.json()
-        console.error("❌ Erreur API:", data)
         throw new Error(data.error || "Erreur lors de la mise à jour")
       }
-
-      const updatedCandidate = await response.json()
-      console.log("✅ Réponse API:", updatedCandidate)
 
       toast({
         title: "Succès",
@@ -173,49 +196,32 @@ export function CandidateEditForm({ candidate, sessions = [] }: { candidate: any
       router.push("/wfm/candidates")
       router.refresh()
     } catch (err) {
-      console.error("❌ Erreur complète:", err)
+      console.error("❌ Erreur lors de la soumission :", err)
       setError(err instanceof Error ? err.message : "Une erreur est survenue")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleChange = (field: string, value: string) => {
-    console.log(`📝 Changement ${field}: ${value}`)
-    setFormData((prev) => ({ ...prev, [field]: value }))
+  // Affichage du chargement
+  if (!isInitialized) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Card className="border-2 border-blue-200 shadow-lg rounded-2xl overflow-hidden">
+          <CardContent className="p-12 text-center">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-gray-600">Chargement des données du candidat...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
-  const niveauEtudesOptions = [
-    { value: "BAC_PLUS_2", label: "BAC+2" },
-    { value: "BAC_PLUS_3", label: "BAC+3" },
-    { value: "BAC_PLUS_4", label: "BAC+4" },
-    { value: "BAC_PLUS_5", label: "BAC+5" }
-  ]
-
-  const disponibiliteOptions = [
-    { value: "OUI", label: "OUI" },
-    { value: "NON", label: "NON" }
-  ]
-
-  const metierOptions = [
-    { value: "CALL_CENTER", label: "Call Center" },
-    { value: "AGENCES", label: "Agences" },
-    { value: "BO_RECLAM", label: "BO Réclam" },
-    { value: "TELEVENTE", label: "Télévente" },
-    { value: "RESEAUX_SOCIAUX", label: "Réseaux Sociaux" },
-    { value: "SUPERVISION", label: "Supervision" },
-    { value: "BOT_COGNITIVE_TRAINER", label: "Bot Cognitive Trainer" },
-    { value: "SMC_FIXE", label: "SMC Fixe" },
-    { value: "SMC_MOBILE", label: "SMC Mobile" }
-  ]
-
-  const statutRecrutementOptions = [
-    { value: "STAGE", label: "Stage" },
-    { value: "INTERIM", label: "Intérim" },
-    { value: "CDI", label: "CDI" },
-    { value: "CDD", label: "CDD" },
-    { value: "AUTRE", label: "Autre" }
-  ]
+  // Options pour les selecteurs
+  const niveauEtudesOptions = Object.values(NiveauEtudes).map(value => ({ value, label: value.replace(/_/g, ' ') }))
+  const disponibiliteOptions = Object.values(Disponibilite).map(value => ({ value, label: value }))
+  const metierOptions = Object.values(Metier).map(value => ({ value, label: value.replace(/_/g, ' ') }))
+  const statutRecrutementOptions = Object.values(RecruitmentStatut).map(value => ({ value, label: value }))
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -227,276 +233,131 @@ export function CandidateEditForm({ candidate, sessions = [] }: { candidate: any
           <p className="text-blue-600">
             Tous les champs marqués d'un <span className="text-red-500">*</span> sont obligatoires
           </p>
-          
-        
         </CardHeader>
-        
+
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* Section Informations Personnelles */}
+            {/* --- Informations Personnelles --- */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">
                 Informations Personnelles
               </h3>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="nom" className="text-gray-700 font-medium">
-                    Nom <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="nom"
-                    value={formData.nom}
-                    onChange={(e) => handleNomChange(e.target.value)}
-                    placeholder="Saisi en MAJUSCULES automatiquement"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
-                    required
-                  />
+                  <Label htmlFor="nom">Nom <span className="text-red-500">*</span></Label>
+                  <Input id="nom" value={formData.nom} onChange={(e) => handleNomChange(e.target.value)} className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3" required />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="prenom" className="text-gray-700 font-medium">
-                    Prénoms <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="prenom"
-                    value={formData.prenom}
-                    onChange={(e) => handlePrenomChange(e.target.value)}
-                    placeholder="Première lettre en majuscule"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
-                    required
-                  />
+                  <Label htmlFor="prenom">Prénoms <span className="text-red-500">*</span></Label>
+                  <Input id="prenom" value={formData.prenom} onChange={(e) => handlePrenomChange(e.target.value)} className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3" required />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-gray-700 font-medium">
-                    Téléphone <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => handleChange("phone", e.target.value)}
-                    placeholder="0707070707"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
-                    required
-                  />
+                  <Label htmlFor="phone">Téléphone <span className="text-red-500">*</span></Label>
+                  <Input id="phone" type="tel" value={formData.phone} onChange={(e) => handleChange("phone", e.target.value)} className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3" required />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="birthDate" className="text-gray-700 font-medium">
+                  <Label htmlFor="birthDate">
                     Date de naissance <span className="text-red-500">*</span>
-                    {age !== null && (
-                      <span className="ml-2 text-blue-600 font-bold">
-                        ({age} ans)
-                      </span>
-                    )}
+                    {age !== null && <span className="ml-2 text-blue-600 font-bold">({age} ans)</span>}
                   </Label>
-                  <Input
-                    id="birthDate"
-                    type="date"
-                    value={formData.birthDate}
-                    onChange={(e) => handleChange("birthDate", e.target.value)}
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
-                    required
-                  />
+                  <Input id="birthDate" type="date" value={formData.birthDate} onChange={(e) => handleChange("birthDate", e.target.value)} className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3" required />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-gray-700 font-medium">
-                    Email 
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleChange("email", e.target.value)}
-                    placeholder="email@exemple.com"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
-                  />
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" value={formData.email} onChange={(e) => handleChange("email", e.target.value)} className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3" />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="location" className="text-gray-700 font-medium">
-                    Lieu d'habitation <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="location"
-                    value={formData.location}
-                    onChange={(e) => handleChange("location", e.target.value)}
-                    placeholder="Orange village"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
-                    required
-                  />
+                  <Label htmlFor="location">Lieu d'habitation <span className="text-red-500">*</span></Label>
+                  <Input id="location" value={formData.location} onChange={(e) => handleChange("location", e.target.value)} className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3" required />
                 </div>
               </div>
             </div>
 
-            {/* Section Études */}
+            {/* --- Formation et Études --- */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">
-                Formation et Études
-              </h3>
-              
+              <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Formation et Études</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="diploma" className="text-gray-700 font-medium">
-                    Diplôme obtenu <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="diploma"
-                    value={formData.diploma}
-                    onChange={(e) => handleChange("diploma", e.target.value)}
-                    placeholder="Ex: Licence en Informatique"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
-                    required
-                  />
+                  <Label htmlFor="diploma">Diplôme obtenu <span className="text-red-500">*</span></Label>
+                  <Input id="diploma" value={formData.diploma} onChange={(e) => handleChange("diploma", e.target.value)} className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3" required />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="niveauEtudes" className="text-gray-700 font-medium">
-                    Niveau d'études <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={formData.niveauEtudes}
-                    onValueChange={(value) => handleChange("niveauEtudes", value)}
-                  >
+                  <Label htmlFor="niveauEtudes">Niveau d'études <span className="text-red-500">*</span></Label>
+                  <Select value={formData.niveauEtudes} onValueChange={(v) => handleChange("niveauEtudes", v)}>
                     <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3">
-                      <SelectValue placeholder="Sélectionner un niveau" />
+                      <SelectValue placeholder="Sélectionner" />
                     </SelectTrigger>
                     <SelectContent>
-                      {niveauEtudesOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
+                      {niveauEtudesOptions.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="institution" className="text-gray-700 font-medium">
-                    Université <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="institution"
-                    value={formData.institution}
-                    onChange={(e) => handleChange("institution", e.target.value)}
-                    placeholder="Ex: Université Paris-Saclay"
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
-                    required
-                  />
+                  <Label htmlFor="institution">Université <span className="text-red-500">*</span></Label>
+                  <Input id="institution" value={formData.institution} onChange={(e) => handleChange("institution", e.target.value)} className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3" required />
                 </div>
               </div>
             </div>
 
-            {/* Section Recrutement */}
+            {/* --- Informations de Recrutement --- */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">
-                Informations de Recrutement
-              </h3>
-              
+              <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">Informations de Recrutement</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="metier" className="text-gray-700 font-medium">
-                    Métier <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={formData.metier}
-                    onValueChange={(value) => handleChange("metier", value)}
-                  >
+                  <Label htmlFor="metier">Métier <span className="text-red-500">*</span></Label>
+                  <Select value={formData.metier} onValueChange={(v) => handleChange("metier", v)}>
                     <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3">
-                      <SelectValue placeholder="Sélectionner un métier" />
+                      <SelectValue placeholder="Sélectionner" />
                     </SelectTrigger>
                     <SelectContent>
-                      {metierOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
+                      {metierOptions.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="availability" className="text-gray-700 font-medium">
-                    Disponibilité pour l'entretien <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={formData.availability}
-                    onValueChange={(value) => handleChange("availability", value)}
-                  >
+                  <Label htmlFor="availability">Disponibilité <span className="text-red-500">*</span></Label>
+                  <Select value={formData.availability} onValueChange={(v) => handleChange("availability", v)}>
                     <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3">
-                      <SelectValue placeholder="OUI ou NON" />
+                      <SelectValue placeholder="OUI/NON" />
                     </SelectTrigger>
                     <SelectContent>
-                      {disponibiliteOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
+                      {disponibiliteOptions.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   {formData.availability === "NON" && (
-                    <p className="text-xs text-red-600 font-medium mt-1">
-                      ⚠️ Le candidat sera automatiquement non recruté
-                    </p>
+                    <p className="text-xs text-red-600 font-medium mt-1">⚠️ Le candidat sera automatiquement non recruté</p>
                   )}
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="statutRecruitment" className="text-gray-700 font-medium">
-                    Statut de recrutement <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={formData.statutRecruitment}
-                    onValueChange={(value) => handleChange("statutRecruitment", value)}
-                    
-                  >
+                  <Label htmlFor="statutRecruitment">Statut de recrutement <span className="text-red-500">*</span></Label>
+                  <Select value={formData.statutRecruitment} onValueChange={(v) => handleChange("statutRecruitment", v)}>
                     <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3">
-                      <SelectValue placeholder="Sélectionner un statut" />
+                      <SelectValue placeholder="Sélectionner" />
                     </SelectTrigger>
                     <SelectContent>
-                      {statutRecrutementOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
+                      {statutRecrutementOptions.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="smsSentDate" className="text-gray-700 font-medium">
-                    Date d'envoi SMS <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="smsSentDate"
-                    type="date"
-                    value={formData.smsSentDate}
-                    onChange={(e) => handleChange("smsSentDate", e.target.value)}
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
-                    required
-                  />
+                  <Label htmlFor="smsSentDate">Date d'envoi SMS <span className="text-red-500">*</span></Label>
+                  <Input id="smsSentDate" type="date" value={formData.smsSentDate} onChange={(e) => handleChange("smsSentDate", e.target.value)} className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3" required />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="interviewDate" className="text-gray-700 font-medium">
-                    Date d'entretien <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="interviewDate"
-                    type="date"
-                    value={formData.interviewDate}
-                    onChange={(e) => handleChange("interviewDate", e.target.value)}
-                    className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3"
-                    required
-                  />
+                  <Label htmlFor="interviewDate">Date d'entretien <span className="text-red-500">*</span></Label>
+                  <Input id="interviewDate" type="date" value={formData.interviewDate} onChange={(e) => handleChange("interviewDate", e.target.value)} className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3" required />
                 </div>
-                
+                {/* ⭐ Date de signature du contrat */}
                 <div className="space-y-2">
-                  <Label htmlFor="signingDate" className="text-gray-700 font-medium">
+                  <Label htmlFor="signingDate">
                     Date de signature du contrat <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -508,49 +369,40 @@ export function CandidateEditForm({ candidate, sessions = [] }: { candidate: any
                     required
                   />
                 </div>
-
               </div>
 
-              {/* CORRECTION : Section Session de recrutement avec meilleure gestion */}
+              {/* ⭐ Session de recrutement */}
               <div className="space-y-2">
-                <Label htmlFor="sessionId" className="text-gray-700 font-medium">
+                <Label htmlFor="sessionId">
                   Session de recrutement <span className="text-red-500">*</span>
-                  {formData.sessionId !== "none" && (
-                    <span className="ml-2 text-sm text-blue-600">
-                      (Actuellement sélectionnée)
-                    </span>
-                  )}
                 </Label>
-                <Select
-                  value={formData.sessionId}
-                  onValueChange={(value) => {
-                    console.log("Session sélectionnée:", value)
-                    handleChange("sessionId", value)
-                  }}
-                >
-                  <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3">
+                <Select value={formData.sessionId} onValueChange={(v) => handleChange("sessionId", v)}>
+                  <SelectTrigger className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 w-full">
                     <SelectValue placeholder="Sélectionner une session" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-w-[500px] md:max-w-[600px]">
                     <SelectItem value="none">Aucune session</SelectItem>
-                    {sessions.map((session) => (
-                      <SelectItem key={session.id} value={session.id}>
-                        {session.metier} - {new Date(session.date).toLocaleDateString('fr-FR')}
-                        {session.description && ` - ${session.description}`}
-                      </SelectItem>
-                    ))}
+                    {sessions.map((s) => {
+                      const label = `${s.metier} - ${new Date(s.date).toLocaleDateString('fr-FR')} ${s.description ? `- ${s.description}` : ''}`
+                      return (
+                        <SelectItem key={s.id} value={s.id} title={label}>
+                          <span className="block max-w-[350px] md:max-w-[450px] truncate">
+                            {label}
+                          </span>
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.sessionId === "none" 
-                    ? "Le candidat n'est associé à aucune session" 
+                  {formData.sessionId === "none"
+                    ? "Candidat non associé à une session"
                     : "Sélectionnez 'Aucune session' pour dissocier"}
                 </p>
               </div>
             </div>
 
-          
-
+            {/* Erreur */}
             {error && (
               <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
                 <div className="flex items-center gap-3">
@@ -564,24 +416,16 @@ export function CandidateEditForm({ candidate, sessions = [] }: { candidate: any
               </div>
             )}
 
+            {/* Boutons d'action */}
             <div className="flex gap-4 justify-end pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.back()}
-                className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl px-6 py-3 font-semibold"
-              >
+              <Button type="button" variant="outline" onClick={() => router.back()} className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl px-6 py-3 font-semibold">
                 Annuler
               </Button>
-              <Button
-                type="submit"
-                className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white border-0 shadow-lg rounded-xl px-6 py-3 font-semibold"
-                disabled={loading}
-              >
+              <Button type="submit" disabled={loading} className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white border-0 shadow-lg rounded-xl px-6 py-3 font-semibold">
                 {loading ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Mise à jour en cours...
+                    Mise à jour...
                   </div>
                 ) : (
                   "Mettre à jour le candidat"

@@ -1,4 +1,3 @@
-//app/api/candidates/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
@@ -18,6 +17,9 @@ function formatPrenom(prenom: string): string {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
 }
 
+// ----------------------------------------------------------------------
+// POST - Créer un nouveau candidat
+// ----------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
     const session = await auth.api.getSession({
@@ -30,6 +32,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     
+    // ⭐ DESTRUCTURATION AVEC signingDate
     const {
       nom,
       prenom,
@@ -46,10 +49,11 @@ export async function POST(request: NextRequest) {
       interviewDate,
       metier,
       sessionId,
-      notes
+      notes,
+      signingDate, // ⭐ AJOUTÉ
     } = body
 
-    // Validation des champs OBLIGATOIRES
+    // Validation des champs obligatoires
     if (!nom || !prenom || !phone || !birthDate || !diploma || !niveauEtudes || 
         !institution || !location || !metier || !availability || !statutRecruitment || !smsSentDate || !interviewDate) {
       return NextResponse.json(
@@ -57,14 +61,16 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-// Validation du statutRecruitment (AJOUTEZ CES LIGNES)
-const validStatuts: RecruitmentStatut[] = ['STAGE', 'INTERIM', 'CDI', 'CDD', 'AUTRE']
-if (!validStatuts.includes(statutRecruitment)) {
-  return NextResponse.json(
-    { error: 'Statut de recrutement invalide' },
-    { status: 400 }
-  )
-}
+
+    // Validation du statutRecruitment
+    const validStatuts: RecruitmentStatut[] = ['STAGE', 'INTERIM', 'CDI', 'CDD', 'AUTRE']
+    if (!validStatuts.includes(statutRecruitment)) {
+      return NextResponse.json(
+        { error: 'Statut de recrutement invalide' },
+        { status: 400 }
+      )
+    }
+
     // Formater nom et prénom
     const formattedNom = formatNom(nom)
     const formattedPrenom = formatPrenom(prenom)
@@ -114,7 +120,9 @@ if (!validStatuts.includes(statutRecruitment)) {
         interviewDate: new Date(interviewDate),
         metier,
         sessionId: sessionId || null,
-        notes: notes || ''
+        notes: notes || '',
+        // ⭐ AJOUT DE LA DATE DE SIGNATURE
+        signingDate: signingDate ? new Date(signingDate) : null,
       },
       include: {
         scores: true,
@@ -122,59 +130,58 @@ if (!validStatuts.includes(statutRecruitment)) {
       }
     })
 
-    console.log(` Candidat créé: ${candidate.id} - ${candidate.nom} ${candidate.prenom} Statut : ${candidate.statutRecruitment}`)
+    console.log(`✅ Candidat créé: ${candidate.id} - ${candidate.nom} ${candidate.prenom} Statut : ${candidate.statutRecruitment}`)
 
-    //  CRÉATION AUTOMATIQUE DU SCORE POUR LES CANDIDATS "NON DISPONIBLES"
+    // Création automatique du score pour les candidats "NON DISPONIBLES"
     if (availability === Disponibilite.NON) {
       console.log(`📊 Création score automatique pour candidat non disponible: ${candidate.id}`)
       
-      // Déterminer si le métier a besoin de simulation
       const needsSimulation = metier === 'AGENCES' || metier === 'TELEVENTE'
       
       await prisma.score.create({
         data: {
           candidateId: candidate.id,
           
-          //  NOTES DE FACE-À-FACE à 0
+          // NOTES DE FACE-À-FACE à 0
           voiceQuality: new Decimal(0),
           verbalCommunication: new Decimal(0),
           presentationVisuelle: metier === 'AGENCES' ? new Decimal(0) : null,
           
-          //  DÉCISIONS PHASE 1 à DEFAVORABLE/ELIMINE
+          // DÉCISIONS PHASE 1 à DEFAVORABLE/ELIMINE
           phase1FfDecision: FFDecision.DEFAVORABLE,
           phase1Decision: Decision.ELIMINE,
           
-          //  NOTES DE SIMULATION à 0 (si nécessaire)
+          // NOTES DE SIMULATION à 0 (si nécessaire)
           simulationSensNegociation: needsSimulation ? new Decimal(0) : null,
           simulationCapacitePersuasion: needsSimulation ? new Decimal(0) : null,
           simulationSensCombativite: needsSimulation ? new Decimal(0) : null,
           salesSimulation: needsSimulation ? new Decimal(0) : null,
           decisionTest: needsSimulation ? FFDecision.DEFAVORABLE : null,
           
-          // ⭐ TESTS PSYCHOTECHNIQUES à 0
+          // TESTS PSYCHOTECHNIQUES à 0
           psychoRaisonnementLogique: new Decimal(0),
           psychoAttentionConcentration: new Decimal(0),
           psychotechnicalTest: new Decimal(0),
           
-          // ⭐ TESTS TECHNIQUES à 0
+          // TESTS TECHNIQUES à 0
           typingSpeed: 0,
           typingAccuracy: new Decimal(0),
           excelTest: new Decimal(0),
           dictation: new Decimal(0),
           analysisExercise: new Decimal(0),
           
-          // ⭐ DÉCISION FINALE
+          // DÉCISION FINALE
           finalDecision: FinalDecision.NON_RECRUTE,
           
-          // ⭐ STATUT
+          // STATUT
           statut: 'ABSENT',
           statutCommentaire: 'Candidat non disponible - évaluation automatique',
           
-          // ⭐ MOYENNES CALCULÉES
+          // MOYENNES CALCULÉES
           faceToFacePhase1Average: new Decimal(0),
           faceToFacePhase2Average: needsSimulation ? new Decimal(0) : null,
           
-          // ⭐ MÉTADONNÉES
+          // MÉTADONNÉES
           comments: 'Candidat déclaré non disponible. Évaluation automatique avec toutes les notes à 0.',
           evaluatedBy: session.user.id
         }
@@ -196,6 +203,9 @@ if (!validStatuts.includes(statutRecruitment)) {
   }
 }
 
+// ----------------------------------------------------------------------
+// GET - Récupérer la liste des candidats (inchangé)
+// ----------------------------------------------------------------------
 export async function GET(request: NextRequest) {
   try {
     const session = await auth.api.getSession({

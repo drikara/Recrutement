@@ -67,6 +67,90 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
   const isAbsent = scores.statut === 'ABSENT'
   const absenceMotif = scores.statut_commentaire || 'Motif non précisé'
 
+  // --- Calcul des décisions de phase (toujours "Validée" / "Non validée") ---
+  const computePhase1Decision = () => {
+    if (isAbsent) return null
+    if (isReseauxSociaux) {
+      const { verbalCommunication, voiceQuality, appetenceDigitale } = scores
+      if (verbalCommunication == null || voiceQuality == null || appetenceDigitale == null) return null
+      return (formatScore(verbalCommunication) >= 3 && formatScore(voiceQuality) >= 3 && formatScore(appetenceDigitale) >= 3)
+        ? 'Validée'
+        : 'Non validée'
+    } else {
+      const { presentationVisuelle, verbalCommunication, voiceQuality } = scores
+      if (presentationVisuelle == null || verbalCommunication == null || voiceQuality == null) return null
+      return (formatScore(presentationVisuelle) >= 3 && formatScore(verbalCommunication) >= 3 && formatScore(voiceQuality) >= 3)
+        ? 'Validée'
+        : 'Non validée'
+    }
+  }
+
+  const computePhase2Decision = () => {
+    if (isAbsent) return null
+    if (!needsSimulation) return null
+    const { simulationSensNegociation, simulationCapacitePersuasion, simulationSensCombativite } = scores
+    if (simulationSensNegociation == null || simulationCapacitePersuasion == null || simulationSensCombativite == null) return null
+    return (formatScore(simulationSensNegociation) >= 3 && formatScore(simulationCapacitePersuasion) >= 3 && formatScore(simulationSensCombativite) >= 3)
+      ? 'Validée'
+      : 'Non validée'
+  }
+
+  // --- Calcul de la décision pour les tests techniques ---
+  const computeTechnicalTestsDecision = () => {
+    if (isAbsent) return null
+
+    // Définition des seuils et des champs associés
+    const testConfig: Record<string, { field: string; threshold: number }> = {
+      typingSpeed: { field: 'typingSpeed', threshold: 17 },
+      typingAccuracy: { field: 'typingAccuracy', threshold: 75 },
+      excelTest: { field: 'excelTest', threshold: 3 },
+      dictation: { field: 'dictation', threshold: 14 },
+      psychoRaisonnementLogique: { field: 'psychoRaisonnementLogique', threshold: 3 },
+      psychoAttentionConcentration: { field: 'psychoAttentionConcentration', threshold: 3 },
+      analysisExercise: { field: 'analysisExercise', threshold: 3 },
+      appetenceDigitale: { field: 'appetenceDigitale', threshold: 3 },
+    }
+
+    // Tests requis par métier (basé sur metierTechnicalColumns dans export-utils)
+    const requiredTestsByMetier: Record<string, string[]> = {
+      CALL_CENTER: ['typingSpeed', 'typingAccuracy', 'excelTest', 'dictation'],
+      AGENCES: ['typingSpeed', 'typingAccuracy', 'dictation', 'simulationSensNegociation', 'simulationCapacitePersuasion', 'simulationSensCombativite'],
+      BO_RECLAM: ['psychoRaisonnementLogique', 'psychoAttentionConcentration', 'typingSpeed', 'typingAccuracy', 'excelTest', 'dictation'],
+      TELEVENTE: ['typingSpeed', 'typingAccuracy', 'dictation', 'simulationSensNegociation', 'simulationCapacitePersuasion', 'simulationSensCombativite'],
+      RESEAUX_SOCIAUX: ['typingSpeed', 'typingAccuracy', 'dictation', 'appetenceDigitale'],
+      SUPERVISION: ['typingSpeed', 'typingAccuracy', 'excelTest', 'dictation'],
+      BOT_COGNITIVE_TRAINER: ['excelTest', 'dictation', 'analysisExercise'],
+      SMC_FIXE: ['typingSpeed', 'typingAccuracy', 'excelTest', 'dictation'],
+      SMC_MOBILE: ['typingSpeed', 'typingAccuracy', 'excelTest', 'dictation'],
+    }
+
+    const metier = candidate.metier as string
+    const requiredTests = requiredTestsByMetier[metier] || []
+
+    // Filtrer pour ne garder que les tests qui existent dans la config et dont la valeur est présente
+    const testsToCheck = requiredTests.filter(testKey => {
+      const config = testConfig[testKey]
+      if (!config) return false
+      const value = scores[config.field]
+      return value != null
+    })
+
+    if (testsToCheck.length === 0) return null
+
+    // Vérifier que tous les tests requis sont réussis
+    const allValid = testsToCheck.every(testKey => {
+      const config = testConfig[testKey]
+      const value = scores[config.field]
+      return formatScore(value) >= config.threshold
+    })
+
+    return allValid ? 'Validée' : 'Non validée'
+  }
+
+  const phase1Decision = computePhase1Decision()
+  const phase2Decision = computePhase2Decision()
+  const technicalTestsDecision = computeTechnicalTestsDecision()
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -268,21 +352,21 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                     </div>
                     Phase Face à Face
                   </h2>
-                  {scores.phase1Decision && (
+                  {phase1Decision && (
                     <div className={`px-4 py-2 rounded-lg font-bold border-2 ${
-                      scores.phase1Decision === 'ADMIS' 
+                      phase1Decision === 'Validée' 
                         ? 'bg-green-100 text-green-700 border-green-300' 
                         : 'bg-red-100 text-red-700 border-red-300'
                     }`}>
-                      {scores.phase1Decision === 'ADMIS' ? (
+                      {phase1Decision === 'Validée' ? (
                         <span className="flex items-center gap-2">
                           <CheckCircle className="w-5 h-5" />
-                          ADMIS
+                          Validée
                         </span>
                       ) : (
                         <span className="flex items-center gap-2">
                           <XCircle className="w-5 h-5" />
-                          ÉLIMINÉ
+                          Non validée
                         </span>
                       )}
                     </div>
@@ -399,21 +483,21 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                     </div>
                     Phase Simulation
                   </h2>
-                  {scores.phase2Decision && (
+                  {phase2Decision && (
                     <div className={`px-4 py-2 rounded-lg font-bold border-2 ${
-                      scores.phase2Decision === 'VALIDEE' 
+                      phase2Decision === 'Validée' 
                         ? 'bg-green-100 text-green-700 border-green-300' 
                         : 'bg-red-100 text-red-700 border-red-300'
                     }`}>
-                      {scores.phase2Decision === 'VALIDEE' ? (
+                      {phase2Decision === 'Validée' ? (
                         <span className="flex items-center gap-2">
                           <CheckCircle className="w-5 h-5" />
-                          VALIDÉE
+                          Validée
                         </span>
                       ) : (
                         <span className="flex items-center gap-2">
                           <XCircle className="w-5 h-5" />
-                          NON VALIDÉE
+                          Non validée
                         </span>
                       )}
                     </div>
@@ -498,14 +582,36 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
             {/* Tests Techniques */}
             {(scores.typingSpeed != null || scores.typingAccuracy != null || scores.excelTest != null || 
               scores.dictation != null || scores.psychoRaisonnementLogique != null || 
-              scores.psychoAttentionConcentration != null || scores.analysisExercise != null) && (
+              scores.psychoAttentionConcentration != null || scores.analysisExercise != null || scores.appetenceDigitale != null) && (
               <div className="bg-white border-2 border-purple-200 rounded-2xl p-6 shadow-sm">
-                <h2 className="text-xl font-bold text-purple-900 mb-4 flex items-center gap-2">
-                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <span className="text-purple-700 font-bold">📝</span>
-                  </div>
-                  Tests Techniques
-                </h2>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-purple-900 flex items-center gap-2">
+                    <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <span className="text-purple-700 font-bold">📝</span>
+                    </div>
+                    Tests Techniques
+                  </h2>
+                  {technicalTestsDecision && (
+                    <div className={`px-4 py-2 rounded-lg font-bold border-2 ${
+                      technicalTestsDecision === 'Validée' 
+                        ? 'bg-green-100 text-green-700 border-green-300' 
+                        : 'bg-red-100 text-red-700 border-red-300'
+                    }`}>
+                      {technicalTestsDecision === 'Validée' ? (
+                        <span className="flex items-center gap-2">
+                          <CheckCircle className="w-5 h-5" />
+                          Validée
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <XCircle className="w-5 h-5" />
+                          Non validée
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {scores.typingSpeed != null && (
                     <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
@@ -513,7 +619,7 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                       <p className={`text-3xl font-bold ${
                         formatScore(scores.typingSpeed) >= 17 ? 'text-green-600' : 'text-red-600'
                       }`}>
-                        {formatScore(scores.typingSpeed).toFixed(2)}/17 <span className="text-sm text-green-600">Mots par minute (MPM)</span>
+                        {formatScore(scores.typingSpeed).toFixed(2)}/17
                       </p>
                       <p className="text-xs text-gray-500 mt-1">Seuil: ≥ 17 MPM</p>
                     </div>
@@ -559,6 +665,7 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                       }`}>
                         {formatScore(scores.psychoRaisonnementLogique).toFixed(2)}/5
                       </p>
+                      <p className="text-xs text-gray-500 mt-1">Seuil: ≥ 3/5</p>
                     </div>
                   )}
                   {scores.psychoAttentionConcentration != null && (
@@ -569,6 +676,7 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                       }`}>
                         {formatScore(scores.psychoAttentionConcentration).toFixed(2)}/5
                       </p>
+                      <p className="text-xs text-gray-500 mt-1">Seuil: ≥ 3/5</p>
                     </div>
                   )}
                   {scores.analysisExercise != null && (
@@ -579,6 +687,7 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                       }`}>
                         {formatScore(scores.analysisExercise).toFixed(2)}/5
                       </p>
+                      <p className="text-xs text-gray-500 mt-1">Seuil: ≥ 3/5</p>
                     </div>
                   )}
                   {scores.appetenceDigitale != null && (
@@ -589,6 +698,7 @@ export function CandidateDetails({ candidate, expectedJuryCount, hasAllJuryScore
                       }`}>
                         {formatScore(scores.appetenceDigitale).toFixed(2)}/5
                       </p>
+                      <p className="text-xs text-gray-500 mt-1">Seuil: ≥ 3/5</p>
                     </div>
                   )}
                 </div>

@@ -1,4 +1,3 @@
-// app/api/sessions/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
@@ -39,7 +38,6 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // ✅ Ajout de 'agenceType' avec cast any (en attendant la génération)
     const sessionsWithCounts = sessions.map((session) => ({
       id: session.id,
       metier: session.metier,
@@ -48,7 +46,7 @@ export async function GET(request: NextRequest) {
       status: session.status,
       description: session.description,
       location: session.location,
-      agenceType: (session as any).agenceType, // ⚠️ cast temporaire
+      agenceType: (session as any).agenceType, // ⚠️ cast temporaire (à retirer quand le champ est généré)
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
       createdById: session.createdById,
@@ -96,7 +94,7 @@ export async function POST(request: NextRequest) {
       jour = frenchDays[date.getDay()]
     }
 
-    // ✅ Création avec cast any pour agenceType
+    // Création
     const recruitmentSession = await prisma.recruitmentSession.create({
       data: {
         metier: data.metier,
@@ -105,12 +103,12 @@ export async function POST(request: NextRequest) {
         status: data.status || 'IN_PROGRESS',
         description: data.description || null,
         location: data.location || null,
-        agenceType: data.metier === 'AGENCES' ? data.agenceType : null, // ⚠️ sera ignoré si le champ n'existe pas encore
+        agenceType: data.metier === 'AGENCES' ? data.agenceType : null,
         createdById: session.user.id,
-      } as any, // ⚠️ cast temporaire
+      } as any, // ⚠️ cast temporaire (à retirer quand le champ est généré)
     })
 
-    // ✅ Récupérer la session avec ses compteurs (pour _count)
+    // Récupérer avec les compteurs
     const sessionWithCounts = await prisma.recruitmentSession.findUnique({
       where: { id: recruitmentSession.id },
       include: {
@@ -152,7 +150,7 @@ export async function POST(request: NextRequest) {
         sessionStatus: recruitmentSession.status,
         sessionLocation: recruitmentSession.location,
         sessionDescription: recruitmentSession.description,
-        agenceType: (recruitmentSession as any).agenceType, // ⚠️ cast
+        agenceType: (recruitmentSession as any).agenceType,
       },
       ...requestInfo,
     })
