@@ -17,6 +17,7 @@ interface FilterParams {
   page?: string
 }
 
+
 interface StatsData {
   total: number
   admis: number
