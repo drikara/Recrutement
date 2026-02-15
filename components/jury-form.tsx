@@ -87,7 +87,7 @@ export function JuryForm({ juryMember, availableUsers, availableSessions = [] }:
 
       // 2.  Ajouter le jury aux sessions sélectionnées 
       if (!juryMember && formData.sessions.length > 0) {
-        console.log('📋 Ajout du jury aux sessions:', formData.sessions)
+        console.log('Ajout du jury aux sessions:', formData.sessions)
         
         const sessionPromises = formData.sessions.map(sessionId =>
           fetch(`/api/sessions/${sessionId}/jury`, {

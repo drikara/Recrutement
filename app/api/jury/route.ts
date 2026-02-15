@@ -206,7 +206,7 @@ export async function GET() {
     return NextResponse.json(formattedMembers)
 
   } catch (error) {
-    console.error("💥 ERREUR dans GET /api/jury:", error)
+    console.error("ERREUR dans GET /api/jury:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }

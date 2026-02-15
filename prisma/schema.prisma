@@ -224,6 +224,7 @@ model FaceToFaceScore {
   presentationVisuelle         Decimal?    @map("presentation_visuelle") @db.Decimal(3, 2)
   verbalCommunication          Decimal?    @map("verbal_communication") @db.Decimal(3, 2)
   voiceQuality                 Decimal?    @map("voice_quality") @db.Decimal(3, 2)
+  
   comments                     String?
   evaluatedAt                  DateTime    @default(now()) @map("evaluated_at")
   createdAt                    DateTime    @default(now()) @map("created_at")
@@ -334,6 +335,7 @@ enum Metier {
   BOT_COGNITIVE_TRAINER
   SMC_FIXE
   SMC_MOBILE
+  RECOUVREMENT
 }
 
 enum Decision {

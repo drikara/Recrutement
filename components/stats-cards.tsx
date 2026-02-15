@@ -12,6 +12,9 @@ type StatsCardsProps = {
     reseauxSociaux: number
     supervision: number
     botCognitiveTrainer: number
+    recouvrement: number
+    smcFixe : number
+    smcMobile : number
   }
 }
 

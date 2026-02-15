@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'ID candidat manquant' }, { status: 400 })
     }
 
-    console.log('📖 GET /api/jury/scores - candidateId:', candidateId)
+    console.log(' GET /api/jury/scores - candidateId:', candidateId)
 
     // Récupérer le jury member
     const juryMember = await prisma.juryMember.findFirst({
@@ -331,7 +331,7 @@ export async function POST(request: NextRequest) {
 
     } else if (phase === 2) {
       // PHASE 2: Simulation (AGENCES ou TÉLÉVENTE uniquement)
-      console.log('🎭 Phase 2 - Validation Simulation')
+      console.log('Phase 2 - Validation Simulation')
 
       if (candidate.metier !== 'AGENCES' && candidate.metier !== 'TELEVENTE') {
         return NextResponse.json({ 

@@ -2,7 +2,7 @@
 'use client'
 
 import { useState } from 'react'
-// ⭐ CORRECTION: Import correct
+// CORRECTION: Import correct
 import { ConsolidationResultData } from "@/lib/consolidation"
 
 interface ConsolidationActionsProps {

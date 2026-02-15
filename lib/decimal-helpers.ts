@@ -23,6 +23,7 @@ export function serializeScore(score: any) {
     voiceQuality: toNumber(score.voiceQuality),
     verbalCommunication: toNumber(score.verbalCommunication),
     presentationVisuelle: toNumber(score.presentationVisuelle),
+    appetenceDigitale : toNumber(score.appetenceDigitale),
 
     phase1FfDecision: score.phase1FfDecision,
 
@@ -79,6 +80,7 @@ export function serializeFaceToFaceScore(faceToFaceScore: any) {
     presentationVisuelle: toNumber(faceToFaceScore.presentationVisuelle),
     verbalCommunication: toNumber(faceToFaceScore.verbalCommunication),
     voiceQuality: toNumber(faceToFaceScore.voiceQuality),
+    appetenceDigitale : toNumber(faceToFaceScore.appetenceDigitale),
 
     simulationCapacitePersuasion: toNumber(faceToFaceScore.simulationCapacitePersuasion),
     simulationSensCombativite: toNumber(faceToFaceScore.simulationSensCombativite),
@@ -116,6 +118,7 @@ export function serializeCandidate(candidate: any) {
     smsSentDate: candidate.smsSentDate.toISOString(),
     availability: candidate.availability,
     interviewDate: candidate.interviewDate.toISOString(),
+    signingDate:candidate.signingDate.toISOString(),
     metier: candidate.metier,
     // ✅ Type d'agence (pour AGENCES)
     agenceType: candidate.agenceType || null,
@@ -150,6 +153,7 @@ export function serializeCandidatesForList(candidates: any[]) {
       ? {
           voice_quality: toNumber(candidate.scores.voiceQuality),
           verbal_communication: toNumber(candidate.scores.verbalCommunication),
+          
           psychotechnical_test: toNumber(candidate.scores.psychotechnicalTest),
           typing_speed: candidate.scores.typingSpeed,
           typing_accuracy: toNumber(candidate.scores.typingAccuracy),

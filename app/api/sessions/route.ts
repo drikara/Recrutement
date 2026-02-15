@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
         location: data.location || null,
         agenceType: data.metier === 'AGENCES' ? data.agenceType : null,
         createdById: session.user.id,
-      } as any, // ⚠️ cast temporaire (à retirer quand le champ est généré)
+      } as any, // cast temporaire (à retirer quand le champ est généré)
     })
 
     // Récupérer avec les compteurs

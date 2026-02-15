@@ -21,6 +21,7 @@ const METIER_MAPPING: Record<string, string> = {
   "Bot Cognitive Trainer": "BOT_COGNITIVE_TRAINER",
   "SMC Fixe": "SMC_FIXE",
   "SMC Mobile": "SMC_MOBILE",
+  "Recouvrement":"RECOUVREMENT",
 }
 
 export function AdvancedExportPanel() {
@@ -42,6 +43,7 @@ export function AdvancedExportPanel() {
     "Bot Cognitive Trainer",
     "SMC Fixe",
     "SMC Mobile",
+    "Recouvrement",
   ]
 
   const currentYear = new Date().getFullYear()

@@ -434,7 +434,7 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
             <div>
               <h3 className="font-bold text-gray-700">Candidat Absent</h3>
               <p className="text-gray-500 text-sm">
-                Toutes les notes sont <strong>N/A</strong>. La décision finale sera <strong>NON RECRUTÉ</strong> (absent).
+                Toutes les notes sont <strong>N/A</strong>
               </p>
             </div>
           </div>
@@ -652,7 +652,7 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
                       <div className="flex items-center justify-between">
                         <span className="font-semibold">Décision Phase Simulation:</span>
                         <span className={`text-lg font-bold flex items-center gap-2 ${validatePhase2() ? 'text-green-700' : 'text-red-700'}`}>
-                          {validatePhase2() ? <><CheckCircle className="w-5 h-5" />VALIDÉE</> : <><XCircle className="w-5 h-5" />NON VALIDÉE</>}
+                          {validatePhase2() ? <><CheckCircle className="w-5 h-5" />ADMIS</> : <><XCircle className="w-5 h-5" />ÉLIMINÉ</>}
                         </span>
                       </div>
                     </div>
@@ -790,7 +790,7 @@ export function WFMScoreForm({ candidate, existingScores }: WFMScoreFormProps) {
         ) : isAbsent ? (
           <>
             <CheckCircle className="w-6 h-6" />
-            Enregistrer — Candidat Absent (notes N/A)
+            Enregistrer — Candidat Absent  
           </>
         ) : (
           <>

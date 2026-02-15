@@ -74,7 +74,7 @@ export default async function CandidateConsolidationPage({
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardHeader user={session.user} role="WFM" />
+      <DashboardHeader user={session.user} />
       <main className="container mx-auto p-6 max-w-6xl">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Consolidation - {transformedCandidate.fullName}</h1>

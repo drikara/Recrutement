@@ -20,7 +20,7 @@ export async function PATCH(
     }
 
     const data = await request.json()
-    console.log("📝 PATCH /api/scores/[id] - Données reçues:", data)
+    console.log(" PATCH /api/scores/[id] - Données reçues:", data)
 
     const statut = data.statut as Statut
     const statutCommentaire = data.statutCommentaire || ''
@@ -44,7 +44,7 @@ export async function PATCH(
       )
     }
 
-    // ✅ UPSERT : Créer ou mettre à jour le score
+    // UPSERT : Créer ou mettre à jour le score
     const score = await prisma.score.upsert({
       where: { candidateId: parseInt(id) },
       update: {
@@ -52,21 +52,21 @@ export async function PATCH(
         statutCommentaire,
         evaluatedBy: session.user.name || 'WFM_JURY',
         updatedAt: new Date(),
-        // ⭐ IMPORTANT : Pour un absent, on met toutes les décisions à null
+        // IMPORTANT : Pour un absent, on met toutes les décisions à null
         phase1FfDecision: statut === 'ABSENT' ? null : undefined,
         phase1Decision: statut === 'ABSENT' ? null : undefined,
         decisionTest: statut === 'ABSENT' ? null : undefined,
-        finalDecision: statut === 'ABSENT' ? null : undefined, // ⭐ null pour absent
+        finalDecision: statut === 'ABSENT' ? null : undefined, // null pour absent
       },
       create: {
         candidateId: parseInt(id),
         statut,
         statutCommentaire,
-        // ⭐ IMPORTANT : Pour un nouveau score d'absent, toutes les décisions sont null
+        //  IMPORTANT : Pour un nouveau score d'absent, toutes les décisions sont null
         phase1FfDecision: null,
         phase1Decision: null,
         decisionTest: null,
-        finalDecision: null, // ⭐ null pour absent
+        finalDecision: null, //  null pour absent
         evaluatedBy: session.user.name || 'WFM_JURY',
       },
     })

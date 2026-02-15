@@ -46,21 +46,21 @@ export function JuryList({ juryMembers, availableUsers }: { juryMembers: JuryMem
 
     setDeleting(id)
     try {
-      console.log(`🗑️ Suppression du membre jury ID: ${id}`)
+      console.log(`Suppression du membre jury ID: ${id}`)
       const response = await fetch(`/api/jury/${id}`, {
         method: "DELETE",
       })
 
       if (response.ok) {
-        console.log("✅ Membre du jury supprimé avec succès")
+        console.log("Membre du jury supprimé avec succès")
         router.refresh()
       } else {
         const error = await response.json()
-        console.error("❌ Erreur suppression:", error)
+        console.error("Erreur suppression:", error)
         alert(`Erreur lors de la suppression: ${error.error}`)
       }
     } catch (error) {
-      console.error("❌ Erreur réseau:", error)
+      console.error("Erreur réseau:", error)
       alert("Erreur réseau lors de la suppression")
     } finally {
       setDeleting(null)

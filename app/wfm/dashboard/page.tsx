@@ -29,6 +29,9 @@ interface StatsData {
   reseauxSociaux: number
   supervision: number
   botCognitiveTrainer: number
+  Recouvrement : number
+  smcFixe : number
+  smcMobile : number
 }
 
 const VALID_METIERS = [
@@ -40,7 +43,9 @@ const VALID_METIERS = [
   'SUPERVISION',
   'BOT_COGNITIVE_TRAINER',
   'SMC_FIXE',
-  'SMC_MOBILE'
+  'SMC_MOBILE',
+  "RECOUVREMENT",
+
 ]
 
 export default async function WFMDashboard({
@@ -162,7 +167,10 @@ export default async function WFMDashboard({
       televente: metierCounts['TELEVENTE'] || 0,
       reseauxSociaux: metierCounts['RESEAUX_SOCIAUX'] || 0,
       supervision: metierCounts['SUPERVISION'] || 0,
-      botCognitiveTrainer: metierCounts['BOT_COGNITIVE_TRAINER'] || 0
+      botCognitiveTrainer: metierCounts['BOT_COGNITIVE_TRAINER'] || 0,
+      Recouvrement: metierCounts["RECOUVREMENT"] || 0,
+      smcFixe : metierCounts["SMC_FIXE"] || 0,
+      smcMobile : metierCounts["SMC_MOBILE"] || 0,
     }
 
     return (
@@ -259,7 +267,8 @@ function formatMetierDisplay(metier: string): string {
     'SUPERVISION': 'Supervision',
     'BOT_COGNITIVE_TRAINER': 'Bot Cognitive Trainer',
     'SMC_FIXE': 'SMC Fixe',
-    'SMC_MOBILE': 'SMC Mobile'
+    'SMC_MOBILE': 'SMC Mobile',
+    "RECOUVREMENT" : "Recouvrement",
   }
   return formatMap[metier] || metier
 }

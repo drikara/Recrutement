@@ -378,6 +378,7 @@ export function AdminUsersManagement({ users, currentUserId }: AdminUsersManagem
                         <SelectItem value="REPRESENTANT_METIER">Représentant Métier</SelectItem>
                         <SelectItem value="WFM_JURY">WFM Jury</SelectItem>
                         <SelectItem value="FORMATEUR">Formateur</SelectItem>
+                        
                       </SelectContent>
                     </Select>
                   </div>
@@ -399,6 +400,7 @@ export function AdminUsersManagement({ users, currentUserId }: AdminUsersManagem
                         <SelectItem value="BOT_COGNITIVE_TRAINER">Bot Cognitive Trainer</SelectItem>
                         <SelectItem value="SMC_FIXE">SMC Fixe</SelectItem>
                         <SelectItem value="SMC_MOBILE">SMC Mobile</SelectItem>
+                        <SelectItem value='RECOUVREMENT'>Recouvrement</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

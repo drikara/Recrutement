@@ -55,7 +55,7 @@ export default async function EditJuryPage({ params }: { params: Promise<{ id: s
     ...users.filter(user => user.id !== juryMember.userId)
   ]
 
-  // ⭐ CORRECTION: Filtrer les utilisateurs valides
+  // CORRECTION: Filtrer les utilisateurs valides
   const safeAvailableUsers = availableUsers
     .filter(user => user.id && user.id.trim() !== "" && user.name && user.name.trim() !== "")
     .map(user => ({
@@ -64,12 +64,12 @@ export default async function EditJuryPage({ params }: { params: Promise<{ id: s
       email: user.email || "sans-email@example.com"
     }))
 
-  // ⭐ CORRECTION: NE PAS convertir la spécialité - laisser comme Metier | null
+  // CORRECTION: NE PAS convertir la spécialité - laisser comme Metier | null
   // juryMember.specialite est déjà Metier | null, pas besoin de conversion
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader user={session.user} role="WFM" />
+      <DashboardHeader user={session.user}  />
       <main className="container mx-auto p-6 max-w-2xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800">Modifier le Membre du Jury</h1>

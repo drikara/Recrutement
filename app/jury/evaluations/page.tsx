@@ -123,8 +123,8 @@ export default async function JuryEvaluationsPage() {
       scores: {
         select: {
           finalDecision: true,
-          // ⭐ NOUVEAU : Inclure statut pour que JuryEvaluationsList
-          //             puisse aussi filtrer côté client (double sécurité)
+          // Inclure statut pour que JuryEvaluationsList
+          // puisse aussi filtrer côté client (double sécurité)
           statut: true,
         }
       },

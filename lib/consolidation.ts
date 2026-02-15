@@ -7,6 +7,7 @@ export interface ConsolidationInput {
     presentationVisuelle: number
     verbalCommunication: number 
     voiceQuality: number
+    appetenceDigitale:number
   }[]
   typingSpeed?: number | null
   typingAccuracy?: number | null
@@ -274,7 +275,19 @@ function getCriteriaForMetier(metier: Metier): Criteria {
       minExcel: 3,
       requiresDictation: true,
       minDictation: 16
-    }
+    },
+     [Metier.RECOUVREMENT]: {
+      minPhase1: 3,
+      requiresPhase2: true,
+      minPhase2: 3,
+      requiresTyping: true,
+      minTypingSpeed: 17,
+      minTypingAccuracy: 85,
+      requiresExcel: true,
+      minExcel: 3,
+      requiresDictation: true,
+      minDictation: 16
+    },
   }
 
   return criteria[metier] || criteria[Metier.CALL_CENTER]

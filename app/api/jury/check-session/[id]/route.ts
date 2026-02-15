@@ -86,7 +86,7 @@ export async function GET(
     })
 
   } catch (error) {
-    console.error('💥 Error checking session:', error)
+    console.error('Error checking session:', error)
     return NextResponse.json({ 
       error: 'Erreur serveur',
       details: error instanceof Error ? error.message : 'Unknown error'

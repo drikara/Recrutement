@@ -105,7 +105,17 @@ const metierCriteria: Record<string, any> = {
       excel: 3,
       dictation: 14
     }
-  }
+  },
+   "RECOUVREMENT": {
+    requiredTests: ["Face à Face", "Saisie", "Excel", "Dictée"],
+    thresholds: {
+      faceToFace: 3,
+      typingSpeed: 17,
+      typingAccuracy: 75,
+      excel: 3,
+      dictation: 14
+    }
+  },
 }
 
 export async function RecentCandidates({ filters }: RecentCandidatesProps) {

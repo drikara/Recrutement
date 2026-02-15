@@ -1,75 +1,93 @@
 "use client"
 
-import type React from "react"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { Metier, FFDecision } from "@prisma/client"
-import { shouldShowTest, getMetierConfig } from "../lib/metier-utils"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { CheckCircle, AlertCircle, Sparkles, ArrowRight } from "lucide-react"
+import { FFDecision } from "@prisma/client"
 
-//  Interface mise à jour pour correspondre à l'utilisation
-interface JuryEvaluationFormProps {
+interface JuryScoreFormProps {
   candidate: {
     id: number
-    name: string
-    metier?: string
+    fullName: string
+    metier: string
   }
-  existingScore?: {
-    presentationVisuelle?: number
-    verbalCommunication?: number
-    voiceQuality?: number
-    score: number
-    comments?: string
+  juryMember: {
+    id: number
+    fullName: string
+    roleType: string
   }
+  phase1Complete: boolean
+  canDoPhase2: boolean
+  // ✅ NOUVELLES PROPS POUR NAVIGATION
+  nextCandidateId?: number | null
+  previousCandidateId?: number | null
+  currentPosition?: number | null
+  totalCandidates?: number | null
 }
 
-export function JuryEvaluationForm({ candidate, existingScore }: JuryEvaluationFormProps) {
+export function JuryScoreForm({
+  candidate,
+  juryMember,
+  phase1Complete,
+  canDoPhase2,
+  nextCandidateId,
+  previousCandidateId,
+  currentPosition,
+  totalCandidates
+}: JuryScoreFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [decision, setDecision] = useState<FFDecision | null>(null)
+  const [phase, setPhase] = useState<1 | 2>(phase1Complete && canDoPhase2 ? 2 : 1)
 
-  const [formData, setFormData] = useState({
-    voiceQuality: existingScore?.voiceQuality?.toString() || "",
-    verbalCommunication: existingScore?.verbalCommunication?.toString() || "",
-    presentationVisuelle: existingScore?.presentationVisuelle?.toString() || "",
-    comments: existingScore?.comments || "",
+  // États pour Phase 1
+  const [phase1Data, setPhase1Data] = useState({
+    voiceQuality: "",
+    verbalCommunication: "",
+    presentationVisuelle: "",
+    appetenceDigitale: "",
+    comments: ""
   })
 
-  // Vérifier que le candidat a un ID
-  useEffect(() => {
-    if (!candidate.id) {
-      console.error("❌ ERREUR CRITIQUE: candidate.id est undefined!")
-      setError("ID candidat manquant - Impossible de sauvegarder")
-    }
-  }, [candidate.id])
+  // États pour Phase 2
+  const [phase2Data, setPhase2Data] = useState({
+    sensNegociation: "",
+    capacitePersuasion: "",
+    sensCombativite: "",
+    comments: ""
+  })
 
-  // Validation en temps réel
-  useEffect(() => {
-    const voiceQuality = parseFloat(formData.voiceQuality) || 0
-    const verbalCommunication = parseFloat(formData.verbalCommunication) || 0
-    const presentationVisuelle = parseFloat(formData.presentationVisuelle) || 0
+  const isAgences = candidate.metier === 'AGENCES'
+  const isReseauxSociaux = candidate.metier === 'RESEAUX_SOCIAUX'
+  const needsSimulation = candidate.metier === 'AGENCES' || candidate.metier === 'TELEVENTE'
 
-    if (candidate.metier === 'AGENCES') {
-      // Pour AGENCES: 3 critères
-      if (voiceQuality >= 3 && verbalCommunication >= 3 && presentationVisuelle >= 3) {
-        setDecision('FAVORABLE')
-      } else {
-        setDecision('DEFAVORABLE')
-      }
+  // Calcul automatique décision Phase 1
+  const getPhase1Decision = (): FFDecision | null => {
+    const voice = parseFloat(phase1Data.voiceQuality) || 0
+    const verbal = parseFloat(phase1Data.verbalCommunication) || 0
+    const presentation = parseFloat(phase1Data.presentationVisuelle) || 0
+
+    if (isAgences) {
+      return (voice >= 3 && verbal >= 3 && presentation >= 3) ? 'FAVORABLE' : 'DEFAVORABLE'
     } else {
-      // Pour autres métiers: 2 critères
-      if (voiceQuality >= 3 && verbalCommunication >= 3) {
-        setDecision('FAVORABLE')
-      } else {
-        setDecision('DEFAVORABLE')
-      }
+      return (voice >= 3 && verbal >= 3) ? 'FAVORABLE' : 'DEFAVORABLE'
     }
-  }, [formData.voiceQuality, formData.verbalCommunication, formData.presentationVisuelle, candidate.metier])
+  }
+
+  // Calcul automatique décision Phase 2
+  const getPhase2Decision = (): FFDecision | null => {
+    const nego = parseFloat(phase2Data.sensNegociation) || 0
+    const persuasion = parseFloat(phase2Data.capacitePersuasion) || 0
+    const combativite = parseFloat(phase2Data.sensCombativite) || 0
+
+    return (nego >= 3 && persuasion >= 3 && combativite >= 3) ? 'FAVORABLE' : 'DEFAVORABLE'
+  }
+
+  const currentDecision = phase === 1 ? getPhase1Decision() : getPhase2Decision()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -77,323 +95,486 @@ export function JuryEvaluationForm({ candidate, existingScore }: JuryEvaluationF
     setError("")
 
     try {
-      // VÉRIFICATION CRITIQUE
-      if (!candidate.id) {
-        throw new Error("ID candidat manquant - Veuillez rafraîchir la page")
+      const payload = phase === 1 ? {
+        candidate_id: candidate.id,
+        jury_member_id: juryMember.id,
+        phase: 1,
+        voice_quality: parseFloat(phase1Data.voiceQuality) || 0,
+        verbal_communication: parseFloat(phase1Data.verbalCommunication) || 0,
+        presentation_visuelle: isAgences ? (parseFloat(phase1Data.presentationVisuelle) || 0) : 0,
+        appetence_digitale: isReseauxSociaux ? (parseFloat(phase1Data.appetenceDigitale) || 0) : null,
+        decision: getPhase1Decision(),
+        comments: phase1Data.comments || ""
+      } : {
+        candidate_id: candidate.id,
+        jury_member_id: juryMember.id,
+        phase: 2,
+        simulation_sens_negociation: parseFloat(phase2Data.sensNegociation) || 0,
+        simulation_capacite_persuasion: parseFloat(phase2Data.capacitePersuasion) || 0,
+        simulation_sens_combativite: parseFloat(phase2Data.sensCombativite) || 0,
+        decision: getPhase2Decision(),
+        comments: phase2Data.comments || ""
       }
 
-      // Convertir les données au FORMAT EXACT attendu par l'API
-      const formDataToSend = {
-        candidate_id: candidate.id, //  SNAKE_CASE obligatoire!
-        presentation_visuelle: parseFloat(formData.presentationVisuelle) || 0,
-        verbal_communication: parseFloat(formData.verbalCommunication) || 0,
-        voice_quality: parseFloat(formData.voiceQuality) || 0,
-        comments: formData.comments || ""
-      }
-
-      console.log(" Données envoyées à l'API:", formDataToSend)
-
-      // ENVOYER À LA BONNE ROUTE - SANS L'ID DANS L'URL!
-      const response = await fetch(`/api/jury/scores`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache"
-        },
-        body: JSON.stringify(formDataToSend),
+      const response = await fetch('/api/jury/scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       })
 
-      console.log(" Réponse HTTP:", response.status, response.statusText)
-
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error(" Réponse API en erreur:", errorText)
-        
-        let errorMessage = "Erreur lors de l'enregistrement"
-        try {
-          const errorData = JSON.parse(errorText)
-          errorMessage = errorData.error || errorMessage
-        } catch {
-          errorMessage = errorText || errorMessage
-        }
-        
-        throw new Error(errorMessage)
+        const data = await response.json()
+        throw new Error(data.error || 'Erreur lors de l\'enregistrement')
       }
 
-      const result = await response.json()
-      console.log(" Réponse API succès:", result)
-
-      // Redirection avec confirmation
-      alert("Évaluation enregistrée avec succès")
-      router.push("/jury/evaluations")
-      router.refresh()
-      
+      // ✅ NAVIGATION AUTOMATIQUE
+      if (nextCandidateId) {
+        router.push(`/jury/evaluations/${nextCandidateId}`)
+        router.refresh()
+      } else {
+        alert("✅ Félicitations ! Vous avez évalué tous les candidats.")
+        router.push("/jury/evaluations")
+        router.refresh()
+      }
     } catch (err) {
-      console.error("❌ Erreur complète:", err)
       setError(err instanceof Error ? err.message : "Une erreur est survenue")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
-
-  const config = candidate.metier ? getMetierConfig(candidate.metier as Metier) : null
-  const showPresentationVisuelle = candidate.metier === 'AGENCES'
-
-  // Afficher un loader pendant l'enregistrement
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600">Enregistrement en cours...</p>
-          <p className="text-sm text-gray-500">Veuillez patienter</p>
+      <div className="flex flex-col justify-center items-center h-64">
+        <div className="relative">
+          <div className="w-20 h-20 border-4 border-orange-200 rounded-full"></div>
+          <div className="w-20 h-20 border-4 border-orange-500 border-t-transparent rounded-full animate-spin absolute top-0"></div>
         </div>
+        <p className="mt-6 text-gray-600 font-semibold">Enregistrement en cours...</p>
+        <p className="text-sm text-gray-500 mt-2">
+          {nextCandidateId ? 'Passage au candidat suivant...' : 'Finalisation...'}
+        </p>
       </div>
     )
   }
 
   return (
-    <Card className="border-2 border-blue-200 shadow-lg rounded-2xl overflow-hidden">
-      <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 border-b-2 border-blue-200">
-        <CardTitle className="flex items-center gap-2 text-blue-800">
-          Évaluation Face à Face
-        </CardTitle>
-        <p className="text-sm text-blue-600">
-          Candidat: {candidate.name} - {candidate.metier || '0'}
-        </p>
-        <p className="text-xs text-gray-500">
-          ID Candidat: {candidate.id || 'Non défini'}
-        </p>
+    <Card className="border-2 border-orange-200 shadow-xl rounded-2xl overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-orange-100 via-amber-100 to-cyan-100 border-b-2 border-orange-200">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-3 text-orange-800">
+            <Sparkles className="w-6 h-6 text-orange-600" />
+            Évaluation {phase === 1 ? 'Face-à-Face' : 'Simulation'}
+          </CardTitle>
+          {!phase1Complete && needsSimulation && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border-2 border-orange-300 shadow-sm">
+              <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-semibold text-orange-700">Phase 1 de 2</span>
+            </div>
+          )}
+        </div>
       </CardHeader>
-      
-      <CardContent className="p-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Afficher les erreurs critiques */}
-          {!candidate.id && (
-            <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-              <p className="text-red-700 font-medium">
-                 ID candidat manquant. Veuillez rafraîchir la page.
-              </p>
+
+      <CardContent className="p-8">
+        {/* Onglets Phase (si simulation nécessaire) */}
+        {needsSimulation && (
+          <div className="flex gap-3 mb-8">
+            <button
+              type="button"
+              onClick={() => setPhase(1)}
+              disabled={phase1Complete}
+              className={`flex-1 py-4 px-6 rounded-xl font-bold transition-all duration-300 shadow-md ${
+                phase === 1
+                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/30'
+                  : phase1Complete
+                    ? 'bg-green-100 text-green-700 border-2 border-green-300'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                {phase1Complete && <CheckCircle className="w-5 h-5" />}
+                <span>Phase  Face à Face</span>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPhase(2)}
+              disabled={!canDoPhase2}
+              className={`flex-1 py-4 px-6 rounded-xl font-bold transition-all duration-300 shadow-md ${
+                phase === 2
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30'
+                  : canDoPhase2
+                    ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-50 text-gray-400 cursor-not-allowed opacity-50'
+              }`}
+            >
+              Phase 2 - Simulation
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Phase 1 */}
+          {phase === 1 && (
+            <div className="space-y-6">
+              {/* Qualité de la Voix */}
+              <div className="space-y-4">
+                <Label className="text-gray-800 font-bold text-lg flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">1</span>
+                  </div>
+                  Qualité de la Voix (1-5) *
+                </Label>
+                <div className="grid grid-cols-5 gap-3">
+                  {[1, 2, 3, 4, 5].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setPhase1Data(prev => ({ ...prev, voiceQuality: num.toString() }))}
+                      className={`py-5 rounded-2xl border-3 font-bold text-lg transition-all duration-300 transform hover:scale-105 ${
+                        parseFloat(phase1Data.voiceQuality) === num
+                          ? num >= 3
+                            ? "bg-gradient-to-br from-green-500 to-emerald-500 text-white border-green-600 shadow-xl shadow-green-500/50 scale-110"
+                            : "bg-gradient-to-br from-red-500 to-pink-500 text-white border-red-600 shadow-xl shadow-red-500/50 scale-110"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-orange-400 shadow-md"
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center px-2">
+                  <span className={`text-sm font-semibold ${parseFloat(phase1Data.voiceQuality) >= 3 ? "text-green-600" : "text-gray-500"}`}>
+                    {parseFloat(phase1Data.voiceQuality) >= 3 ? "✅ Seuil atteint" : "⚠️ Minimum 3/5 requis"}
+                  </span>
+                  <span className="text-sm font-bold text-orange-600">
+                    Note: {phase1Data.voiceQuality || "0"}/5
+                  </span>
+                </div>
+              </div>
+
+              {/* Communication Verbale */}
+              <div className="space-y-4">
+                <Label className="text-gray-800 font-bold text-lg flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">2</span>
+                  </div>
+                  Communication Verbale (1-5) *
+                </Label>
+                <div className="grid grid-cols-5 gap-3">
+                  {[1, 2, 3, 4, 5].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setPhase1Data(prev => ({ ...prev, verbalCommunication: num.toString() }))}
+                      className={`py-5 rounded-2xl border-3 font-bold text-lg transition-all duration-300 transform hover:scale-105 ${
+                        parseFloat(phase1Data.verbalCommunication) === num
+                          ? num >= 3
+                            ? "bg-gradient-to-br from-green-500 to-emerald-500 text-white border-green-600 shadow-xl shadow-green-500/50 scale-110"
+                            : "bg-gradient-to-br from-red-500 to-pink-500 text-white border-red-600 shadow-xl shadow-red-500/50 scale-110"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-cyan-400 shadow-md"
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center px-2">
+                  <span className={`text-sm font-semibold ${parseFloat(phase1Data.verbalCommunication) >= 3 ? "text-green-600" : "text-gray-500"}`}>
+                    {parseFloat(phase1Data.verbalCommunication) >= 3 ? "✅ Seuil atteint" : "⚠️ Minimum 3/5 requis"}
+                  </span>
+                  <span className="text-sm font-bold text-cyan-600">
+                    Note: {phase1Data.verbalCommunication || "0"}/5
+                  </span>
+                </div>
+              </div>
+
+              {/* Présentation Visuelle (AGENCES uniquement) */}
+              {isAgences && (
+                <div className="space-y-4">
+                  <Label className="text-gray-800 font-bold text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                      <span className="text-white text-sm">3</span>
+                    </div>
+                    Présentation Visuelle (1-5) * 
+                  </Label>
+                  <div className="grid grid-cols-5 gap-3">
+                    {[1, 2, 3, 4, 5].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setPhase1Data(prev => ({ ...prev, presentationVisuelle: num.toString() }))}
+                        className={`py-5 rounded-2xl border-3 font-bold text-lg transition-all duration-300 transform hover:scale-105 ${
+                          parseFloat(phase1Data.presentationVisuelle) === num
+                            ? num >= 3
+                              ? "bg-gradient-to-br from-green-500 to-emerald-500 text-white border-green-600 shadow-xl shadow-green-500/50 scale-110"
+                              : "bg-gradient-to-br from-red-500 to-pink-500 text-white border-red-600 shadow-xl shadow-red-500/50 scale-110"
+                            : "bg-white text-gray-700 border-gray-300 hover:border-purple-400 shadow-md"
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex justify-between items-center px-2">
+                    <span className={`text-sm font-semibold ${parseFloat(phase1Data.presentationVisuelle) >= 3 ? "text-green-600" : "text-gray-500"}`}>
+                      {parseFloat(phase1Data.presentationVisuelle) >= 3 ? "✅ Seuil atteint" : "⚠️ Minimum 3/5 requis"}
+                    </span>
+                    <span className="text-sm font-bold text-purple-600">
+                      Note: {phase1Data.presentationVisuelle || "0"}/5
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Appétence Digitale (RESEAUX_SOCIAUX uniquement) */}
+              {isReseauxSociaux && (
+                <div className="space-y-4">
+                  <Label className="text-gray-800 font-bold text-lg flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center">
+                      <span className="text-white text-sm">🌐</span>
+                    </div>
+                    Appétence Digitale (1-5) * 
+                  </Label>
+                  <div className="grid grid-cols-5 gap-3">
+                    {[1, 2, 3, 4, 5].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setPhase1Data(prev => ({ ...prev, appetenceDigitale: num.toString() }))}
+                        className={`py-5 rounded-2xl border-3 font-bold text-lg transition-all duration-300 transform hover:scale-105 ${
+                          parseFloat(phase1Data.appetenceDigitale) === num
+                            ? num >= 3
+                              ? "bg-gradient-to-br from-green-500 to-emerald-500 text-white border-green-600 shadow-xl shadow-green-500/50 scale-110"
+                              : "bg-gradient-to-br from-red-500 to-pink-500 text-white border-red-600 shadow-xl shadow-red-500/50 scale-110"
+                            : "bg-white text-gray-700 border-gray-300 hover:border-indigo-400 shadow-md"
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex justify-between items-center px-2">
+                    <span className={`text-sm font-semibold ${parseFloat(phase1Data.appetenceDigitale) >= 3 ? "text-green-600" : "text-gray-500"}`}>
+                      {parseFloat(phase1Data.appetenceDigitale) >= 3 ? "✅ Seuil atteint" : "⚠️ Minimum 3/5 requis"}
+                    </span>
+                    <span className="text-sm font-bold text-indigo-600">
+                      Note: {phase1Data.appetenceDigitale || "0"}/5
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Commentaires Phase 1 */}
+              <div className="space-y-3">
+                <Label className="text-gray-800 font-bold text-lg">
+                  Commentaires (optionnel)
+                </Label>
+                <Textarea
+                  value={phase1Data.comments}
+                  onChange={(e) => setPhase1Data(prev => ({ ...prev, comments: e.target.value }))}
+                  rows={4}
+                  className="border-2 border-orange-200 focus:border-orange-400 rounded-xl p-4 resize-none"
+                  placeholder="Vos observations sur le candidat..."
+                />
+              </div>
             </div>
           )}
 
-          {/* Qualité de la Voix */}
-          <div className="space-y-3">
-            <Label htmlFor="voiceQuality" className="text-gray-700 font-semibold">
-              Qualité de la Voix (1-5) *
-            </Label>
-            <div className="grid grid-cols-5 gap-2">
-              {[1, 2, 3, 4, 5].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => handleChange("voiceQuality", num.toString())}
-                  className={`py-3 rounded-lg border-2 font-bold transition-all ${
-                    parseFloat(formData.voiceQuality) === num
-                      ? num >= 3
-                        ? "bg-green-100 text-green-700 border-green-400"
-                        : "bg-red-100 text-red-700 border-red-400"
-                      : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className={parseFloat(formData.voiceQuality) >= 3 ? "text-green-600 font-semibold" : "text-gray-600"}>
-                ≥ 3/5 requis
-              </span>
-              <span className="text-blue-600">
-                Saisie: {formData.voiceQuality || "0"}/5
-              </span>
-            </div>
-          </div>
-
-          {/* Communication Verbale */}
-          <div className="space-y-3">
-            <Label htmlFor="verbalCommunication" className="text-gray-700 font-semibold">
-              Communication Verbale (1-5) *
-            </Label>
-            <div className="grid grid-cols-5 gap-2">
-              {[1, 2, 3, 4, 5].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => handleChange("verbalCommunication", num.toString())}
-                  className={`py-3 rounded-lg border-2 font-bold transition-all ${
-                    parseFloat(formData.verbalCommunication) === num
-                      ? num >= 3
-                        ? "bg-green-100 text-green-700 border-green-400"
-                        : "bg-red-100 text-red-700 border-red-400"
-                      : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className={parseFloat(formData.verbalCommunication) >= 3 ? "text-green-600 font-semibold" : "text-gray-600"}>
-                ≥ 3/5 requis
-              </span>
-              <span className="text-blue-600">
-                Saisie: {formData.verbalCommunication || "0"}/5
-              </span>
-            </div>
-          </div>
-
-          {/* Présentation Visuelle (AGENCES seulement) */}
-          {showPresentationVisuelle && (
-            <div className="space-y-3">
-              <Label htmlFor="presentationVisuelle" className="text-gray-700 font-semibold">
-                Présentation Visuelle (1-5) * - AGENCES uniquement
-              </Label>
-              <div className="grid grid-cols-5 gap-2">
-                {[1, 2, 3, 4, 5].map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => handleChange("presentationVisuelle", num.toString())}
-                    className={`py-3 rounded-lg border-2 font-bold transition-all ${
-                      parseFloat(formData.presentationVisuelle) === num
-                        ? num >= 3
-                          ? "bg-green-100 text-green-700 border-green-400"
-                          : "bg-red-100 text-red-700 border-red-400"
-                        : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
-                    }`}
-                  >
-                    {num}
-                  </button>
-                ))}
+          {/* Phase 2 - SIMULATION */}
+          {phase === 2 && (
+            <div className="space-y-6">
+              {/* Sens Négociation */}
+              <div className="space-y-4">
+                <Label className="text-gray-800 font-bold text-lg flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">1</span>
+                  </div>
+                  Sens de la Négociation (1-5) *
+                </Label>
+                <div className="grid grid-cols-5 gap-3">
+                  {[1, 2, 3, 4, 5].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setPhase2Data(prev => ({ ...prev, sensNegociation: num.toString() }))}
+                      className={`py-5 rounded-2xl border-3 font-bold text-lg transition-all duration-300 transform hover:scale-105 ${
+                        parseFloat(phase2Data.sensNegociation) === num
+                          ? num >= 3
+                            ? "bg-gradient-to-br from-green-500 to-emerald-500 text-white border-green-600 shadow-xl shadow-green-500/50 scale-110"
+                            : "bg-gradient-to-br from-red-500 to-pink-500 text-white border-red-600 shadow-xl shadow-red-500/50 scale-110"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-cyan-400 shadow-md"
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center px-2">
+                  <span className={`text-sm font-semibold ${parseFloat(phase2Data.sensNegociation) >= 3 ? "text-green-600" : "text-gray-500"}`}>
+                    {parseFloat(phase2Data.sensNegociation) >= 3 ? "✅ Seuil atteint" : "⚠️ Minimum 3/5 requis"}
+                  </span>
+                  <span className="text-sm font-bold text-cyan-600">
+                    Note: {phase2Data.sensNegociation || "0"}/5
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className={parseFloat(formData.presentationVisuelle) >= 3 ? "text-green-600 font-semibold" : "text-gray-600"}>
-                  ≥ 3/5 requis
-                </span>
-                <span className="text-blue-600">
-                  Saisie: {formData.presentationVisuelle || "0"}/5
-                </span>
+
+              {/* Capacité de Persuasion */}
+              <div className="space-y-4">
+                <Label className="text-gray-800 font-bold text-lg flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">2</span>
+                  </div>
+                  Capacité de Persuasion (1-5) *
+                </Label>
+                <div className="grid grid-cols-5 gap-3">
+                  {[1, 2, 3, 4, 5].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setPhase2Data(prev => ({ ...prev, capacitePersuasion: num.toString() }))}
+                      className={`py-5 rounded-2xl border-3 font-bold text-lg transition-all duration-300 transform hover:scale-105 ${
+                        parseFloat(phase2Data.capacitePersuasion) === num
+                          ? num >= 3
+                            ? "bg-gradient-to-br from-green-500 to-emerald-500 text-white border-green-600 shadow-xl shadow-green-500/50 scale-110"
+                            : "bg-gradient-to-br from-red-500 to-pink-500 text-white border-red-600 shadow-xl shadow-red-500/50 scale-110"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-orange-400 shadow-md"
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center px-2">
+                  <span className={`text-sm font-semibold ${parseFloat(phase2Data.capacitePersuasion) >= 3 ? "text-green-600" : "text-gray-500"}`}>
+                    {parseFloat(phase2Data.capacitePersuasion) >= 3 ? "✅ Seuil atteint" : "⚠️ Minimum 3/5 requis"}
+                  </span>
+                  <span className="text-sm font-bold text-orange-600">
+                    Note: {phase2Data.capacitePersuasion || "0"}/5
+                  </span>
+                </div>
+              </div>
+
+              {/* Sens de la Combativité */}
+              <div className="space-y-4">
+                <Label className="text-gray-800 font-bold text-lg flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm">3</span>
+                  </div>
+                  Sens de la Combativité (1-5) *
+                </Label>
+                <div className="grid grid-cols-5 gap-3">
+                  {[1, 2, 3, 4, 5].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      onClick={() => setPhase2Data(prev => ({ ...prev, sensCombativite: num.toString() }))}
+                      className={`py-5 rounded-2xl border-3 font-bold text-lg transition-all duration-300 transform hover:scale-105 ${
+                        parseFloat(phase2Data.sensCombativite) === num
+                          ? num >= 3
+                            ? "bg-gradient-to-br from-green-500 to-emerald-500 text-white border-green-600 shadow-xl shadow-green-500/50 scale-110"
+                            : "bg-gradient-to-br from-red-500 to-pink-500 text-white border-red-600 shadow-xl shadow-red-500/50 scale-110"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-purple-400 shadow-md"
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center px-2">
+                  <span className={`text-sm font-semibold ${parseFloat(phase2Data.sensCombativite) >= 3 ? "text-green-600" : "text-gray-500"}`}>
+                    {parseFloat(phase2Data.sensCombativite) >= 3 ? "✅ Seuil atteint" : "⚠️ Minimum 3/5 requis"}
+                  </span>
+                  <span className="text-sm font-bold text-purple-600">
+                    Note: {phase2Data.sensCombativite || "0"}/5
+                  </span>
+                </div>
+              </div>
+
+              {/* Commentaires Phase 2 */}
+              <div className="space-y-3">
+                <Label className="text-gray-800 font-bold text-lg">
+                  Commentaires (optionnel)
+                </Label>
+                <Textarea
+                  value={phase2Data.comments}
+                  onChange={(e) => setPhase2Data(prev => ({ ...prev, comments: e.target.value }))}
+                  rows={4}
+                  className="border-2 border-cyan-200 focus:border-cyan-400 rounded-xl p-4 resize-none"
+                  placeholder="Vos observations sur la simulation..."
+                />
               </div>
             </div>
           )}
 
           {/* Décision en temps réel */}
-          <div className={`p-4 rounded-xl border-2 ${
-            decision === 'FAVORABLE' 
-              ? 'bg-green-50 border-green-200' 
-              : 'bg-red-50 border-red-200'
-          }`}>
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-bold text-gray-800">Décision Face à Face</h4>
-                <p className="text-sm text-gray-600">
-                  Basée sur vos notes
-                </p>
-              </div>
-              <div className={`px-4 py-2 rounded-lg font-bold text-lg ${
-                decision === 'FAVORABLE' 
-                  ? 'bg-green-100 text-green-700 border-2 border-green-300' 
-                  : 'bg-red-100 text-red-700 border-2 border-red-300'
-              }`}>
-                {decision === 'FAVORABLE' ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
-              </div>
-            </div>
-            
-            {/* Détails des critères */}
-            <div className="mt-3 space-y-1 text-sm">
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${
-                  parseFloat(formData.voiceQuality) >= 3 ? 'bg-green-500' : 'bg-red-500'
-                }`}></div>
-                <span>Qualité voix: {formData.voiceQuality || "0"}/5 {parseFloat(formData.voiceQuality) >= 3 ? '✅' : '❌'}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${
-                  parseFloat(formData.verbalCommunication) >= 3 ? 'bg-green-500' : 'bg-red-500'
-                }`}></div>
-                <span>Communication: {formData.verbalCommunication || "0"}/5 {parseFloat(formData.verbalCommunication) >= 3 ? '✅' : '❌'}</span>
-              </div>
-              {showPresentationVisuelle && (
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${
-                    parseFloat(formData.presentationVisuelle) >= 3 ? 'bg-green-500' : 'bg-red-500'
-                  }`}></div>
-                  <span>Présentation: {formData.presentationVisuelle || "0"}/5 {parseFloat(formData.presentationVisuelle) >= 3 ? '✅' : '❌'}</span>
+          {currentDecision && (
+            <div className={`p-6 rounded-2xl border-3 transition-all duration-300 ${
+              currentDecision === 'FAVORABLE' 
+                ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300 shadow-xl shadow-green-500/20' 
+                : 'bg-gradient-to-br from-red-50 to-pink-50 border-red-300 shadow-xl shadow-red-500/20'
+            }`}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="font-bold text-xl text-gray-800 mb-1">Décision Automatique</h4>
+                  <p className="text-sm text-gray-600">
+                    Basée sur vos notes
+                  </p>
                 </div>
-              )}
+                <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-bold text-xl shadow-lg ${
+                  currentDecision === 'FAVORABLE' 
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white' 
+                    : 'bg-gradient-to-r from-red-500 to-pink-500 text-white'
+                }`}>
+                  {currentDecision === 'FAVORABLE' ? (
+                    <><CheckCircle className="w-6 h-6" /> FAVORABLE</>
+                  ) : (
+                    <><AlertCircle className="w-6 h-6" /> DÉFAVORABLE</>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Commentaires */}
-          <div className="space-y-3">
-            <Label htmlFor="comments" className="text-gray-700 font-semibold">
-              Commentaires (optionnel)
-            </Label>
-            <Textarea
-              id="comments"
-              value={formData.comments}
-              onChange={(e) => handleChange("comments", e.target.value)}
-              rows={3}
-              className="border-2 border-blue-200 focus:border-blue-400 focus:ring-blue-200 rounded-xl p-3 bg-white transition-colors resize-none"
-              placeholder="Observations, points forts, points d'amélioration..."
-            />
-          </div>
+          )}
 
           {/* Message d'erreur */}
           {error && (
-            <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-              <p className="text-red-700 font-medium flex items-center gap-2">
-                <span>❌</span>
+            <div className="p-5 bg-gradient-to-r from-red-50 to-pink-50 border-2 border-red-300 rounded-2xl">
+              <p className="text-red-700 font-semibold flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
                 {error}
               </p>
             </div>
           )}
 
-          <div className="flex gap-4 justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.back()}
-              className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl px-6 py-3 font-semibold cursor-pointer"
-              disabled={loading}
-            >
-              Annuler
-            </Button>
+          {/* Bouton de soumission */}
+          <div className="pt-6">
             <Button
               type="submit"
-              className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white border-0 shadow-lg rounded-xl px-6 py-3 font-semibold disabled:opacity-50"
-              disabled={loading || !decision || !candidate.id}
+              disabled={loading || !currentDecision}
+              className="w-full py-6 text-lg font-bold rounded-2xl shadow-2xl transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-orange-500 via-amber-500 to-cyan-500 hover:from-orange-600 hover:via-amber-600 hover:to-cyan-600 text-white border-0 cursor-pointer"
             >
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Enregistrement...
-                </div>
-              ) : (
-                `Valider - ${decision === 'FAVORABLE' ? 'Favorable' : 'Défavorable'}`
-              )}
+              <div className="flex items-center justify-center gap-3">
+                {loading ? (
+                  <>
+                    <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Enregistrement...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-6 h-6" />
+                    <span>
+                      {nextCandidateId 
+                        ? `Valider et passer au suivant` 
+                        : `Valider (dernier candidat)`
+                      }
+                    </span>
+                    {nextCandidateId && <ArrowRight className="w-6 h-6" />}
+                  </>
+                )}
+              </div>
             </Button>
           </div>
-
-          {/* Debug info (visible seulement en dev)
-          {process.env.NODE_ENV === 'development' && (
-            <div className="mt-8 p-4 bg-gray-50 border border-gray-300 rounded-lg text-xs">
-              <p className="font-bold mb-2">🧪 DEBUG INFO:</p>
-              <pre className="whitespace-pre-wrap">
-                {JSON.stringify({
-                  candidateId: candidate.id,
-                  formData,
-                  decision,
-                  showPresentationVisuelle
-                }, null, 2)}
-              </pre>
-            </div>
-          )} */}
         </form>
       </CardContent>
     </Card>

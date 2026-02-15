@@ -20,7 +20,7 @@ export function DeleteConfirmation({ juryMember }: { juryMember: any }) {
     setError("")
 
     try {
-      console.log(`🗑️ Suppression du membre jury ID: ${juryMember.id}`)
+      console.log(`Suppression du membre jury ID: ${juryMember.id}`)
       
       const response = await fetch(`/api/jury/${juryMember.id}`, {
         method: "DELETE",

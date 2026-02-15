@@ -81,11 +81,11 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
     if (!formData.location.trim()) errors.push("La localisation est obligatoire")
     if (!formData.smsSentDate) errors.push("La date d'envoi SMS est obligatoire")
     if (!formData.interviewDate) errors.push("La date d'entretien est obligatoire")
-    if(!formData.signingDate) errors.push("La date de signature du contrat est obligatoire")
     if (!formData.availability) errors.push("La disponibilité est obligatoire")
     if (!formData.metier) errors.push("Le métier est obligatoire")
     if (!formData.niveauEtudes) errors.push("Le niveau d'études est obligatoire")
     if (!formData.statutRecruitment) errors.push("Le statut de recrutement est obligatoire")
+    
  
 
     if (formData.smsSentDate && formData.interviewDate) {
@@ -190,7 +190,8 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
     { value: "SUPERVISION", label: "Supervision" },
     { value: "BOT_COGNITIVE_TRAINER", label: "Bot Cognitive Trainer" },
     { value: "SMC_FIXE", label: "SMC Fixe" },
-    { value: "SMC_MOBILE", label: "SMC Mobile" }
+    { value: "SMC_MOBILE", label: "SMC Mobile" } ,
+    { value : "RECOUVREMENT", label:"Recouvrement"},
   ]
 
   const statutRecrutementOptions = [
@@ -481,7 +482,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signingDate" className="text-gray-700 font-medium">
-                    Date de signature du contrat <span className="text-red-500">*</span>
+                    Date de signature du contrat
                   </Label>
                   <Input
                     id="signingDate"
@@ -489,7 +490,7 @@ export function CandidateForm({ sessions = [] }: { sessions?: any[] }) {
                     value={formData.signingDate}
                     onChange={(e) => handleChange("signingDate", e.target.value)}
                     className="border-2 border-gray-300 focus:border-blue-500 rounded-xl p-3 cursor-pointer"
-                    required
+                    
                   />
                 </div>
               </div>

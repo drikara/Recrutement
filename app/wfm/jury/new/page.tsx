@@ -66,7 +66,7 @@ export default async function NewJuryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader user={session.user} role="WFM" />
+      <DashboardHeader user={session.user}  />
       <main className="container mx-auto p-6 max-w-3xl">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800">Nouveau Membre du Jury</h1>

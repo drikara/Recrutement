@@ -64,18 +64,18 @@ export default async function CandidateDetailPage({ params }: CandidateDetailPag
       notFound()
     }
 
-    // ⭐⭐ CALCULER LE NOMBRE DE JURYS ATTENDUS (présents)
+    // CALCULER LE NOMBRE DE JURYS ATTENDUS (présents)
     const expectedJuryCount = candidate.session?.juryPresences.length || 0
     
-    // ⭐⭐ RÉCUPÉRER LES IDS DES JURYS PRÉSENTS
+    // RÉCUPÉRER LES IDS DES JURYS PRÉSENTS
     const presentJuryIds = candidate.session?.juryPresences.map(p => p.juryMember.id) || []
     
-    // ⭐⭐ COMPTER LE NOMBRE DE JURYS QUI ONT NOTÉ LA PHASE 1
+    //  COMPTER LE NOMBRE DE JURYS QUI ONT NOTÉ LA PHASE 1
     const phase1Scores = candidate.faceToFaceScores.filter(score => score.phase === 1)
     const uniqueJuryIds = [...new Set(phase1Scores.map(score => score.juryMemberId))]
     const hasAllJuryScores = uniqueJuryIds.length === expectedJuryCount
 
-    console.log('📊 Informations jurys:', {
+    console.log('Informations jurys:', {
       candidatId: candidate.id,
       expectedJuryCount,
       presentJuryIds,

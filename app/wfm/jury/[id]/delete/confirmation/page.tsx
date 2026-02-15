@@ -58,7 +58,7 @@ export default async function DeleteConfirmationPage({
 
   return (
     <div className="min-h-screen bg-linear-to-br from-red-50 via-orange-50 to-amber-50">
-      <DashboardHeader user={session.user} role="WFM" />
+      <DashboardHeader user={session.user}  />
       <main className="container mx-auto p-6 max-w-4xl">
         <DeleteConfirmation 
           juryMember={juryMember}

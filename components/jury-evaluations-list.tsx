@@ -31,7 +31,7 @@ interface Candidate {
   } | null
   scores: {
     finalDecision: string | null
-    statut: string | null // ⭐ Champ important pour l'absence
+    statut: string | null //  Champ important pour l'absence
   } | null
   myScore: {
     score: number
@@ -50,17 +50,17 @@ export function JuryEvaluationsList({ candidates, juryMemberId }: JuryEvaluation
   const [filter, setFilter] = useState<'all' | 'evaluated' | 'pending'>('all')
   const [search, setSearch] = useState('')
 
-  // ✅ Exclure les candidats :
+  //  Exclure les candidats :
   //    1. Non disponibles (availability === 'NON')
   //    2. Marqués ABSENT par le WFM (scores?.statut === 'ABSENT')
   const visibleCandidates = candidates.filter(candidate => {
     if (candidate.availability === 'NON') {
-      console.info(`⏭️ Candidat ${candidate.id} exclu — non disponible`)
+      console.info(`Candidat ${candidate.id} exclu — non disponible`)
       return false
     }
-    // ⭐ CORRECTION: Vérifier aussi dans scores?.statut
+    // CORRECTION: Vérifier aussi dans scores?.statut
     if (candidate.scores?.statut === 'ABSENT') {
-      console.info(`⏭️ Candidat ${candidate.id} exclu — marqué ABSENT par le WFM`)
+      console.info(`Candidat ${candidate.id} exclu — marqué ABSENT par le WFM`)
       return false
     }
     return true

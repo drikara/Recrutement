@@ -34,7 +34,9 @@ export function ResultsTable({ results }: { results: Result[] }) {
     "Réseaux Sociaux",
     "Supervision",
     "Bot Cognitive Trainer",
-    "SMC Fixe & Mobile",
+    "SMC Fixe",
+    "SMC Mobile",
+    "Recouvrement",
   ]
 
   const filteredResults = results.filter((result) => {

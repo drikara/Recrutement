@@ -21,6 +21,7 @@ interface Result {
   sms_sent_date: Date | null
   availability: string
   interview_date: Date | null
+  signing_date : Date | null
   metier: string
   session_id: string | null
   notes: string | null

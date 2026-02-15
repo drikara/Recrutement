@@ -5,23 +5,10 @@ import { prisma } from "@/lib/prisma"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { JuryScoreForm } from "@/components/jury-score-form"
 import { EvaluationStatusBanner } from "@/components/evaluation-status-banner"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { 
-  ArrowLeft, 
-  User, 
-  Briefcase, 
-  Calendar, 
-  MapPin, 
-  GraduationCap, 
-  Mail, 
-  Phone,
-  Building2,
-  AlertCircle
-} from 'lucide-react'
 import { canJuryMemberAccessCandidate, isSessionActive } from "@/lib/permissions"
 import { checkSimulationUnlockStatus } from "@/lib/simulation-unlock"
-import { Statut, Disponibilite } from '@prisma/client'
+import { NavigationBar } from "@/components/navigation-bar"   
+import { AlertCircle, Briefcase, Building2, Calendar, CheckCircle, GraduationCap, Mail, MapPin, Phone } from "lucide-react"
 
 export default async function JuryEvaluationPage({ 
   params 
@@ -38,13 +25,11 @@ export default async function JuryEvaluationPage({
     redirect("/auth/login")
   }
 
-  // ✅ Lire le cookie viewMode
   const cookieStore = await cookies()
   const viewMode = cookieStore.get('viewMode')?.value as 'WFM' | 'JURY' | undefined
 
   const userRole = (session.user as any).role || "JURY"
   
-  // ✅ Récupérer les infos utilisateur pour vérifier WFM_JURY
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     include: {
@@ -59,26 +44,11 @@ export default async function JuryEvaluationPage({
 
   const isWFMJury = user?.role === 'WFM' && user?.juryMember?.roleType === 'WFM_JURY'
   
-  console.log('🔐 Jury Evaluation [id] Page - Auth check:', {
-    candidateId: id,
-    userRole,
-    isWFMJury,
-    viewMode,
-    hasJuryMember: !!user?.juryMember
-  })
-
-  // ✅ Logique de vérification améliorée
   const canAccessJuryPage = 
-    userRole === "JURY" || // JURY standard
-    (isWFMJury && viewMode === 'JURY') // WFM_JURY en mode JURY
+    userRole === "JURY" || 
+    (isWFMJury && viewMode === 'JURY')
 
   if (!canAccessJuryPage) {
-    console.log('🚫 Accès refusé à la page Jury Evaluation:', {
-      userRole,
-      isWFMJury,
-      viewMode,
-      reason: isWFMJury ? 'WFM_JURY pas en mode JURY' : 'Pas JURY ni WFM_JURY'
-    })
     redirect("/auth/login")
   }
 
@@ -87,13 +57,50 @@ export default async function JuryEvaluationPage({
   })
 
   if (!juryMember) {
-    console.log('🚫 Aucun profil juryMember trouvé')
     redirect("/jury/dashboard")
   }
 
   const candidateId = parseInt(id)
   
-  // Récupérer le candidat avec ses scores face à face POUR LE JURY ACTUEL
+  // Récupérer tous les candidats évaluables pour la navigation
+  const allEvaluableCandidates = await prisma.candidate.findMany({
+    where: {
+      AND: [
+        { availability: 'OUI' },
+        {
+          session: {
+            status: {
+              in: ["PLANIFIED", "IN_PROGRESS"]
+            }
+          }
+        },
+        {
+          OR: [
+            { scores: null },
+            { scores: { statut: 'PRESENT' } }
+          ]
+        }
+      ]
+    },
+    select: {
+      id: true,
+      nom: true,
+      prenom: true
+    },
+    orderBy: {
+      id: 'asc'
+    }
+  })
+
+  // Calculer la position et les candidats précédent/suivant
+  const currentIndex = allEvaluableCandidates.findIndex(c => c.id === candidateId)
+  const currentPosition = currentIndex >= 0 ? currentIndex + 1 : null
+  const totalCandidates = allEvaluableCandidates.length
+  
+  const previousCandidate = currentIndex > 0 ? allEvaluableCandidates[currentIndex - 1] : null
+  const nextCandidate = currentIndex < allEvaluableCandidates.length - 1 ? allEvaluableCandidates[currentIndex + 1] : null
+
+  // Récupérer le candidat actuel avec ses scores
   const candidate = await prisma.candidate.findUnique({
     where: { id: candidateId },
     include: {
@@ -101,7 +108,7 @@ export default async function JuryEvaluationPage({
       scores: {
         select: {
           id: true,
-          statut: true, // ⭐ IMPORTANT: Vérifier ce champ
+          statut: true,
           finalDecision: true,
           evaluatedBy: true
         }
@@ -119,35 +126,26 @@ export default async function JuryEvaluationPage({
   })
 
   if (!candidate) {
-    console.log('🚫 Candidat non trouvé:', candidateId)
     redirect("/jury/evaluations")
   }
 
-  // ⭐ CORRECTION CRITIQUE: Vérifier si le candidat est marqué absent
-  // Utilisez une comparaison de type string pour éviter l'erreur TypeScript
   if (candidate.scores?.statut?.toString() === 'ABSENT') {
-    console.log(`🚫 Jury ${juryMember.id} - Tentative d'accès à candidat ${candidateId} absent`)
     redirect("/jury/evaluations?error=absent")
   }
 
-  // ⭐ Vérifier si le candidat n'est pas disponible
   if (candidate.availability.toString() === 'NON') {
-    console.log(`🚫 Jury ${juryMember.id} - Tentative d'accès à candidat ${candidateId} non disponible`)
     redirect("/jury/evaluations?error=unavailable")
   }
 
   const hasAccess = await canJuryMemberAccessCandidate(juryMember, candidate)
   if (!hasAccess) {
-    console.log(`🚫 Jury ${juryMember.id} - Pas d'accès au candidat ${candidateId}`)
     redirect("/jury/evaluations")
   }
 
   if (!candidate.session || !isSessionActive(candidate.session)) {
-    console.log(`🚫 Session inactive pour le candidat ${candidateId}`)
     redirect("/jury/evaluations")
   }
 
-  // Vérifier Phase Face à Face et Phase Simulation
   const phase1Score = candidate.faceToFaceScores.find(s => s.phase === 1)
   const phase2Score = candidate.faceToFaceScores.find(s => s.phase === 2)
   
@@ -155,13 +153,11 @@ export default async function JuryEvaluationPage({
   const needsSimulation = candidate.metier === 'AGENCES' || candidate.metier === 'TELEVENTE'
   const isReseauxSociaux = candidate.metier === 'RESEAUX_SOCIAUX'
   
-  // 🆕 Récupérer TOUS les scores de phase 1 pour ce candidat (tous les jurys)
+  let allPhase1Scores: { appetenceDigitale: any; juryMemberId: number }[] = []
   let averageAppetenceDigitale = null
   let appetenceDigitaleScoresCount = 0
-  let allPhase1Scores: { appetenceDigitale: any; juryMemberId: number }[] = []
   
   if (isReseauxSociaux) {
-    // Récupérer tous les scores de phase 1 pour ce candidat (tous les jurys)
     allPhase1Scores = await prisma.faceToFaceScore.findMany({
       where: {
         candidateId: candidate.id,
@@ -173,13 +169,6 @@ export default async function JuryEvaluationPage({
       }
     })
 
-    console.log('📊 Debug - Scores récupérés pour la moyenne:', {
-      candidateId: candidate.id,
-      allPhase1ScoresCount: allPhase1Scores.length,
-      allPhase1Scores: allPhase1Scores
-    })
-
-    // Filtrer seulement les scores avec appetenceDigitale non null
     const scoresWithAppetence = allPhase1Scores.filter(score => 
       score.appetenceDigitale !== null && score.appetenceDigitale !== undefined
     )
@@ -187,24 +176,13 @@ export default async function JuryEvaluationPage({
     appetenceDigitaleScoresCount = scoresWithAppetence.length
 
     if (scoresWithAppetence.length > 0) {
-      // Calculer la moyenne
       const total = scoresWithAppetence.reduce((sum, score) => {
         if (score.appetenceDigitale === null) return sum
-        // Convertir en nombre
         const value = Number(score.appetenceDigitale)
-        console.log('📊 Valeur appétence digitale:', value)
         return sum + value
       }, 0)
       
       averageAppetenceDigitale = total / scoresWithAppetence.length
-      
-      console.log('📊 Moyenne calculée:', {
-        total,
-        count: scoresWithAppetence.length,
-        average: averageAppetenceDigitale
-      })
-    } else {
-      console.log('📊 Aucun score avec appétence digitale trouvé')
     }
   }
 
@@ -217,33 +195,34 @@ export default async function JuryEvaluationPage({
   }
   
   const fullName = `${candidate.prenom} ${candidate.nom}`
-
-  // 🆕 Déterminer l'état d'avancement de l'évaluation
   const isFullyEvaluated = needsSimulation 
     ? (phase1Complete && !!phase2Score) 
     : phase1Complete
 
-  // ✅ Déterminer le statut pour l'affichage (évite la répétition)
   const isAbsent = candidate.scores?.statut?.toString() === 'ABSENT'
   const isUnavailable = candidate.availability.toString() === 'NON'
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-cyan-50">
       <DashboardHeader user={session.user} />
       
-      <main className="container mx-auto p-6 space-y-6">
-        <Link href="/jury/evaluations">
-          <Button variant="outline" className="flex items-center my-4 bg-orange-500 text-white hover:bg-orange-600 transition-all duration-200 shadow-md cursor-pointer">
-            <ArrowLeft className="w-4 h-4" />
-            Retour aux évaluations
-          </Button>
-        </Link>
+      <main className="container mx-auto p-6 space-y-6 max-w-6xl">
+        
+        {/* ✅ Barre de navigation (Client Component) */}
+        <NavigationBar
+          previousCandidateId={previousCandidate?.id ?? null}
+          nextCandidateId={nextCandidate?.id ?? null}
+          currentPosition={currentPosition}
+          totalCandidates={totalCandidates}
+        />
 
-        {/* Bannière d'alerte si candidat devrait être exclu (sécurité) */}
+        {/* Bannière d'alerte */}
         {(isAbsent || isUnavailable) && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 mb-6">
+          <div className="bg-gradient-to-r from-red-50 to-pink-50 border-2 border-red-300 rounded-2xl p-6 mb-6 shadow-lg">
             <div className="flex items-center gap-3">
-              <AlertCircle className="w-8 h-8 text-red-600" />
+              <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                <AlertCircle className="w-6 h-6 text-white" />
+              </div>
               <div>
                 <h3 className="font-bold text-red-800 text-lg">
                   {isAbsent ? 'Candidat Absent' : 'Candidat Non Disponible'}
@@ -254,15 +233,12 @@ export default async function JuryEvaluationPage({
                     : 'Ce candidat n\'est pas disponible pour évaluation.'
                   }
                 </p>
-                <p className="text-red-600 text-sm mt-2">
-                  Veuillez retourner à la liste des évaluations.
-                </p>
               </div>
             </div>
           </div>
         )}
 
-        {/*  Message de statut d'évaluation */}
+        {/* Message de statut d'évaluation */}
         <EvaluationStatusBanner
           isFullyEvaluated={isFullyEvaluated}
           phase1Complete={phase1Complete}
@@ -272,151 +248,169 @@ export default async function JuryEvaluationPage({
         />
 
         {/* En-tête candidat */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
-              <User className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800">{fullName}</h1>
-              <p className="text-gray-600 mt-1">Évaluation - {candidate.metier}</p>
-              
-              
-              {/* Indicateur de statut WFM */}
+        <div className="bg-gradient-to-br from-white to-orange-50 rounded-2xl shadow-xl border-2 border-orange-200 p-8">
+          <div className="flex items-start gap-6 mb-6">
+            <div className="relative">
+              <div className="w-20 h-20 bg-gradient-to-br from-orange-500 via-amber-500 to-cyan-500 rounded-2xl flex items-center justify-center shadow-2xl transform hover:scale-105 transition-transform duration-300">
+                <span className="text-white font-bold text-2xl">
+                  {candidate.prenom.charAt(0)}{candidate.nom.charAt(0)}
+                </span>
+              </div>
               {candidate.scores?.statut && (
-                <div className={`inline-flex items-center px-3 py-1 mt-2 ml-2 rounded-full text-sm font-medium ${
-                  candidate.scores.statut.toString() === 'PRESENT' 
-                    ? 'bg-green-100 text-green-700' 
-                    : 'bg-red-100 text-red-700'
-                }`}>
-                  <span className={`w-2 h-2 rounded-full mr-2 ${
-                    candidate.scores.statut.toString() === 'PRESENT' ? 'bg-green-500' : 'bg-red-500'
-                  }`}></span>
-                  {candidate.scores.statut.toString() === 'PRESENT' ? 'Présent' : 'Absent'}
-                </div>
+                <div className={`absolute -bottom-2 -right-2 w-6 h-6 rounded-full border-2 border-white shadow-lg ${
+                  candidate.scores.statut.toString() === 'PRESENT' ? 'bg-green-500' : 'bg-red-500'
+                }`} />
               )}
             </div>
-          </div>
+            
+            <div className="flex-1">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-cyan-600 bg-clip-text text-transparent mb-2">
+                    {fullName}
+                  </h1>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="inline-flex items-center px-4 py-1.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 border-2 border-orange-300 shadow-sm">
+                      <Briefcase className="w-4 h-4 mr-2" />
+                      {candidate.metier}
+                    </span>
+                    {candidate.scores?.statut && (
+                      <span className={`inline-flex items-center px-4 py-1.5 rounded-xl text-sm font-semibold border-2 shadow-sm ${
+                        candidate.scores.statut.toString() === 'PRESENT' 
+                          ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-300' 
+                          : 'bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border-red-300'
+                      }`}>
+                        <span className={`w-2 h-2 rounded-full mr-2 animate-pulse ${
+                          candidate.scores.statut.toString() === 'PRESENT' ? 'bg-green-500' : 'bg-red-500'
+                        }`}></span>
+                        {candidate.scores.statut.toString() === 'PRESENT' ? 'Présent' : 'Absent'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            <div className="flex items-center gap-3 text-gray-700">
-              <Briefcase className="w-5 h-5 text-orange-500" />
-              <div>
-                <p className="text-xs text-gray-500">Métier</p>
-                <p className="font-semibold">{candidate.metier}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-gray-700">
-              <Calendar className="w-5 h-5 text-orange-500" />
-              <div>
-                <p className="text-xs text-gray-500">Âge</p>
-                <p className="font-semibold">{candidate.age} ans</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-gray-700">
-              <GraduationCap className="w-5 h-5 text-orange-500" />
-              <div>
-                <p className="text-xs text-gray-500">Diplôme</p>
-                <p className="font-semibold">{candidate.diploma}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-gray-700">
-              <Building2 className="w-5 h-5 text-orange-500" />
-              <div>
-                <p className="text-xs text-gray-500">Université</p>
-                <p className="font-semibold text-sm">{candidate.institution}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-gray-700">
-              <Mail className="w-5 h-5 text-orange-500" />
-              <div>
-                <p className="text-xs text-gray-500">Email</p>
-                <p className="font-semibold text-sm">{candidate.email || 'N/A'}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-gray-700">
-              <Phone className="w-5 h-5 text-orange-500" />
-              <div>
-                <p className="text-xs text-gray-500">Téléphone</p>
-                <p className="font-semibold">{candidate.phone}</p>
+              {/* Informations candidat en grille */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  { icon: Calendar, label: 'Âge', value: `${candidate.age} ans`, color: 'orange' },
+                  { icon: GraduationCap, label: 'Diplôme', value: candidate.diploma, color: 'cyan' },
+                  { icon: Building2, label: 'Université', value: candidate.institution, color: 'orange' },
+                  { icon: MapPin, label: 'Localisation', value: candidate.location, color: 'cyan' },
+                  { icon: Mail, label: 'Email', value: candidate.email || 'N/A', color: 'orange' },
+                  { icon: Phone, label: 'Téléphone', value: candidate.phone, color: 'cyan' },
+                ].map(({ icon: Icon, label, value, color }, index) => (
+                  <div 
+                    key={index} 
+                    className={`group p-4 rounded-xl border-2 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
+                      color === 'orange' 
+                        ? 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200 hover:border-orange-400' 
+                        : 'bg-gradient-to-br from-cyan-50 to-blue-50 border-cyan-200 hover:border-cyan-400'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform duration-300 group-hover:scale-110 ${
+                        color === 'orange' 
+                          ? 'bg-gradient-to-br from-orange-500 to-amber-500' 
+                          : 'bg-gradient-to-br from-cyan-500 to-blue-500'
+                      }`}>
+                        <Icon className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-gray-500 font-medium mb-1">{label}</p>
+                        <p className="font-semibold text-gray-800 text-sm truncate">{value}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
           {/* Indicateur de phases */}
-          <div className="space-y-3">
-            <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
-              <div className="flex items-center justify-between">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+            <div className={`p-5 rounded-2xl border-2 transition-all duration-300 ${
+              phase1Complete 
+                ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300 shadow-lg' 
+                : 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-300'
+            }`}>
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">1</span>
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transform transition-transform duration-300 hover:scale-110 ${
+                    phase1Complete 
+                      ? 'bg-gradient-to-br from-green-500 to-emerald-500' 
+                      : 'bg-gradient-to-br from-orange-500 to-amber-500'
+                  }`}>
+                    <span className="text-white font-bold text-lg">1</span>
                   </div>
                   <div>
-                    <p className="font-semibold text-orange-800">🎯 Phase Face-à-Face</p>
-                   
+                    <p className={`font-bold text-lg ${
+                      phase1Complete ? 'text-green-800' : 'text-orange-800'
+                    }`}>
+                      Phase Face-à-Face
+                    </p>
+                    <p className="text-xs text-gray-600">Évaluation initiale</p>
                   </div>
                 </div>
                 {phase1Complete && (
-                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg font-semibold text-sm">
-                    ✅ Complétée
-                  </span>
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-xl shadow-sm">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-sm font-semibold text-green-700">Complétée</span>
+                  </div>
                 )}
               </div>
             </div>
 
             {needsSimulation && (
-              <div className={`p-4 border rounded-xl ${
+              <div className={`p-5 rounded-2xl border-2 transition-all duration-300 ${
                 canDoPhase2 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-gray-50 border-gray-200 opacity-60'
+                  ? 'bg-gradient-to-br from-cyan-50 to-blue-50 border-cyan-300 shadow-lg' 
+                  : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-300 opacity-75'
               }`}>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      canDoPhase2 ? 'bg-green-500' : 'bg-gray-400'
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg transform transition-transform duration-300 ${
+                      canDoPhase2 
+                        ? 'bg-gradient-to-br from-cyan-500 to-blue-500 hover:scale-110' 
+                        : 'bg-gradient-to-br from-gray-400 to-slate-400'
                     }`}>
-                      <span className="text-white font-bold text-sm">2</span>
+                      <span className="text-white font-bold text-lg">2</span>
                     </div>
                     <div>
-                      <p className={`font-semibold ${
-                        canDoPhase2 ? 'text-green-800' : 'text-gray-600'
+                      <p className={`font-bold text-lg ${
+                        canDoPhase2 ? 'text-cyan-800' : 'text-gray-600'
                       }`}>
-                        🎭 Phase Simulation 
+                        Phase Simulation
                       </p>
-                      <p className={`text-sm ${
-                        canDoPhase2 ? 'text-green-700' : 'text-gray-500'
-                      }`}>
+                      <p className="text-xs text-gray-600">
                         {canDoPhase2 
-                          ? 'Disponible - Moyennes validées ✅' 
+                          ? 'Disponible maintenant' 
                           : !phase1Complete
-                            ? 'Complétez Phase Face à Face d\'abord'
-                            : unlockStatus && unlockStatus.missingConditions && unlockStatus.missingConditions.length > 0
-                              ? 'Conditions de déblocage manquantes'
-                              : 'En attente de validation'
+                            ? 'Complétez Phase 1 d\'abord'
+                            : 'En attente de validation'
                         }
                       </p>
                     </div>
                   </div>
                   {phase2Score && (
-                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-lg font-semibold text-sm">
-                      ✅ Complétée
-                    </span>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-xl shadow-sm">
+                      <CheckCircle className="w-4 h-4 text-cyan-600" />
+                      <span className="text-sm font-semibold text-cyan-700">Complétée</span>
+                    </div>
                   )}
                 </div>
                 
                 {!canDoPhase2 && phase1Complete && unlockStatus && unlockStatus.missingConditions && unlockStatus.missingConditions.length > 0 && (
-                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm font-medium text-yellow-800 mb-1">
-                      ⚠️ Conditions pour débloquer la simulation :
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p className="text-sm font-medium text-amber-800 mb-2 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      Conditions pour débloquer :
                     </p>
-                    <ul className="text-xs text-yellow-700 list-disc pl-4 space-y-1">
+                    <ul className="text-xs text-amber-700 list-disc pl-5 space-y-1">
                       {unlockStatus.missingConditions.map((condition, index) => (
                         <li key={index}>{condition}</li>
                       ))}
                     </ul>
-                    <p className="text-xs text-yellow-600 mt-2 italic">
-                      Note : Seules les moyennes comptent pour le déblocage, pas les décisions individuelles.
-                    </p>
                   </div>
                 )}
               </div>
@@ -425,7 +419,7 @@ export default async function JuryEvaluationPage({
         </div>
 
         {/* Formulaire d'évaluation */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
+        <div className="bg-white rounded-2xl shadow-xl border-2 border-orange-200 p-8">
           <JuryScoreForm 
             candidate={{
               id: candidate.id,
@@ -439,144 +433,102 @@ export default async function JuryEvaluationPage({
             }}
             phase1Complete={phase1Complete}
             canDoPhase2={canDoPhase2}
+            // Props de navigation
+            nextCandidateId={nextCandidate?.id || null}
+            previousCandidateId={previousCandidate?.id || null}
+            currentPosition={currentPosition}
+            totalCandidates={totalCandidates}
           />
         </div>
 
         {/* Affichage des évaluations existantes */}
         {(phase1Score || phase2Score) && (
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Vos évaluations</h2>
+          <div className="bg-gradient-to-br from-white to-cyan-50 rounded-2xl shadow-xl border-2 border-cyan-200 p-8">
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-cyan-600 bg-clip-text text-transparent mb-6">
+              Vos évaluations
+            </h2>
             
-            {/* Phase Face à Face */} 
             {phase1Score && (
               <div className="mb-6">
                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
-                    <span className="text-white font-bold text-xs">1</span>
+                  <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center shadow-md">
+                    <span className="text-white font-bold text-sm">1</span>
                   </div>
                   Phase Face à Face 
                 </h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  {/* ✅ Pour AGENCES : Présentation visuelle */}
                   {candidate.metier === 'AGENCES' && phase1Score.presentationVisuelle && (
-                    <div className="p-4 bg-gray-50 rounded-xl">
-                      <p className="text-sm text-gray-600 mb-2">Présentation visuelle</p>
-                      <p className="text-2xl font-bold text-gray-800">
-                        {Number(phase1Score.presentationVisuelle).toFixed(2)} / 5
+                    <div className="p-5 bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200 hover:shadow-lg transition-all duration-300">
+                      <p className="text-sm text-orange-600 mb-2 font-semibold">Présentation visuelle</p>
+                      <p className="text-3xl font-bold text-orange-800">
+                        {Number(phase1Score.presentationVisuelle).toFixed(2)} <span className="text-lg text-orange-600">/ 5</span>
                       </p>
                     </div>
                   )}
                   
-                  <div className="p-4 bg-gray-50 rounded-xl">
-                    <p className="text-sm text-gray-600 mb-2">Communication verbale</p>
-                    <p className="text-2xl font-bold text-gray-800">
-                      {Number(phase1Score.verbalCommunication).toFixed(2)} / 5
-                    </p>
-                  </div>
-                  <div className="p-4 bg-gray-50 rounded-xl">
-                    <p className="text-sm text-gray-600 mb-2">Qualité de la voix</p>
-                    <p className="text-2xl font-bold text-gray-800">
-                      {Number(phase1Score.voiceQuality).toFixed(2)} / 5
+                  <div className="p-5 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl border-2 border-cyan-200 hover:shadow-lg transition-all duration-300">
+                    <p className="text-sm text-cyan-600 mb-2 font-semibold">Communication verbale</p>
+                    <p className="text-3xl font-bold text-cyan-800">
+                      {Number(phase1Score.verbalCommunication).toFixed(2)} <span className="text-lg text-cyan-600">/ 5</span>
                     </p>
                   </div>
                   
-                  {/* ✅ Pour RESEAUX_SOCIAUX : Appétence digitale individuelle */}
+                  <div className="p-5 bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200 hover:shadow-lg transition-all duration-300">
+                    <p className="text-sm text-orange-600 mb-2 font-semibold">Qualité de la voix</p>
+                    <p className="text-3xl font-bold text-orange-800">
+                      {Number(phase1Score.voiceQuality).toFixed(2)} <span className="text-lg text-orange-600">/ 5</span>
+                    </p>
+                  </div>
+                  
                   {isReseauxSociaux && (
-                    <div className="p-4 bg-gray-50 rounded-xl ">
-                      <p className="text-sm text-gray-600 mb-2 font-semibold flex items-center gap-2">
+                    <div className="p-5 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border-2 border-purple-200 hover:shadow-lg transition-all duration-300">
+                      <p className="text-sm text-purple-600 mb-2 font-semibold flex items-center gap-2">
                         <span>🌐</span>
-                         Appétence digitale
+                        Appétence digitale
                       </p>
-                      <p className="text-2xl font-bold text-gray-800">
+                      <p className="text-3xl font-bold text-purple-800">
                         {phase1Score.appetenceDigitale 
                           ? `${Number(phase1Score.appetenceDigitale).toFixed(2)} / 5`
                           : "Non noté"}
                       </p>
-                      {!phase1Score.appetenceDigitale && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Cette note n'a pas encore été attribuée
-                        </p>
-                      )}
                     </div>
                   )}
                 </div>
 
-                {/* 🆕 Affichage de la moyenne d'appétence digitale pour RESEAUX_SOCIAUX */}
-                {/* {isReseauxSociaux && averageAppetenceDigitale !== null && (
-                  <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border-2 border-purple-300">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-purple-700 mb-2 font-semibold flex items-center gap-2">
-                          <span className="text-lg">📊</span>
-                          Moyenne d'appétence digitale (tous les jurys)
-                        </p>
-                        <p className="text-3xl font-bold text-purple-800">
-                          {averageAppetenceDigitale.toFixed(2)} / 5
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <div className={`text-xs px-2 py-1 rounded ${
-                            averageAppetenceDigitale >= 3 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {averageAppetenceDigitale >= 3 ? '✅ Seuil atteint' : '⚠️ En dessous du seuil'}
-                          </div>
-                          <p className="text-xs text-purple-500">
-                            Seuil minimum: 3/5
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
-                          <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
-                          Moyenne globale
-                        </div>
-                        <p className="text-xs text-purple-500 mt-2">
-                          Basée sur {appetenceDigitaleScoresCount} évaluation(s)
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )} */}
-
-                {/* Message si aucun autre jury n'a noté l'appétence digitale */}
-                {isReseauxSociaux && averageAppetenceDigitale === null && phase1Score.appetenceDigitale && (
-                  <div className="mt-4 p-4 bg-blue-50 rounded-xl border-2 border-blue-200">
-                    <p className="text-sm text-blue-700 font-semibold mb-2">
-                      ℹ️ Information sur l'appétence digitale
-                    </p>
-                    <p className="text-blue-600">
-                      Vous êtes le premier jury à noter l'appétence digitale pour ce candidat.
-                    </p>
-                    <p className="text-xs text-blue-500 mt-2">
-                      La moyenne sera disponible lorsque d'autres jurys auront évalué ce critère.
-                    </p>
-                  </div>
-                )}
-
-                <div className={`p-4 rounded-xl border-2 ${
+                <div className={`p-5 rounded-2xl border-2 transition-all duration-300 ${
                   phase1Score.decision === 'FAVORABLE' 
-                    ? 'bg-green-50 border-green-200' 
-                    : 'bg-red-50 border-red-200'
+                    ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300 shadow-lg' 
+                    : 'bg-gradient-to-br from-red-50 to-pink-50 border-red-300 shadow-lg'
                 }`}>
                   <div className="flex items-center justify-between">
-                    <p className="font-semibold text-gray-700">Votre décision</p>
-                    <p className={`text-xl font-bold ${
-                      phase1Score.decision === 'FAVORABLE' ? 'text-green-600' : 'text-red-600'
+                    <p className="font-semibold text-gray-700 text-lg">Votre décision</p>
+                    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl ${
+                      phase1Score.decision === 'FAVORABLE' 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-red-100 text-red-700'
                     }`}>
-                      {phase1Score.decision === 'FAVORABLE' ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
-                    </p>
+                      {phase1Score.decision === 'FAVORABLE' ? (
+                        <CheckCircle className="w-5 h-5" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5" />
+                      )}
+                      <span className="text-xl font-bold">
+                        {phase1Score.decision === 'FAVORABLE' ? 'FAVORABLE' : 'DÉFAVORABLE'}
+                      </span>
+                    </div>
                   </div>
                 </div>
+                
                 {phase1Score.comments && (
-                  <div className="mt-4 p-4 bg-gray-50 rounded-xl">
+                  <div className="mt-4 p-5 bg-gray-50 rounded-2xl border-2 border-gray-200">
                     <p className="text-sm text-gray-600 mb-2 font-semibold">Commentaires</p>
-                    <p className="text-gray-700">{phase1Score.comments}</p>
+                    <p className="text-gray-700 leading-relaxed">{phase1Score.comments}</p>
                   </div>
                 )}
 
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-gray-500 mt-3 flex items-center gap-2">
+                  <Calendar className="w-3 h-3" />
                   Évalué le {new Date(phase1Score.evaluatedAt).toLocaleDateString('fr-FR', {
                     day: 'numeric',
                     month: 'long',
@@ -588,60 +540,69 @@ export default async function JuryEvaluationPage({
               </div>
             )}
 
-            {/* Phase simulation */}
             {phase2Score && (
               <div>
                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                    <span className="text-white font-bold text-xs">2</span>
+                  <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-xl flex items-center justify-center shadow-md">
+                    <span className="text-white font-bold text-sm">2</span>
                   </div>
                   Phase Simulation 
                 </h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div className="p-4 bg-gray-50 rounded-xl">
-                    <p className="text-sm text-gray-600 mb-2">Sens négociation</p>
-                    <p className="text-2xl font-bold text-gray-800">
-                      {Number(phase2Score.simulationSensNegociation).toFixed(2)} / 5
+                  <div className="p-5 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl border-2 border-cyan-200 hover:shadow-lg transition-all duration-300">
+                    <p className="text-sm text-cyan-600 mb-2 font-semibold">Sens négociation</p>
+                    <p className="text-3xl font-bold text-cyan-800">
+                      {Number(phase2Score.simulationSensNegociation).toFixed(2)} <span className="text-lg text-cyan-600">/ 5</span>
                     </p>
                   </div>
-                  <div className="p-4 bg-gray-50 rounded-xl">
-                    <p className="text-sm text-gray-600 mb-2">Capacité persuasion</p>
-                    <p className="text-2xl font-bold text-gray-800">
-                      {Number(phase2Score.simulationCapacitePersuasion).toFixed(2)} / 5
+                  <div className="p-5 bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200 hover:shadow-lg transition-all duration-300">
+                    <p className="text-sm text-orange-600 mb-2 font-semibold">Capacité persuasion</p>
+                    <p className="text-3xl font-bold text-orange-800">
+                      {Number(phase2Score.simulationCapacitePersuasion).toFixed(2)} <span className="text-lg text-orange-600">/ 5</span>
                     </p>
                   </div>
-                  <div className="p-4 bg-gray-50 rounded-xl">
-                    <p className="text-sm text-gray-600 mb-2">Sens combativité</p>
-                    <p className="text-2xl font-bold text-gray-800">
-                      {Number(phase2Score.simulationSensCombativite).toFixed(2)} / 5
+                  <div className="p-5 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl border-2 border-cyan-200 hover:shadow-lg transition-all duration-300">
+                    <p className="text-sm text-cyan-600 mb-2 font-semibold">Sens combativité</p>
+                    <p className="text-3xl font-bold text-cyan-800">
+                      {Number(phase2Score.simulationSensCombativite).toFixed(2)} <span className="text-lg text-cyan-600">/ 5</span>
                     </p>
                   </div>
                 </div>
 
-                <div className={`p-4 rounded-xl border-2 ${
+                <div className={`p-5 rounded-2xl border-2 transition-all duration-300 ${
                   phase2Score.decision === 'FAVORABLE' 
-                    ? 'bg-green-50 border-green-200' 
-                    : 'bg-red-50 border-red-200'
+                    ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300 shadow-lg' 
+                    : 'bg-gradient-to-br from-red-50 to-pink-50 border-red-300 shadow-lg'
                 }`}>
                   <div className="flex items-center justify-between">
-                    <p className="font-semibold text-gray-700">Décision</p>
-                    <p className={`text-xl font-bold ${
-                      phase2Score.decision === 'FAVORABLE' ? 'text-green-600' : 'text-red-600'
+                    <p className="font-semibold text-gray-700 text-lg">Décision</p>
+                    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl ${
+                      phase2Score.decision === 'FAVORABLE' 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-red-100 text-red-700'
                     }`}>
-                      {phase2Score.decision === 'FAVORABLE' ? '✅ FAVORABLE' : '❌ DÉFAVORABLE'}
-                    </p>
+                      {phase2Score.decision === 'FAVORABLE' ? (
+                        <CheckCircle className="w-5 h-5" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5" />
+                      )}
+                      <span className="text-xl font-bold">
+                        {phase2Score.decision === 'FAVORABLE' ? 'FAVORABLE' : 'DÉFAVORABLE'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
                 {phase2Score.comments && (
-                  <div className="mt-4 p-4 bg-gray-50 rounded-xl">
+                  <div className="mt-4 p-5 bg-gray-50 rounded-2xl border-2 border-gray-200">
                     <p className="text-sm text-gray-600 mb-2 font-semibold">Commentaires</p>
-                    <p className="text-gray-700">{phase2Score.comments}</p>
+                    <p className="text-gray-700 leading-relaxed">{phase2Score.comments}</p>
                   </div>
                 )}
 
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-gray-500 mt-3 flex items-center gap-2">
+                  <Calendar className="w-3 h-3" />
                   Évalué le {new Date(phase2Score.evaluatedAt).toLocaleDateString('fr-FR', {
                     day: 'numeric',
                     month: 'long',
@@ -656,8 +617,7 @@ export default async function JuryEvaluationPage({
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t mt-8 py-4">
+      <footer className="border-t mt-8 py-4 bg-white">
         <div className="container mx-auto px-6 text-center text-muted-foreground text-sm">
           © {new Date().getFullYear()} Orange Côte d'Ivoire. Developed by okd_dev. All rights reserved.
         </div>

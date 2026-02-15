@@ -57,7 +57,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       },
       excel: {
         required: true,
-        minScore: 3, // ✅ CORRECTION: /5 et non /20
+        minScore: 3, // ✅ CORRECTION: /5 
       },
       dictation: {
         required: true,
@@ -65,7 +65,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       },
     },
   },
-  
+
   [Metier.AGENCES]: {
     label: 'Agences',
     criteria: {
@@ -91,7 +91,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       },
     },
   },
-  
+
   [Metier.BO_RECLAM]: {
     label: 'BO Réclam',
     criteria: {
@@ -119,7 +119,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       },
     },
   },
-  
+
   [Metier.TELEVENTE]: {
     label: 'Télévente',
     criteria: {
@@ -144,7 +144,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       },
     },
   },
-  
+
   [Metier.RESEAUX_SOCIAUX]: {
     label: 'Réseaux Sociaux',
     criteria: {
@@ -164,7 +164,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       },
     },
   },
-  
+
   [Metier.SUPERVISION]: {
     label: 'Supervision',
     criteria: {
@@ -187,7 +187,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       },
     },
   },
-  
+
   [Metier.BOT_COGNITIVE_TRAINER]: {
     label: 'Bot Cognitive Trainer',
     criteria: {
@@ -209,7 +209,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       },
     },
   },
-  
+
   [Metier.SMC_FIXE]: {
     label: 'SMC Fixe',
     criteria: {
@@ -232,7 +232,7 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       },
     },
   },
-  
+
   [Metier.SMC_MOBILE]: {
     label: 'SMC Mobile',
     criteria: {
@@ -255,6 +255,33 @@ export const metierConfig: Record<Metier, MetierConfig> = {
       },
     },
   },
+ 
+  [Metier.RECOUVREMENT]:{
+
+    label : "Recouvrement",
+    criteria:{
+      faceToFace:{
+        voiceQuality:true,
+        verbalCommunication : true,
+      },
+      typing : {
+        required : true,
+        minSpeed : 17,
+        minAccuracy : 75,
+      },
+      excel:{
+        required : true,
+        minScore: 3,
+
+      },
+      dictation:{
+        required : true,
+        minScore:14,
+
+      },
+    }
+
+  }
 };
 
 // Helper pour obtenir la config d'un métier

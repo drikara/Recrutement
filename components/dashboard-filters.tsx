@@ -30,7 +30,8 @@ const metiers = [
   { value: "SUPERVISION", label: "Supervision" },
   { value: "BOT_COGNITIVE_TRAINER", label: "Bot Cognitive Trainer" },
   { value: "SMC_FIXE", label: "SMC Fixe" },
-  { value: "SMC_MOBILE", label: "SMC Mobile" }
+  { value: "SMC_MOBILE", label: "SMC Mobile" },
+  { value : "RECOUVREMENT", label :"Recouvrement"},
 ]
 
 const months = [

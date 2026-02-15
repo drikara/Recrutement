@@ -2,7 +2,7 @@ import { Metier, JuryRoleType, SessionStatus } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 
 /**
- * ⭐ Vérifie si un jury est assigné à la session d'un candidat
+ * Vérifie si un jury est assigné à la session d'un candidat
  */
 export async function isJuryAssignedToCandidateSession(
   juryMemberId: number, 
@@ -30,7 +30,7 @@ export async function isJuryAssignedToCandidateSession(
 }
 
 /**
- * ⭐ Vérifie si un jury peut accéder à un candidat
+ * Vérifie si un jury peut accéder à un candidat
  * 
  * NOUVELLES RÈGLES:
  * 1. Les candidats NON disponibles ne sont JAMAIS visibles
@@ -39,13 +39,13 @@ export async function isJuryAssignedToCandidateSession(
  * 4. REPRESENTANT_METIER ne voit QUE les candidats de sa spécialité
  */
 export async function canJuryMemberAccessCandidate(juryMember: any, candidate: any): Promise<boolean> {
-  // ⭐⭐ RÈGLE 1: Les jurys ne peuvent voir que les candidats disponibles
+  // RÈGLE 1: Les jurys ne peuvent voir que les candidats disponibles
   if (candidate.availability === 'NON') {
     console.log(`❌ Jury ${juryMember.fullName} - Candidat ${candidate.id} NON disponible`)
     return false
   }
 
-  // ⭐⭐ RÈGLE 2: Le jury doit être assigné à la session du candidat
+  // RÈGLE 2: Le jury doit être assigné à la session du candidat
   if (candidate.sessionId) {
     const isAssigned = await isJuryAssignedToCandidateSession(
       juryMember.id, 
@@ -62,18 +62,18 @@ export async function canJuryMemberAccessCandidate(juryMember: any, candidate: a
     return false
   }
 
-  // ⭐⭐ RÈGLE 3: DRH, EPC, WFM_JURY, FORMATEUR voient TOUS les candidats disponibles
-  if (["DRH", "EPC", "FORMATEUR", "WFM_JURY"].includes(juryMember.roleType)) {
+  // RÈGLE 3: DRH, EPC, WFM_JURY, FORMATEUR voient TOUS les candidats disponibles
+  if (["DRH", "EPC", "FORMATEUR", "WFM_JURY","RECOUVREMENT"].includes(juryMember.roleType)) {
     console.log(`✅ Jury ${juryMember.fullName} (${juryMember.roleType}) - Accès autorisé (rôle global)`)
     return true
   }
 
-  // ⭐⭐ RÈGLE 4: REPRESENTANT_METIER ne voit QUE les candidats de sa spécialité
+  // RÈGLE 4: REPRESENTANT_METIER ne voit QUE les candidats de sa spécialité
   if (juryMember.roleType === "REPRESENTANT_METIER") {
     const jurySpecialite = juryMember.specialite
     const candidateMetier = candidate.metier
     
-    // ⚠️ VÉRIFICATION: S'assurer que specialite n'est pas null/undefined
+    // VÉRIFICATION: S'assurer que specialite n'est pas null/undefined
     if (!jurySpecialite) {
       console.warn(`⚠️ Jury ${juryMember.fullName} n'a pas de spécialité définie!`)
       return false
@@ -124,7 +124,7 @@ export function canJuryEvaluate(session: any): boolean {
 }
 
 /**
- * ⭐ Filtre les candidats qu'un jury peut voir
+ * Filtre les candidats qu'un jury peut voir
  * 
  * Cette fonction applique TOUS les filtres:
  * - Disponibilité du candidat (OUI uniquement)

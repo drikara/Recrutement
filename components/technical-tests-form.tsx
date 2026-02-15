@@ -157,7 +157,7 @@ export function TechnicalTestsForm({ candidateId, existingScores, candidateMetie
                   className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                   min="0"
                   max="100"
-                  step="0.1"
+                  step="0"
                   required={isTestRequired('typing')}
                 />
               </div>
@@ -187,7 +187,7 @@ export function TechnicalTestsForm({ candidateId, existingScores, candidateMetie
                 className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                 min="0"
                 max="5"
-                step="0.5"
+                step="0"
                 required={isTestRequired('excel')}
                 placeholder="Note sur 5"
               />
@@ -217,7 +217,7 @@ export function TechnicalTestsForm({ candidateId, existingScores, candidateMetie
                 className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                 min="0"
                 max="20"
-                step="0.5"
+                step="0"
                 required={isTestRequired('dictation')}
                 placeholder="Note sur 20"
               />
@@ -246,7 +246,7 @@ export function TechnicalTestsForm({ candidateId, existingScores, candidateMetie
                   className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                   min="0"
                   max="5"
-                  step="0.5"
+                  step="0"
                   required={isTestRequired('simulation')}
                 />
               </div>
@@ -261,7 +261,7 @@ export function TechnicalTestsForm({ candidateId, existingScores, candidateMetie
                   className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                   min="0"
                   max="5"
-                  step="0.5"
+                  step="0"
                   required={isTestRequired('simulation')}
                 />
               </div>
@@ -276,7 +276,7 @@ export function TechnicalTestsForm({ candidateId, existingScores, candidateMetie
                   className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                   min="0"
                   max="5"
-                  step="0.5"
+                  step="0"
                   required={isTestRequired('simulation')}
                 />
               </div>
@@ -291,7 +291,7 @@ export function TechnicalTestsForm({ candidateId, existingScores, candidateMetie
                   className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                   min="0"
                   max="5"
-                  step="0.5"
+                  step="0"
                   required={isTestRequired('simulation')}
                 />
               </div>
@@ -320,7 +320,7 @@ export function TechnicalTestsForm({ candidateId, existingScores, candidateMetie
                   className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                   min="0"
                   max="5"
-                  step="0.5"
+                  step="0"
                   required={isTestRequired('psycho')}
                 />
               </div>
@@ -335,7 +335,7 @@ export function TechnicalTestsForm({ candidateId, existingScores, candidateMetie
                   className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                   min="0"
                   max="5"
-                  step="0.5"
+                  step="0"
                   required={isTestRequired('psycho')}
                 />
               </div>
@@ -350,7 +350,7 @@ export function TechnicalTestsForm({ candidateId, existingScores, candidateMetie
                   className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                   min="0"
                   max="10"
-                  step="0.5"
+                  step="0"
                   required={isTestRequired('psycho')}
                 />
               </div>
@@ -380,7 +380,7 @@ export function TechnicalTestsForm({ candidateId, existingScores, candidateMetie
                 className="w-full p-3 border-2 border-orange-200 focus:border-orange-400 focus:ring-orange-200 rounded-xl bg-white transition-colors"
                 min="0"
                 max="10"
-                step="0.5"
+                step="0"
                 required={isTestRequired('analysis')}
                 placeholder="Note sur 10"
               />

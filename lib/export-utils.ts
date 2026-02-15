@@ -10,7 +10,8 @@ const metierTechnicalColumns: Record<Metier, string[]> = {
   [Metier.SUPERVISION]: ['Rapidité de Saisie (MPM)', 'Précision de Saisie (%)', 'Test Excel (/5)', 'Dictée (/20)'],
   [Metier.BOT_COGNITIVE_TRAINER]: ['Test Excel (/5)', 'Dictée (/20)', 'Capacité d\'Analyse (/10)'],
   [Metier.SMC_FIXE]: ['Rapidité de Saisie (MPM)', 'Précision de Saisie (%)', 'Test Excel (/5)', 'Dictée (/20)'],
-  [Metier.SMC_MOBILE]: ['Rapidité de Saisie (MPM)', 'Précision de Saisie (%)', 'Test Excel (/5)', 'Dictée (/20)']
+  [Metier.SMC_MOBILE]: ['Rapidité de Saisie (MPM)', 'Précision de Saisie (%)', 'Test Excel (/5)', 'Dictée (/20)'],
+  [Metier.RECOUVREMENT]:["Rapidité de saisie (MPM)", "Précision de saisie (%)", "Test Excel (/5)", "Dictée (/20)"],
 }
 
 // Mapping des colonnes techniques vers les champs du score
@@ -84,7 +85,7 @@ export function generateSessionExport(session: any): { csv: string; filename: st
   
   const exportableCandidates = session.candidates || []
   
-  console.log(`📊 Export CSV session ${metier} par ${creatorName}: ${exportableCandidates.length} candidats`)
+  console.log(`Export CSV session ${metier} par ${creatorName}: ${exportableCandidates.length} candidats`)
   
   // ----- En-têtes (NOUVELLE ORGANISATION) -----
   const baseHeaders = [

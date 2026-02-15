@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     
-    console.log('📝 POST /api/scores - Données reçues:', {
+    console.log('POST /api/scores - Données reçues:', {
       candidateId: body.candidateId,
       statut: body.statut,
       voice_quality: body.voice_quality,
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       select: { evaluatedBy: true }
     })
 
-    console.log('📖 Score existant - Évalué par:', existingScore?.evaluatedBy || 'Aucun évaluateur enregistré')
+    console.log(' Score existant - Évalué par:', existingScore?.evaluatedBy || 'Aucun évaluateur enregistré')
 
     // Validation du candidat
     const candidate = await prisma.candidate.findUnique({
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Candidat non trouvé' }, { status: 404 })
     }
 
-    console.log('✅ Candidat trouvé:', candidate.nom, candidate.prenom, '- Métier:', candidate.metier)
+    console.log(' Candidat trouvé:', candidate.nom, candidate.prenom, '- Métier:', candidate.metier)
 
     const metier = candidate.metier
     const isAgences = metier === 'AGENCES'
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     // ✅ CORRECTION CRITIQUE: Si le candidat est absent, TOUT METTRE À NULL
     if (body.statut === 'ABSENT') {
-      console.log('📊 Candidat absent -> toutes les notes null, toutes les décisions null')
+      console.log(' Candidat absent -> toutes les notes null, toutes les décisions null')
       
       const absentData: any = {
         candidateId: body.candidateId,
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
       phase1FfDecision = 'DEFAVORABLE'
       decisionTest = 'DEFAVORABLE'
       finalDecision = 'NON_RECRUTE'
-      console.log('📊 Décision Finale: NON_RECRUTE (candidat non disponible)')
+      console.log(' Décision Finale: NON_RECRUTE (candidat non disponible)')
     } else {
       // Calcul de la phase 1
       const voiceQuality = parseFloat(body.voice_quality) || 0
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
           (appetenceDigitale || 0) >= 3
         ) ? 'FAVORABLE' : 'DEFAVORABLE'
         
-        console.log('📊 Validation Phase 1 RESEAUX_SOCIAUX:', {
+        console.log('Validation Phase 1 RESEAUX_SOCIAUX:', {
           voiceQuality,
           verbalCommunication,
           appetenceDigitale,
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
         ) ? 'FAVORABLE' : 'DEFAVORABLE'
       }
 
-      console.log('📊 Décision Phase 1 (Face-à-Face):', phase1FfDecision)
+      console.log('Décision Phase 1 (Face-à-Face):', phase1FfDecision)
 
       // ✅ CALCUL DE LA DÉCISION DES TESTS TECHNIQUES
       if (phase1FfDecision === 'FAVORABLE') {

@@ -335,7 +335,7 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
             })
             return (
               <option key={session.id} value={session.id}>
-                {session.metier} - {formattedDate} ({session.candidatCount} candidats) - {session.status}
+                {session.metier} - {formattedDate} ({session.candidatCount} candidat(s)) - {session.status}
               </option>
             )
           })}
@@ -343,7 +343,7 @@ export function ExportPanel({ sessions, metiers }: ExportPanelProps) {
         {selectedSession && (
           <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-700">
-              Cette session contient {filteredSessions.find(s => s.id === selectedSession)?.candidatCount || 0} candidats.
+              Cette session contient {filteredSessions.find(s => s.id === selectedSession)?.candidatCount || 0} candidat(s).
              
             </p>
           

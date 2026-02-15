@@ -119,7 +119,7 @@ export function StatutForm({ candidateId, currentStatut, currentComment, onSucce
               placeholder={
                 statut === 'ABSENT' 
                   ? "Veuillez justifier l'absence (obligatoire)..." 
-                  : "Commentaire optionnelÉtablissement pour la présence..."
+                  : "Commentaire optionnel..."
               }
               className="border-2 border-indigo-200 focus:border-indigo-400 focus:ring-indigo-200 rounded-xl p-3 resize-none"
               rows={4}

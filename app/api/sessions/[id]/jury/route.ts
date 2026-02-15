@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params
-    console.log('📖 GET /api/sessions/[id]/jury - Session ID:', id)
+    console.log('GET /api/sessions/[id]/jury - Session ID:', id)
 
     const juryPresences = await prisma.juryPresence.findMany({
       where: { sessionId: id },
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { id } = await params
     const body = await request.json()
     
-    // ✅ Accepter les deux formats : juryMemberId (single) ou juryMemberIds (array)
+    // Accepter les deux formats : juryMemberId (single) ou juryMemberIds (array)
     let juryMemberIds: number[]
     
     if (body.juryMemberId) {
