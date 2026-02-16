@@ -9,20 +9,27 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
   secret: process.env.BETTER_AUTH_SECRET!,
-  baseURL: process.env.BETTER_AUTH_URL || "https://consolidations-notes-1.vercel.app",
+  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
   
   trustedOrigins: [
-    "https://consolidations-notes-1.vercel.app",
-    "https://consolidations-notes-1-*.vercel.app",
+    "https://recrutementest.vercel.app",
+    "https://recrutementest-*.vercel.app", // ✅ Correction du wildcard
     "http://localhost:3000",
+    "http://127.0.0.1:3000",
   ],
+  
+  // ✅ DÉSACTIVER LE RATE LIMITING EN DÉVELOPPEMENT
+  rateLimit: {
+    enabled: process.env.NODE_ENV === "production",
+    window: 60, // 60 secondes
+    max: 10, // 10 requêtes max
+  },
   
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
     minPasswordLength: 8,
     maxPasswordLength: 128,
-    // ✅ CONFIGURATION BCRYPT - CRITIQUE!
     password: {
       hash: async (password: string) => {
         return await bcrypt.hash(password, 10)
@@ -59,7 +66,7 @@ export const auth = betterAuth({
   advanced: {
     cookiePrefix: "better-auth",
     crossSubDomainCookies: {
-      enabled: true,
+      enabled: false, // ✅ Désactiver en dev local
     },
     useSecureCookies: process.env.NODE_ENV === "production",
     generateSchema: false,
