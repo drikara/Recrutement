@@ -87,10 +87,12 @@ model RecruitmentSession {
   updatedAt     DateTime       @updatedAt @map("updated_at")
   createdById   String?        @map("created_by_id")
   agenceType    AgenceType?    @map("agence_type")
-  candidates    Candidate[]
-  exportLogs    ExportLog[]
-  juryPresences JuryPresence[]
-  createdBy     User?          @relation("SessionCreatedBy", fields: [createdById], references: [id])
+  candidateSessions CandidateSession[]
+  scores            Score[]
+  faceToFaceScores  FaceToFaceScore[]
+  exportLogs        ExportLog[]
+  juryPresences     JuryPresence[]
+  createdBy         User?          @relation("SessionCreatedBy", fields: [createdById], references: [id])
 
   @@index([metier])
   @@index([date])
@@ -116,17 +118,15 @@ model Candidate {
   availability      Disponibilite
   interviewDate     DateTime            @map("interview_date") @db.Date
   metier            Metier
-  sessionId         String?             @map("session_id")
   notes             String?
   createdAt         DateTime            @default(now()) @map("created_at")
   updatedAt         DateTime            @updatedAt @map("updated_at")
   statutRecruitment RecruitmentStatut?  @map("statut_recrutement")
   signingDate       DateTime?           @map("signing_date") @db.Date
-  session           RecruitmentSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessions          CandidateSession[]
   faceToFaceScores  FaceToFaceScore[]
-  scores            Score?
+  scores            Score[]  // ← maintenant tableau (plusieurs scores possibles)
 
-  @@index([sessionId])
   @@index([metier])
   @@index([createdAt])
   @@index([nom])
@@ -177,7 +177,8 @@ model JuryPresence {
 
 model Score {
   id                           Int            @id @default(autoincrement())
-  candidateId                  Int            @unique @map("candidate_id")
+  candidateId                  Int            @map("candidate_id")
+  sessionId                    String         @map("session_id")
   voiceQuality                 Decimal?       @map("voice_quality") @db.Decimal(4, 2)
   verbalCommunication          Decimal?       @map("verbal_communication") @db.Decimal(4, 2)
   presentationVisuelle         Decimal?       @map("presentation_visuelle") @db.Decimal(4, 2)
@@ -208,8 +209,11 @@ model Score {
   updatedAt                    DateTime       @updatedAt @map("updated_at")
   appetenceDigitale            Decimal?       @map("appetence_digitale") @db.Decimal(4, 2)
   candidate                    Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  session                      RecruitmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  @@unique([candidateId, sessionId])
   @@index([candidateId])
+  @@index([sessionId])
   @@index([finalDecision])
   @@index([createdAt])
   @@map("scores")
@@ -219,12 +223,12 @@ model FaceToFaceScore {
   id                           Int         @id @default(autoincrement())
   candidateId                  Int         @map("candidate_id")
   juryMemberId                 Int         @map("jury_member_id")
+  sessionId                    String      @map("session_id")
   phase                        Int
   score                        Decimal?    @db.Decimal(3, 2)
   presentationVisuelle         Decimal?    @map("presentation_visuelle") @db.Decimal(3, 2)
   verbalCommunication          Decimal?    @map("verbal_communication") @db.Decimal(3, 2)
   voiceQuality                 Decimal?    @map("voice_quality") @db.Decimal(3, 2)
-  
   comments                     String?
   evaluatedAt                  DateTime    @default(now()) @map("evaluated_at")
   createdAt                    DateTime    @default(now()) @map("created_at")
@@ -236,10 +240,12 @@ model FaceToFaceScore {
   appetenceDigitale            Decimal?    @map("appetence_digitale") @db.Decimal(3, 2)
   candidate                    Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   juryMember                   JuryMember  @relation(fields: [juryMemberId], references: [id], onDelete: Cascade)
+  session                      RecruitmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  @@unique([candidateId, juryMemberId, phase])
+  @@unique([candidateId, juryMemberId, phase, sessionId])
   @@index([candidateId])
   @@index([juryMemberId])
+  @@index([sessionId])
   @@index([phase])
   @@index([evaluatedAt])
   @@map("face_to_face_scores")
@@ -283,6 +289,22 @@ model AuditLog {
   @@index([entity])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model CandidateSession {
+  id           Int                @id @default(autoincrement())
+  candidateId  Int                @map("candidate_id")
+  sessionId    String             @map("session_id")
+  registeredAt DateTime           @default(now()) @map("registered_at")
+  status       RegistrationStatus @default(REGISTERED)
+
+  candidate Candidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  session   RecruitmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([candidateId, sessionId])
+  @@index([candidateId])
+  @@index([sessionId])
+  @@map("candidate_sessions")
 }
 
 enum AuditAction {
@@ -388,4 +410,11 @@ enum RecruitmentStatut {
 enum AgenceType {
   ABIDJAN
   INTERIEUR
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  PRESENT
+  ABSENT
+  CANCELLED
 }
