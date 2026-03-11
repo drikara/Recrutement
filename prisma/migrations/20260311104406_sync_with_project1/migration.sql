@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "Metier" ADD VALUE 'RECOUVREMENT';
