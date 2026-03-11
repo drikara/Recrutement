@@ -12,17 +12,17 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
   
   trustedOrigins: [
-    "https://recrutementest.vercel.app",
-    "https://recrutementest-*.vercel.app", // ✅ Correction du wildcard
+    "https://recrutementstest.vercel.app",
+    "https://recrutementest-*.vercel.app", 
     "http://localhost:3000",
     "http://127.0.0.1:3000",
   ],
   
-  // ✅ DÉSACTIVER LE RATE LIMITING EN DÉVELOPPEMENT
+ 
   rateLimit: {
     enabled: process.env.NODE_ENV === "production",
-    window: 60, // 60 secondes
-    max: 10, // 10 requêtes max
+    window: 60, 
+    max: 10, 
   },
   
   emailAndPassword: {
@@ -55,18 +55,18 @@ export const auth = betterAuth({
   },
   
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 24 hours
+    expiresIn: 60 * 60 * 24 * 7, 
+    updateAge: 60 * 60 * 24, 
     cookieCache: {
       enabled: true,
-      maxAge: 60 * 60, // 1 hour
+      maxAge: 60 * 60, 
     },
   },
   
   advanced: {
     cookiePrefix: "better-auth",
     crossSubDomainCookies: {
-      enabled: false, // ✅ Désactiver en dev local
+      enabled: false, 
     },
     useSecureCookies: process.env.NODE_ENV === "production",
     generateSchema: false,
